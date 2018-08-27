@@ -30,3 +30,7 @@
 *.exe
 *.out
 *.app
+
+# TrueStudio Junk
+firmware.elf.launch
+*.s
