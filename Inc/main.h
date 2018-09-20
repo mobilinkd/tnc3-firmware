@@ -73,8 +73,8 @@
 #define SW_POWER_EXTI_IRQn EXTI1_IRQn
 #define AUDIO_IN_Pin GPIO_PIN_0
 #define AUDIO_IN_GPIO_Port GPIOA
-#define BT_WAKEA1_Pin GPIO_PIN_1
-#define BT_WAKEA1_GPIO_Port GPIOA
+#define BT_SLEEP_Pin GPIO_PIN_1
+#define BT_SLEEP_GPIO_Port GPIOA
 #define AUDIO_IN_AMP_Pin GPIO_PIN_3
 #define AUDIO_IN_AMP_GPIO_Port GPIOA
 #define DAC_AUDIO_OUT_Pin GPIO_PIN_4
@@ -131,6 +131,7 @@
 #define CMD_BOOT_BUTTON_UP 6
 #define CMD_BT_CONNECT 7
 #define CMD_BT_DISCONNECT 8
+#define CMD_BT_CONNECT 7
 #define CMD_SET_PTT_SIMPLEX 9
 #define CMD_SET_PTT_MULTIPLEX 10
 #define CMD_SHUTDOWN 11
@@ -139,6 +140,22 @@
 #define CMD_USB_DISCOVERY_COMPLETE 14
 #define CMD_USB_DISCOVERY_ERROR 15
 #define CMD_USB_DISCONNECTED 16
+
+#define CMD_BT_DEEP_SLEEP 17    // disconnected
+#define CMD_BT_ACCESS 18        // disconnected
+
+#define CMD_BT_TX 19            // connected
+#define CMD_BT_IDLE 20          // connected
+
+#define CMD_RUN 21
+#define CMD_LPRUN 22
+#define CMD_SLEEP 23
+#define CMD_STOP 24
+
+extern int reset_requested;
+extern char serial_number[25];
+
+#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 
 /* USER CODE END Private defines */
 
@@ -149,6 +166,7 @@ void _Error_Handler(char *, int);
 
 #define Error_Handler() _Error_Handler(__FILE__, __LINE__)
 #ifdef __cplusplus
+
 }
 #endif
 
