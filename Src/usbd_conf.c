@@ -55,6 +55,8 @@
 #include "usbd_cdc.h"
 
 /* USER CODE BEGIN Includes */
+#include "cmsis_os.h"
+#include "Log.h"
 
 /* USER CODE END Includes */
 
@@ -64,6 +66,7 @@
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+extern osMessageQId ioEventQueueHandle;
 
 /* USER CODE END PV */
 
@@ -103,6 +106,19 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef* pcdHandle)
   {
   /* USER CODE BEGIN USB_MspInit 0 */
 
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    /**USB GPIO Configuration
+    PA11     ------> USB_DM
+    PA12     ------> USB_DP
+    */
+    GPIO_InitStruct.Pin = GPIO_PIN_11|GPIO_PIN_12;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+    GPIO_InitStruct.Alternate = GPIO_AF10_USB_FS;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /* USER CODE END USB_MspInit 0 */
     /* Peripheral clock enable */
     __HAL_RCC_USB_CLK_ENABLE();
@@ -121,6 +137,12 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
   if(pcdHandle->Instance==USB)
   {
   /* USER CODE BEGIN USB_MspDeInit 0 */
+    /**USB GPIO Configuration
+    PA11     ------> USB_DM
+    PA12     ------> USB_DP
+    */
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
+
 
   /* USER CODE END USB_MspDeInit 0 */
     /* Peripheral clock disable */
@@ -130,7 +152,7 @@ void HAL_PCD_MspDeInit(PCD_HandleTypeDef* pcdHandle)
     HAL_NVIC_DisableIRQ(USB_IRQn);
 
   /* USER CODE BEGIN USB_MspDeInit 1 */
-
+    HAL_PWREx_DisableVddUSB();
   /* USER CODE END USB_MspDeInit 1 */
   }
 }
@@ -310,7 +332,7 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   hpcd_USB_FS.Init.phy_itface = PCD_PHY_EMBEDDED;
   hpcd_USB_FS.Init.Sof_enable = DISABLE;
   hpcd_USB_FS.Init.low_power_enable = DISABLE;
-  hpcd_USB_FS.Init.lpm_enable = ENABLE;
+  hpcd_USB_FS.Init.lpm_enable = DISABLE;
   hpcd_USB_FS.Init.battery_charging_enable = ENABLE;
   if (HAL_PCD_Init(&hpcd_USB_FS) != HAL_OK)
   {
@@ -638,6 +660,13 @@ USBD_StatusTypeDef USBD_LL_SetUSBAddress(USBD_HandleTypeDef *pdev, uint8_t dev_a
       usb_status = USBD_FAIL;
     break;
   }
+
+  /* USER CODE BEGIN USBD_LL_SetUSBAddress 1 */
+  // We can now draw 500mA from the port.
+  DEBUG("USB address assigned");
+  osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
+  /* USER CODE END USBD_LL_SetUSBAddress 1 */
+
   return usb_status;  
 }
 
