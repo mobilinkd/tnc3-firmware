@@ -13,7 +13,7 @@
 #include <cstring>
 #include <atomic>
 
-extern UART_HandleTypeDef hlpuart1;
+extern UART_HandleTypeDef huart3;
 extern osMessageQId ioEventQueueHandle;
 
 uint8_t rxBuffer;
@@ -58,13 +58,13 @@ extern "C" void startSerialTask(void const* arg)
 
     hdlc::IoFrame* frame = hdlc::ioFramePool().acquire();
 
-    HAL_UART_Receive_IT(&hlpuart1, &rxBuffer, 1);
+    HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
 
     while (true) {
         osEvent evt = osMessageGet(serialPort->queue(), osWaitForever);
 
         if (evt.status != osEventMessage) {
-            HAL_UART_Receive_IT(&hlpuart1, &rxBuffer, 1);
+            HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
             continue;
         }
 
@@ -73,7 +73,7 @@ extern "C" void startSerialTask(void const* arg)
             ERROR("UART Error: %08lx", evt.value.v);
             uart_error.store(HAL_UART_ERROR_NONE);
             frame = hdlc::ioFramePool().acquire();
-            HAL_UART_Receive_IT(&hlpuart1, &rxBuffer, 1);
+            HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
             continue;
         }
 
@@ -144,7 +144,7 @@ extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *)
 {
     osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), (uint32_t) rxBuffer, 0);
 
-    HAL_UART_Receive_IT(&hlpuart1, &rxBuffer, 1);
+    HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
 }
 
 
@@ -172,13 +172,16 @@ void SerialPort::init()
     osThreadDef(serialTask, startSerialTask, osPriorityAboveNormal, 0, 128);
     serialTaskHandle_ = osThreadCreate(osThread(serialTask), this);
     DEBUG("serialTaskHandle_ = %p", serialTaskHandle_);
+
+    __HAL_UART_DISABLE(&huart3);
 }
 
 bool SerialPort::open()
 {
     if (open_ or !serialTaskHandle_) return open_;
 
-    __HAL_UART_ENABLE(&hlpuart1);
+    HAL_UART_Init(&huart3);
+    __HAL_UART_ENABLE(&huart3);
 
     open_ = true;
     return open_;
@@ -186,7 +189,7 @@ bool SerialPort::open()
 
 void SerialPort::close()
 {
-    __HAL_UART_DISABLE(&hlpuart1);
+    __HAL_UART_DISABLE(&huart3);
     open_ = false;
 }
 
@@ -218,7 +221,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
             memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
             txDoneFlag = false;
 
-            while (open_ and HAL_UART_Transmit_DMA(&hlpuart1, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
+            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
             {
                 if (osKernelSysTick() > start + timeout) {
                     osMutexRelease(mutex_);
@@ -237,7 +240,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
     while (!txDoneFlag) osThreadYield();
     memcpy(TxBuffer, tmpBuffer, pos);
     txDoneFlag = false;
-    while (open_ and HAL_UART_Transmit_DMA(&hlpuart1, TxBuffer, pos) == HAL_BUSY)
+    while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, pos) == HAL_BUSY)
     {
         if (osKernelSysTick() > start + timeout) {
             osMutexRelease(mutex_);
@@ -270,7 +273,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
     while (first != last) {
         TxBuffer[pos++] = *first++;
         if (pos == TX_BUFFER_SIZE) {
-            while (open_ and HAL_UART_Transmit(&hlpuart1, TxBuffer, TX_BUFFER_SIZE, timeout) == HAL_BUSY)
+            while (open_ and HAL_UART_Transmit(&huart3, TxBuffer, TX_BUFFER_SIZE, timeout) == HAL_BUSY)
             {
                 if (osKernelSysTick() > start + timeout) {
                     osMutexRelease(mutex_);
@@ -283,7 +286,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
         }
     }
 
-    while (open_ and HAL_UART_Transmit(&hlpuart1, TxBuffer, TX_BUFFER_SIZE, timeout) == HAL_BUSY)
+    while (open_ and HAL_UART_Transmit(&huart3, TxBuffer, TX_BUFFER_SIZE, timeout) == HAL_BUSY)
     {
         if (osKernelSysTick() > start + timeout) {
             osMutexRelease(mutex_);
@@ -292,7 +295,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
         osThreadYield();
     }
 
-    while (open_ and HAL_UART_Transmit(&hlpuart1, (uint8_t*)"\r\n", 2, timeout) == HAL_BUSY)
+    while (open_ and HAL_UART_Transmit(&huart3, (uint8_t*)"\r\n", 2, timeout) == HAL_BUSY)
     {
         if (osKernelSysTick() > start + timeout) {
             osMutexRelease(mutex_);
@@ -344,7 +347,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
             while (!txDoneFlag) osThreadYield();
             memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
             txDoneFlag = false;
-            while (open_ and HAL_UART_Transmit_DMA(&hlpuart1, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
+            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
             {
                 if (osKernelSysTick() > start + timeout) {
                     txDoneFlag = true;
@@ -365,7 +368,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     while (!txDoneFlag) osThreadYield();
     memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
     txDoneFlag = false;
-    while (open_ and HAL_UART_Transmit_DMA(&hlpuart1, TxBuffer, pos) == HAL_BUSY) {
+    while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, pos) == HAL_BUSY) {
         if (osKernelSysTick() > start + timeout) {
             txDoneFlag = true;
             osMutexRelease(mutex_);
