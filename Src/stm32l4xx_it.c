@@ -38,6 +38,9 @@
 
 /* USER CODE BEGIN 0 */
 
+#include "main.h"
+extern osMessageQId ioEventQueueHandle;
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -182,6 +185,12 @@ void SysTick_Handler(void)
 void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
+  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
+  {
+    osMessagePut(ioEventQueueHandle, CMD_USB_CONNECTED, 0);
+  } else {
+    osMessagePut(ioEventQueueHandle, CMD_USB_DISCONNECTED, 0);
+  }
 
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
@@ -196,7 +205,12 @@ void EXTI0_IRQHandler(void)
 void EXTI1_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI1_IRQn 0 */
-
+  if (HAL_GPIO_ReadPin(SW_POWER_GPIO_Port, SW_POWER_Pin) == GPIO_PIN_RESET)
+  {
+    osMessagePut(ioEventQueueHandle, CMD_POWER_BUTTON_UP, 0);
+  } else {
+    osMessagePut(ioEventQueueHandle, CMD_POWER_BUTTON_DOWN, 0);
+  }
   /* USER CODE END EXTI1_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_1);
   /* USER CODE BEGIN EXTI1_IRQn 1 */
@@ -210,6 +224,12 @@ void EXTI1_IRQHandler(void)
 void EXTI3_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI3_IRQn 0 */
+  if (HAL_GPIO_ReadPin(SW_BOOT_GPIO_Port, SW_BOOT_Pin) == GPIO_PIN_RESET)
+  {
+    osMessagePut(ioEventQueueHandle, CMD_BOOT_BUTTON_UP, 0);
+  } else {
+    osMessagePut(ioEventQueueHandle, CMD_BOOT_BUTTON_DOWN, 0);
+  }
 
   /* USER CODE END EXTI3_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
@@ -224,7 +244,12 @@ void EXTI3_IRQHandler(void)
 void EXTI4_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI4_IRQn 0 */
-
+    if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
+    {
+      osMessagePut(ioEventQueueHandle, CMD_BT_CONNECT, 0);
+    } else {
+      osMessagePut(ioEventQueueHandle, CMD_BT_DISCONNECT, 0);
+    }
   /* USER CODE END EXTI4_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_4);
   /* USER CODE BEGIN EXTI4_IRQn 1 */
@@ -308,7 +333,17 @@ void DMA1_Channel7_IRQHandler(void)
 void EXTI9_5_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
+    GPIO_PinState state2 = HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin);
+    GPIO_PinState state1 = HAL_GPIO_ReadPin(BT_STATE1_GPIO_Port, BT_STATE1_Pin);
 
+    if (state2 == GPIO_PIN_SET)
+    {
+      int state = (state1 == GPIO_PIN_SET ? CMD_BT_DEEP_SLEEP : CMD_BT_ACCESS);
+      osMessagePut(ioEventQueueHandle, state, 0);
+    } else {
+      int state = (state1 == GPIO_PIN_SET ? CMD_BT_TX : CMD_BT_IDLE);
+      osMessagePut(ioEventQueueHandle, state, 0);
+    }
   /* USER CODE END EXTI9_5_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_5);
   /* USER CODE BEGIN EXTI9_5_IRQn 1 */
