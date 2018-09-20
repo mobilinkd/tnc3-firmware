@@ -53,6 +53,11 @@
 #include "usb_device.h"
 
 /* USER CODE BEGIN Includes */
+#include "usbd_core.h"
+#include "IOEventTask.h"
+#include "PortInterface.h"
+#include "LEDIndicator.h"
+#include "bm78.h"
 
 /* USER CODE END Includes */
 
@@ -136,6 +141,9 @@ osStaticTimerDef_t beaconTimer4ControlBlock;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 
+int reset_requested = 0;
+char serial_number[25];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -161,12 +169,149 @@ extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 extern void beacon(void const * argument);
 
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
+
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
+void stop2(void) __attribute__((noinline));
+void configure_gpio_for_stop(void) __attribute__((noinline));
+void power_down_vdd(void);
+void configure_wakeup_gpio(void);
+void enable_debug_gpio(void);
 
 /* USER CODE END PFP */
 
 /* USER CODE BEGIN 0 */
+
+extern PCD_HandleTypeDef hpcd_USB_FS;
+
+
+void configure_gpio_for_stop()
+{
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    __HAL_RCC_GPIOH_CLK_ENABLE();
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    HAL_NVIC_DisableIRQ(EXTI3_IRQn);
+
+    // BT_STATE1
+    HAL_GPIO_DeInit(BT_STATE1_GPIO_Port, BT_STATE1_Pin);
+    HAL_NVIC_DisableIRQ(BT_STATE1_EXTI_IRQn);
+    HAL_NVIC_ClearPendingIRQ(BT_STATE1_EXTI_IRQn);
+
+    // BT_STATE2
+    HAL_GPIO_DeInit(BT_STATE2_GPIO_Port, BT_STATE2_Pin);
+    HAL_NVIC_DisableIRQ(BT_STATE2_EXTI_IRQn);
+    HAL_NVIC_ClearPendingIRQ(BT_STATE2_EXTI_IRQn);
+
+    // SW_BOOT
+    HAL_GPIO_DeInit(SW_BOOT_GPIO_Port, SW_BOOT_Pin);
+    HAL_NVIC_DisableIRQ(SW_BOOT_EXTI_IRQn);
+    HAL_NVIC_ClearPendingIRQ(SW_BOOT_EXTI_IRQn);
+
+    // LEDs
+    HAL_GPIO_DeInit(GPIOA, LED_BT_Pin|LED_TX_Pin|LED_RX_Pin);
+
+    // I2C
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_8|GPIO_PIN_9);
+
+    // USB
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_11|GPIO_PIN_12);
+
+    // UART
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_1|GPIO_PIN_10|GPIO_PIN_11);
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_6);
+
+    // Battery level circuit.
+    HAL_GPIO_DeInit(BAT_LEVEL_GPIO_Port, BAT_LEVEL_Pin);
+    HAL_GPIO_DeInit(BAT_DIVIDER_GPIO_Port, BAT_DIVIDER_Pin);
+
+    if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_RESET)
+    {
+        HAL_GPIO_WritePin(GPIOB, USB_CE_Pin, GPIO_PIN_SET);
+        // Pull-down required for these.
+        GPIO_InitStruct.Pin = USB_CE_Pin;
+        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+        GPIO_InitStruct.Pull = GPIO_PULLUP;
+        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+    }
+
+
+    // Bluetooth module
+    HAL_GPIO_DeInit(GPIOC, BT_WAKE_Pin);
+    HAL_GPIO_DeInit(GPIOB, BT_RESET_Pin|BT_CMD_Pin);
+    HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_RESET);
+    HAL_Delay(250);
+
+    // Analog pins
+    HAL_GPIO_DeInit(GPIOA, AUDIO_IN_Pin|AUDIO_IN_AMP_Pin|DAC_AUDIO_OUT_Pin|DC_OFFSET_Pin);
+    HAL_GPIO_DeInit(GPIOB, AUDIO_ATTEN_Pin);
+
+    // PTT pins
+    HAL_GPIO_DeInit(GPIOB, PTT_A_Pin|PTT_B_Pin);
+}
+
+void power_down_vdd()
+{
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_RESET);
+    for (int i = 0; i < 4800; ++i) asm volatile("nop");
+}
+
+void configure_wakeup_gpio()
+{
+    if (!__HAL_RCC_GPIOH_IS_CLK_ENABLED()) Error_Handler();
+
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    // Reset wakeup pins
+    HAL_NVIC_DisableIRQ(EXTI0_IRQn);
+    HAL_NVIC_DisableIRQ(EXTI1_IRQn);
+    HAL_GPIO_DeInit(GPIOH, USB_POWER_Pin|SW_POWER_Pin);
+
+    // Wake up whenever there is a change in VUSB to handle connect and
+    // disconnect events.
+    GPIO_InitStruct.Pin = USB_POWER_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING_FALLING;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;   // Pulled down on PCB.
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
+    // Only wake up after the button has been released.  This avoids the case
+    // where the TNC is woken up on button down and then immediately put back
+    // to sleep when the BUTTON_UP interrupt is received.
+    GPIO_InitStruct.Pin = SW_POWER_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_EVT_FALLING;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+}
+
+void enable_debug_gpio()
+{
+    if (!__HAL_RCC_GPIOA_IS_CLK_ENABLED()) Error_Handler();
+    if (!__HAL_RCC_GPIOB_IS_CLK_ENABLED()) Error_Handler();
+
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    // DEBUG PINS
+    GPIO_InitStruct.Pin = GPIO_PIN_13|GPIO_PIN_14;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Alternate = GPIO_AF0_SWJ;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    // USART CTS is connected to a device on VDD
+    GPIO_InitStruct.Pin = GPIO_PIN_3;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Alternate = GPIO_AF0_TRACE;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+    HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+}
 
 /* USER CODE END 0 */
 
@@ -194,6 +339,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+  printf("start\r\n");
 
   /* USER CODE END SysInit */
 
@@ -210,6 +356,45 @@ int main(void)
   MX_TIM7_Init();
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
+
+  GPIO_InitTypeDef GPIO_InitStructure;
+
+  GPIO_InitStructure.Pin = BT_CMD_Pin;
+  GPIO_InitStructure.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStructure.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
+
+  if (HAL_GPIO_ReadPin(BT_CMD_GPIO_Port, BT_CMD_Pin) == GPIO_PIN_RESET) {
+      // Special test mode for programming the Bluetooth module.  The TNC
+      // has the BT_CMD pin actively being pulled low.  In this case we
+      // power on the BT module with BT_CMD held low and wait here without
+      // initializing the UART.  We only exit via reset.
+      HAL_UART_MspDeInit(&huart3);
+
+      HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
+      HAL_Delay(10);
+      HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
+      HAL_Delay(200);
+
+      printf("Bluetooth programming mode\r\n");
+
+      while (1);
+  }
+
+  HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_SET);
+  GPIO_InitStructure.Pin = BT_CMD_Pin;
+  GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStructure.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
+
+  // HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_RESET);
+  MX_TIM1_Init();
+  SCB->SHCSR |= 0x70000; // Enable fault handlers;
+  indicate_turning_on();
+  HAL_Delay(200);
+
+  uint32_t* uid = (uint32_t*) UID_BASE;
+  snprintf(serial_number, sizeof(serial_number), "%08lx%08lx%08lx", uid[0], uid[1], uid[2]);
 
   /* USER CODE END 2 */
 
@@ -302,6 +487,55 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
+  /* USER CODE BEGIN RTOS_QUEUES */
+
+  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
+  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_SelfCalibrate(&hopamp1) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
+  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+
+//  if (!bm78_initialized()) bm78_initialize();
+  bm78_initialize();
+
+  init_ioport();
+  initCDC();
+  initSerial();
+
+  // Initialize option bytes.
+  FLASH_OBProgramInitTypeDef obInit = {0};
+  HAL_FLASHEx_OBGetConfig(&obInit);
+
+  if ((obInit.OptionType & OPTIONBYTE_USER) == RESET) {
+    printf("FAIL: option byte init\r\n");
+    Error_Handler();
+  }
+
+#if 1
+  // Do not erase SRAM2 during reset.
+  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_RST) == RESET) {
+    obInit.OptionType = OPTIONBYTE_USER;
+    obInit.USERType = OB_USER_SRAM2_RST;
+    obInit.USERConfig = FLASH_OPTR_SRAM2_RST;
+    HAL_FLASH_OB_Unlock();
+    HAL_FLASHEx_OBProgram(&obInit);
+    HAL_FLASH_OB_Lock();
+    HAL_FLASH_OB_Launch();
+  }
+#endif
+
+#if 1
+  // Enable hardware parity check on SRAM2
+  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_PE) == RESET) {
+    obInit.OptionType = OPTIONBYTE_USER;
+    obInit.USERType = OB_USER_SRAM2_PE;
+    obInit.USERConfig = FLASH_OPTR_SRAM2_PE;
+    HAL_FLASH_OB_Unlock();
+    HAL_FLASHEx_OBProgram(&obInit);
+    HAL_FLASH_OB_Lock();
+    HAL_FLASH_OB_Launch();
+  }
+#endif
   /* USER CODE END RTOS_QUEUES */
  
 
@@ -340,21 +574,21 @@ void SystemClock_Config(void)
     */
   HAL_PWR_EnableBkUpAccess();
 
-  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_LOW);
+  __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMLOW);
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE
                               |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+  RCC_OscInitStruct.LSIState = RCC_LSI_OFF;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
   RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 40;
+  RCC_OscInitStruct.PLL.PLLN = 24;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
@@ -372,7 +606,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -388,10 +622,10 @@ void SystemClock_Config(void)
   PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
   PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
   PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
-  PeriphClkInit.PLLSAI1.PLLSAI1N = 48;
+  PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
   PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
-  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV4;
-  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
+  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV2;
+  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV2;
   PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
@@ -473,9 +707,9 @@ static void MX_ADC1_Init(void)
 
     /**Configure Regular Channel 
     */
-  sConfig.Channel = ADC_CHANNEL_15;
+  sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_2CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_6CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -548,7 +782,7 @@ static void MX_I2C1_Init(void)
 {
 
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00300F33;
+  hi2c1.Init.Timing = 0x20000209;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -696,11 +930,13 @@ static void MX_TIM1_Init(void)
 
   TIM_ClockConfigTypeDef sClockSourceConfig;
   TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_OC_InitTypeDef sConfigOC;
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
 
   htim1.Instance = TIM1;
-  htim1.Init.Prescaler = 0;
+  htim1.Init.Prescaler = 48;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim1.Init.Period = 0;
+  htim1.Init.Period = 9999;
   htim1.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim1.Init.RepetitionCounter = 0;
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -715,6 +951,11 @@ static void MX_TIM1_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+  if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
@@ -722,6 +963,46 @@ static void MX_TIM1_Init(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 0;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
+  sConfigOC.OCNPolarity = TIM_OCNPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  sConfigOC.OCIdleState = TIM_OCIDLESTATE_SET;
+  sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
+  sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
+  sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
+  sBreakDeadTimeConfig.DeadTime = 0;
+  sBreakDeadTimeConfig.BreakState = TIM_BREAK_DISABLE;
+  sBreakDeadTimeConfig.BreakPolarity = TIM_BREAKPOLARITY_HIGH;
+  sBreakDeadTimeConfig.BreakFilter = 0;
+  sBreakDeadTimeConfig.Break2State = TIM_BREAK2_DISABLE;
+  sBreakDeadTimeConfig.Break2Polarity = TIM_BREAK2POLARITY_HIGH;
+  sBreakDeadTimeConfig.Break2Filter = 0;
+  sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
+  if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim1);
 
 }
 
@@ -734,7 +1015,7 @@ static void MX_TIM6_Init(void)
   htim6.Instance = TIM6;
   htim6.Init.Prescaler = 0;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 3029;
+  htim6.Init.Period = 1817;
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
@@ -759,7 +1040,7 @@ static void MX_TIM7_Init(void)
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 0;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim7.Init.Period = 3029;
+  htim7.Init.Period = 1817;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
@@ -836,9 +1117,6 @@ static void MX_DMA_Init(void)
         * Free pins are configured automatically as Analog (this feature is enabled through 
         * the Code Generation settings)
      PA2   ------> RCC_LSCO
-     PA8   ------> SharedStack_PA8
-     PA9   ------> SharedStack_PA9
-     PA10   ------> SharedStack_PA10
 */
 static void MX_GPIO_Init(void)
 {
@@ -855,10 +1133,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(BT_WAKE_GPIO_Port, BT_WAKE_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(BT_WAKEA1_GPIO_Port, BT_WAKEA1_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, BAT_DIVIDER_Pin|LED_BT_Pin|LED_RX_Pin|LED_TX_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, BT_SLEEP_Pin|BAT_DIVIDER_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, AUDIO_ATTEN_Pin|VDD_EN_Pin|BT_CMD_Pin|BT_RESET_Pin, GPIO_PIN_SET);
@@ -868,23 +1143,23 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin : BT_WAKE_Pin */
   GPIO_InitStruct.Pin = BT_WAKE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BT_WAKE_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : USB_POWER_Pin SW_POWER_Pin SW_BOOT_Pin */
   GPIO_InitStruct.Pin = USB_POWER_Pin|SW_POWER_Pin|SW_BOOT_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BT_WAKEA1_Pin */
-  GPIO_InitStruct.Pin = BT_WAKEA1_Pin;
+  /*Configure GPIO pin : BT_SLEEP_Pin */
+  GPIO_InitStruct.Pin = BT_SLEEP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(BT_WAKEA1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(BT_SLEEP_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : PA2 PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_2|GPIO_PIN_15;
@@ -892,12 +1167,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BAT_DIVIDER_Pin LED_BT_Pin LED_RX_Pin LED_TX_Pin */
-  GPIO_InitStruct.Pin = BAT_DIVIDER_Pin|LED_BT_Pin|LED_RX_Pin|LED_TX_Pin;
+  /*Configure GPIO pin : BAT_DIVIDER_Pin */
+  GPIO_InitStruct.Pin = BAT_DIVIDER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(BAT_DIVIDER_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : AUDIO_ATTEN_Pin BT_RESET_Pin */
   GPIO_InitStruct.Pin = AUDIO_ATTEN_Pin|BT_RESET_Pin;
@@ -931,15 +1206,115 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
+
+void stop2()
+{
+  osThreadSuspendAll();
+
+  GPIO_PinState usb = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
+
+  HAL_OPAMP_DeInit(&hopamp1);
+  HAL_TIM_PWM_DeInit(&htim1);
+  HAL_I2C_DeInit(&hi2c1);
+  HAL_ADC_DeInit(&hadc1);
+  HAL_DAC_DeInit(&hdac1);
+  HAL_UART_DeInit(&huart3);
+
+  HAL_PWR_DisablePVD();
+  HAL_PWREx_DisableVddUSB();
+  HAL_ADCEx_EnterADCDeepPowerDownMode(&hadc1);
+  configure_gpio_for_stop();
+  power_down_vdd();
+
+  HAL_RCCEx_DisableLSCO();
+
+  configure_wakeup_gpio();
+
+  __asm volatile ( "cpsid i" );
+  __asm volatile ( "dsb" );
+  __asm volatile ( "isb" );
+
+  HAL_PWREx_DisableLowPowerRunMode();
+  HAL_DBGMCU_DisableDBGStopMode();
+  HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFE);
+
+  uint16_t wakeup_pin = SW_POWER_Pin;
+
+  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) != usb)
+  {
+      wakeup_pin = USB_POWER_Pin;
+  }
+
+  HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
+  HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
+  HAL_NVIC_ClearPendingIRQ(EXTI3_IRQn);
+  HAL_NVIC_ClearPendingIRQ(EXTI4_IRQn);
+  HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
+
+  __asm volatile ( "cpsie i" );
+  __asm volatile ( "dsb" );
+  __asm volatile ( "isb" );
+
+  MX_GPIO_Init();
+
+  // Let power stabilize.
+  for (int i = 0; i < 4800; ++i) asm volatile("nop");
+
+  SystemClock_Config();
+
+  if (HAL_CRC_Init(&hcrc) != HAL_OK) Error_Handler();
+  // Need to re-init and calibrate after deep power down.
+  if (HAL_ADC_Init(&hadc1) != HAL_OK) Error_Handler();
+  if (HAL_DAC_Init(&hdac1) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_Init(&hopamp1) != HAL_OK) Error_Handler();
+
+  if (HAL_UART_Init(&huart3) != HAL_OK) Error_Handler();
+  __HAL_UART_DISABLE(&huart3);
+
+  HAL_TIM_Base_Init(&htim1);
+  HAL_TIM_MspPostInit(&htim1);
+  HAL_TIM_Base_Init(&htim7);
+  HAL_TIM_Base_Init(&htim6);
+
+  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
+  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
+  HAL_PWR_EnablePVD();
+
+  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
+  {
+      HAL_PCD_Init(&hpcd_USB_FS);
+  }
+
+  osThreadResumeAll();
+}
+
+#if 1
+long _write_r(struct _reent *r, int fd, const char *ptr, int len);
+
+long _write_r(struct _reent *r, int fd, const char *ptr, int len)
+{
+  UNUSED(r);
+  UNUSED(fd);
+  for (int i = 0; i != len; ++i)
+    ITM_SendChar(ptr[i]);
+  return len;
+}
+
+int _write(int file, char *ptr, int len);
+
+int _write(int file, char *ptr, int len) {
+    UNUSED(file);
+    for (int i = 0; i != len; ++i)
+      ITM_SendChar(ptr[i]);
+    return len;
+
+}
+#endif
 
 /* USER CODE END 4 */
 
@@ -950,10 +1325,21 @@ void StartDefaultTask(void const * argument)
   MX_USB_DEVICE_Init();
 
   /* USER CODE BEGIN 5 */
-  /* Infinite loop */
+  printf("startDefaultTask\r\n");
+  UNUSED(argument);
+
+  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
+  {
+    printf("VBUS detected\r\n");
+    HAL_PCD_MspInit(&hpcd_USB_FS);
+    HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
+  } else {
+    printf("VBUS not detected\r\n");
+  }
+/* Infinite loop */
   for(;;)
   {
-    osDelay(1);
+    osDelay(osWaitForever);
   }
   /* USER CODE END 5 */ 
 }
@@ -975,6 +1361,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
+  if (htim->Instance == TIM1) {
+      HTIM1_PeriodElapsedCallback();
+  }
 
   /* USER CODE END Callback 1 */
 }
@@ -989,6 +1378,7 @@ void _Error_Handler(char *file, int line)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+  printf("Error handler called from file %s on line %d\r\n", file, line);
   while(1)
   {
   }
