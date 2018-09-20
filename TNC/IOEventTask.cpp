@@ -25,218 +25,325 @@
 
 extern osMessageQId hdlcOutputQueueHandle;
 extern PCD_HandleTypeDef hpcd_USB_FS;
+extern UART_HandleTypeDef huart3;
 
+extern "C" void stop2(void);
 extern "C" void shutdown(void);
-extern "C" void TNC_Error_Handler(int dev, int err);
+extern "C" void startLedBlinkerTask(void const*);
 
 void startIOEventTask(void const*)
 {
-  mobilinkd::tnc::print_startup_banner();
+    indicate_on();
 
-  auto& hardware = mobilinkd::tnc::kiss::settings();
-  if (reset_requested) hardware.init();
-  else {} // hardware.load();
-  hardware.debug();
-  strcpy((char*)hardware.mycall, "WX9O");
-  hardware.update_crc();
-  mobilinkd::tnc::audio::setAudioOutputLevel();
-  mobilinkd::tnc::audio::setAudioInputLevels();
+    mobilinkd::tnc::print_startup_banner();
 
-  if (reset_requested) HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_SET);
+    auto& hardware = mobilinkd::tnc::kiss::settings();
 
-  osDelay(100);
-  HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
-  osDelay(100);
-
-  if (reset_requested) {
-      HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_RESET);
-  }
-
-  indicate_on();
-
-  if (HAL_GPIO_ReadPin(BT_STATE_GPIO_Port, BT_STATE_Pin) == GPIO_PIN_SET)
-  {
-    DEBUG("BT Connected at start");
-    openSerial();
-    INFO("BT Opened");
-    indicate_connected_via_ble();
-  } else {
-    indicate_waiting_to_connect();
-  }
-
-  /* Infinite loop */
-  for(;;)
-  {
-    osEvent evt = osMessageGet(ioEventQueueHandle, osWaitForever);
-    if (evt.status != osEventMessage) continue;
-
-    uint32_t cmd = evt.value.v;
-    if (cmd < FLASH_BASE) // Assumes FLASH_BASE < SRAM_BASE.
+    if (! hardware.load() or reset_requested or !hardware.crc_ok())
     {
-      switch (cmd) {
-      case CMD_USB_CDC_CONNECT:
-        if (openCDC()) {
-          // Disable Bluetooth Module
-          HAL_NVIC_DisableIRQ(EXTI1_IRQn);
-          HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
+        if (reset_requested) INFO("Hardware reset requested.");
 
-          INFO("CDC Opened");
-          indicate_connected_via_usb();
-          osMessagePut(audioInputQueueHandle,
-            mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
-        }
-        break;
-      case CMD_USB_DISCONNECTED:
-        INFO("VBUS Lost");
-        HAL_PCD_MspDeInit(&hpcd_USB_FS);
-        HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
-        if (mobilinkd::tnc::ioport != mobilinkd::tnc::getUsbPort())
-          break;
-        // fall-through
-      case CMD_USB_CDC_DISCONNECT:
-        closeCDC();
-        // Enable Bluetooth Module
-        HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
-        osDelay(1000);
-        HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+        hardware.init();
+        hardware.store();
+    }
+    hardware.debug();
 
-        INFO("CDC Closed");
-        indicate_waiting_to_connect();
-        osMessagePut(audioInputQueueHandle,
-          mobilinkd::tnc::audio::IDLE, osWaitForever);
-        break;
-      case CMD_POWER_BUTTON_DOWN:
-        INFO("Power Down");
-        osMessagePut(audioInputQueueHandle,
-          mobilinkd::tnc::audio::IDLE, osWaitForever);
-        break;
-      case CMD_POWER_BUTTON_UP:
-        DEBUG("Power Up");
-        shutdown();
-        break;
-      case CMD_BOOT_BUTTON_DOWN:
-        DEBUG("BOOT Down");
-        break;
-      case CMD_BOOT_BUTTON_UP:
-        DEBUG("BOOT Up");
-        osMessagePut(audioInputQueueHandle,
-          mobilinkd::tnc::audio::AUTO_ADJUST_INPUT_LEVEL, osWaitForever);
-        if (mobilinkd::tnc::ioport != mobilinkd::tnc::getNullPort()) {
-          osMessagePut(audioInputQueueHandle,
-            mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
-        } else {
-          osMessagePut(audioInputQueueHandle,
-            mobilinkd::tnc::audio::IDLE, osWaitForever);
-        }
-        break;
-      case CMD_BT_CONNECT:
-        DEBUG("BT Connect");
-        if (openSerial()) {
-          osMessagePut(audioInputQueueHandle,
-            mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
-          INFO("BT Opened");
-          indicate_connected_via_ble();
-          HAL_PCD_EP_SetStall(&hpcd_USB_FS, CDC_CMD_EP);
-        }
-        break;
-      case CMD_BT_DISCONNECT:
-        INFO("BT Disconnect");
-        closeSerial();
-        indicate_waiting_to_connect();
-        HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
-        osMessagePut(audioInputQueueHandle,
-          mobilinkd::tnc::audio::IDLE, osWaitForever);
-        INFO("BT Closed");
-        break;
-      case CMD_SET_PTT_SIMPLEX:
-        getModulator().set_ptt(&simplexPtt);
-        break;
-      case CMD_SET_PTT_MULTIPLEX:
-        getModulator().set_ptt(&multiplexPtt);
-        break;
-      case CMD_SHUTDOWN:
-        shutdown();
-        break;
-      case CMD_USB_CONNECTED:
-        INFO("VBUS Detected");
-        HAL_PCD_MspInit(&hpcd_USB_FS);
-        HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
-        break;
-      case CMD_USB_CHARGE_ENABLE:
-        HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
-        break;
-      case CMD_USB_DISCOVERY_COMPLETE:
-        USBD_Start(&hUsbDeviceFS);
-        initCDC();
-        break;
-      case CMD_USB_DISCOVERY_ERROR:
-        TNC_Error_Handler(6, 0);
-        break;
-      default:
-        WARN("unknown command = %04x", static_cast<unsigned int>(cmd));
-        break;
-      }
-      continue;
+    mobilinkd::tnc::audio::init_log_volume();
+    mobilinkd::tnc::audio::setAudioOutputLevel();
+    mobilinkd::tnc::audio::setAudioInputLevels();
+
+//  if (reset_requested) {}
+
+    osDelay(100);
+    HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
+    osDelay(100);
+
+    HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+    if (reset_requested)
+    {
     }
 
-    using mobilinkd::tnc::hdlc::IoFrame;
-
-    auto frame = static_cast<IoFrame*>(evt.value.p);
-
-    switch (frame->source()) {
-    case IoFrame::RF_DATA:
-      DEBUG("RF frame");
-      if (!mobilinkd::tnc::ioport->write(frame, 100)) {
-        ERROR("Timed out sending frame");
-        mobilinkd::tnc::hdlc::release(frame);
-      }
-      break;
-    case IoFrame::SERIAL_DATA:
-      DEBUG("Serial frame");
-      if ((frame->type() & 0x0F) == IoFrame::DATA) {
-        if (osMessagePut(hdlcOutputQueueHandle, reinterpret_cast<uint32_t>(frame),
-          osWaitForever) != osOK) {
-          ERROR("Failed to write frame to TX queue");
-          mobilinkd::tnc::hdlc::release(frame);
-        }
-      } else {
-        mobilinkd::tnc::kiss::handle_frame(frame->type(), frame);
-      }
-      break;
-    case IoFrame::DIGI_DATA:
-      DEBUG("Digi frame");
-      if (osMessagePut(hdlcOutputQueueHandle, reinterpret_cast<uint32_t>(frame),
-        osWaitForever) != osOK) {
-        mobilinkd::tnc::hdlc::release(frame);
-      }
-      break;
-    case IoFrame::FRAME_RETURN:
-      mobilinkd::tnc::hdlc::release(frame);
-      break;
+    // FIXME: this is probably not right
+    if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
+    {
+        DEBUG("BT Connected at start");
+        openSerial();
+        INFO("BT Opened");
+        indicate_connected_via_ble();
     }
-  }
+    else
+    {
+        indicate_waiting_to_connect();
+    }
+
+    /* Infinite loop */
+    for (;;)
+    {
+        osEvent evt = osMessageGet(ioEventQueueHandle, osWaitForever);
+        if (evt.status != osEventMessage)
+            continue;
+
+        uint32_t cmd = evt.value.v;
+        if (cmd < FLASH_BASE) // Assumes FLASH_BASE < SRAM_BASE.
+        {
+            switch (cmd) {
+            case CMD_USB_CDC_CONNECT:
+                if (openCDC())
+                {
+                    // Disable Bluetooth Module
+                    HAL_NVIC_DisableIRQ(EXTI4_IRQn);
+                    HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
+                    HAL_UART_DeInit(&huart3);
+                    HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                        GPIO_PIN_RESET);
+                    INFO("CDC Opened");
+                    indicate_connected_via_usb();
+                    osMessagePut(audioInputQueueHandle,
+                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                }
+                break;
+            case CMD_USB_DISCONNECTED:
+                INFO("VBUS Lost");
+                HAL_PCD_MspDeInit(&hpcd_USB_FS);
+                HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
+                if (mobilinkd::tnc::ioport != mobilinkd::tnc::getUsbPort())
+                {
+                    break;
+                }
+            [[fallthrough]] // when the CDC part was connected.
+            case CMD_USB_CDC_DISCONNECT:
+                closeCDC();
+                INFO("CDC Closed");
+
+                // Enable Bluetooth Module
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                    GPIO_PIN_SET);
+
+                osDelay(500);  // Avoid spurious interrupts during wake up.
+                HAL_UART_Init(&huart3);
+                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                indicate_waiting_to_connect();
+                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                    osWaitForever);
+                break;
+            case CMD_POWER_BUTTON_DOWN:
+                INFO("Power Down");
+                HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_SET);
+                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                    osWaitForever);
+                break;
+            case CMD_POWER_BUTTON_UP:
+                DEBUG("Power Up");
+                stop2();
+                INFO("RUN mode");
+                mobilinkd::tnc::audio::setAudioOutputLevel();
+                mobilinkd::tnc::audio::setAudioInputLevels();
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
+
+                osDelay(100);
+
+                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                break;
+            case CMD_BOOT_BUTTON_DOWN:
+                DEBUG("BOOT Down");
+                break;
+            case CMD_BOOT_BUTTON_UP:
+                DEBUG("BOOT Up");
+                osMessagePut(audioInputQueueHandle,
+                    mobilinkd::tnc::audio::AUTO_ADJUST_INPUT_LEVEL,
+                    osWaitForever);
+                if (mobilinkd::tnc::ioport != mobilinkd::tnc::getNullPort())
+                {
+                    osMessagePut(audioInputQueueHandle,
+                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                }
+                else
+                {
+                    osMessagePut(audioInputQueueHandle,
+                        mobilinkd::tnc::audio::IDLE, osWaitForever);
+                }
+                break;
+            case CMD_BT_CONNECT:
+                DEBUG("BT Connect");
+                HAL_UART_MspInit(&huart3);
+                if (openSerial())
+                {
+                    osMessagePut(audioInputQueueHandle,
+                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                    INFO("BT Opened");
+                    indicate_connected_via_ble();
+                    HAL_PCD_EP_SetStall(&hpcd_USB_FS, CDC_CMD_EP);
+                }
+                break;
+            case CMD_BT_DISCONNECT:
+                INFO("BT Disconnect");
+                closeSerial();
+                // De-initialize the UART until a connection is established.
+                HAL_UART_MspDeInit(&huart3);
+                indicate_waiting_to_connect();
+                HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
+                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                    osWaitForever);
+                INFO("BT Closed");
+                break;
+            case CMD_SET_PTT_SIMPLEX:
+                getModulator().set_ptt(&simplexPtt);
+                break;
+            case CMD_SET_PTT_MULTIPLEX:
+                getModulator().set_ptt(&multiplexPtt);
+                break;
+            case CMD_SHUTDOWN:
+                INFO("STOP mode");
+                stop2();
+                INFO("RUN mode");
+                mobilinkd::tnc::audio::setAudioOutputLevel();
+                mobilinkd::tnc::audio::setAudioInputLevels();
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
+
+                osDelay(100);
+
+                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                break;
+            case CMD_USB_CONNECTED:
+                INFO("VBUS Detected");
+                HAL_PCD_MspInit(&hpcd_USB_FS);
+                HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
+                break;
+            case CMD_USB_CHARGE_ENABLE:
+                INFO("USB charging enabled");
+                HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
+                break;
+            case CMD_USB_DISCOVERY_COMPLETE:
+                INFO("USB discovery complete");
+                USBD_Start(&hUsbDeviceFS);
+                initCDC();
+                break;
+            case CMD_USB_DISCOVERY_ERROR:
+                // This happens when powering VBUS from a bench supply.
+                INFO("Not a recognized USB charging device");
+                break;
+            case CMD_BT_DEEP_SLEEP:
+                INFO("BT deep sleep");
+                break;
+            case CMD_BT_ACCESS:
+                INFO("BT access enabled");
+                break;
+            case CMD_BT_TX:
+                INFO("BT transmit");
+                break;
+            case CMD_BT_IDLE:
+                INFO("BT idle");
+                break;
+            case CMD_RUN:
+                // No need to reload settings.  SRAM was retained.
+                INFO("RUN mode");
+                mobilinkd::tnc::audio::setAudioOutputLevel();
+                mobilinkd::tnc::audio::setAudioInputLevels();
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
+
+                osDelay(100);
+
+                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                break;
+            default:
+                WARN("unknown command = %04x", static_cast<unsigned int>(cmd));
+                break;
+            }
+            continue;
+        }
+
+        using mobilinkd::tnc::hdlc::IoFrame;
+
+        auto frame = static_cast<IoFrame*>(evt.value.p);
+
+        switch (frame->source()) {
+        case IoFrame::RF_DATA:
+            DEBUG("RF frame");
+            if (!mobilinkd::tnc::ioport->write(frame, 100))
+            {
+                ERROR("Timed out sending frame");
+                // The frame has been passed to the write() call.  It owns it now.
+                // mobilinkd::tnc::hdlc::release(frame);
+            }
+            break;
+        case IoFrame::SERIAL_DATA:
+            DEBUG("Serial frame");
+            if ((frame->type() & 0x0F) == IoFrame::DATA)
+            {
+                if (osMessagePut(hdlcOutputQueueHandle,
+                    reinterpret_cast<uint32_t>(frame),
+                    osWaitForever) != osOK)
+                {
+                    ERROR("Failed to write frame to TX queue");
+                    mobilinkd::tnc::hdlc::release(frame);
+                }
+            }
+            else
+            {
+                mobilinkd::tnc::kiss::handle_frame(frame->type(), frame);
+            }
+            break;
+        case IoFrame::DIGI_DATA:
+            DEBUG("Digi frame");
+            if (osMessagePut(hdlcOutputQueueHandle,
+                reinterpret_cast<uint32_t>(frame),
+                osWaitForever) != osOK)
+            {
+                mobilinkd::tnc::hdlc::release(frame);
+            }
+            break;
+        case IoFrame::FRAME_RETURN:
+            mobilinkd::tnc::hdlc::release(frame);
+            break;
+        }
+    }
 }
 
-void startCdcBlinker(void const*)
+void startLedBlinkerTask(void const*)
 {
-  for (;;) {
-    osDelay(4500);
-  }
+    for (;;)
+    {
+        osDelay(4500);
+    }
 }
 
 extern osThreadId cdcBlinkerHandle;
 
-namespace mobilinkd { namespace tnc {
+namespace mobilinkd {
+namespace tnc {
 
 void print_startup_banner()
 {
-    uint32_t* uid = (uint32_t*)0x1FFF7590;  // STM32L4xx (same for 476 and 432)
+    uint32_t* uid = (uint32_t*) UID_BASE;  // STM32L4xx (same for 476 and 432)
 
-    INFO("%s version %s", mobilinkd::tnc::kiss::HARDWARE_VERSION, mobilinkd::tnc::kiss::FIRMWARE_VERSION);
+    INFO("%s version %s", mobilinkd::tnc::kiss::HARDWARE_VERSION,
+        mobilinkd::tnc::kiss::FIRMWARE_VERSION);
     INFO("CPU core clock: %luHz", SystemCoreClock);
     INFO(" Serial number: %08lX %08lX %08lX", uid[0], uid[1], uid[2]);
 
-    uint8_t* version_ptr = (uint8_t*)0x1FFF6FF2;
+    uint8_t* version_ptr = (uint8_t*) 0x1FFF6FF2;
 
     int version = *version_ptr;
 
@@ -245,12 +352,13 @@ void print_startup_banner()
 
 void start_cdc_blink()
 {
-  osThreadResume(cdcBlinkerHandle);
+    osThreadResume(cdcBlinkerHandle);
 }
 
 void stop_cdc_blink()
 {
-  osThreadSuspend(cdcBlinkerHandle);
+    osThreadSuspend(cdcBlinkerHandle);
 }
 
-}} // mobilinkd::tnc
+}
+} // mobilinkd::tnc
