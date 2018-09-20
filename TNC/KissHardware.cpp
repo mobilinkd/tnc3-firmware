@@ -11,12 +11,12 @@
 
 #include <memory>
 
-extern I2C_HandleTypeDef hi2c3;
+extern I2C_HandleTypeDef hi2c1;
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.4";
-const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.0";
+const char FIRMWARE_VERSION[] = "0.8.6";
+const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
 {
@@ -411,7 +411,6 @@ void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
 
 bool Hardware::load()
 {
-
     INFO("Loading settings from EEPROM");
 
     auto tmp = std::make_unique<Hardware>();
@@ -420,14 +419,18 @@ bool Hardware::load()
 
     memset(tmp.get(), 0, sizeof(Hardware));
 
-    if (!I2C_Storage::load(*tmp)) return false;
+    if (!I2C_Storage::load(*tmp)) {
+        ERROR("Load from EEPROM failed.");
+        return false;
+    }
 
     if (tmp->crc_ok())
     {
         memcpy(this, tmp.get(), sizeof(Hardware));
-
+        DEBUG("Load from EEPROM succeeded.");
         return true;
     }
+
     ERROR("EEPROM CRC error");
     return false;
 }
@@ -436,83 +439,72 @@ bool Hardware::store() const
 {
     INFO("Saving settings to EEPROM");
 
-    I2C_Storage::store(*this);
+    if (!I2C_Storage::store(*this)) {
+        ERROR("Store to EEPROM failed.");
+        return false;
+    }
 
     INFO("EEPROM saved checksum is: %04x (crc = %04x)", checksum, crc());
 
-    return true;
+    return crc_ok();
 }
-
 
 bool I2C_Storage::load(void* ptr, size_t len)
 {
-    uint32_t timeout = 1000;
-    auto start = osKernelSysTick();
+    if (HAL_I2C_Init(&hi2c1) != HAL_OK) CxxErrorHandler();
+
+    DEBUG("Attempting to read %d bytes from EEPROM...", len);
+
+    uint32_t timeout = 1000;    // systicks... milliseconds
 
     auto tmp = static_cast<uint8_t*>(ptr);
-    auto result = HAL_I2C_Mem_Read_DMA(&hi2c3, i2c_address, 0, I2C_MEMADD_SIZE_16BIT, tmp, len);
-    if (result != HAL_OK) Error_Handler();
+    auto result = HAL_I2C_Mem_Read(&hi2c1, i2c_address, 0,
+        I2C_MEMADD_SIZE_16BIT, tmp, len, timeout);
+    if (result != HAL_OK) CxxErrorHandler();
 
-    while (HAL_I2C_GetState(&hi2c3) != HAL_I2C_STATE_READY)
-    {
-        if (osKernelSysTick() > start + timeout) return false;
-        osThreadYield();
-    }
+    if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
 
     return true;
 }
 
 bool I2C_Storage::store(const void* ptr, size_t len)
 {
+    if (HAL_I2C_Init(&hi2c1) != HAL_OK) CxxErrorHandler();
+
     auto tmp = const_cast<uint8_t*>(static_cast<const uint8_t*>(ptr));
-
-    uint32_t timeout = 1000;
-
-    auto start = osKernelSysTick();
 
     uint32_t index = 0;
     size_t remaining = len;
     while (remaining > page_size)
     {
-        auto result = HAL_I2C_Mem_Write_DMA(&hi2c3, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, page_size);
-        if (result == HAL_BUSY)
-        {
-            if (osKernelSysTick() > start + timeout) return false;
-            osThreadYield();
-            continue;
+        auto result = HAL_I2C_Mem_Write(&hi2c1, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, page_size, 20);
+        if (result != HAL_OK) {
+            ERROR("EEPROM write block error = %lu.", hi2c1.ErrorCode);
+            if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+            return false;
         }
-        if (result != HAL_OK) Error_Handler();
         osDelay(write_time);
         index += page_size;
         remaining -= page_size;
-        while (HAL_I2C_GetState(&hi2c3) != HAL_I2C_STATE_READY)
-        {
-            if (osKernelSysTick() > start + timeout) return false;
-            osThreadYield();
-        }
     }
 
     while (remaining) {
-        auto result = HAL_I2C_Mem_Write_DMA(&hi2c3, i2c_address << 8, index, I2C_MEMADD_SIZE_16BIT, tmp + index, remaining);
-        if (result == HAL_BUSY) {
-            osThreadYield();
-            continue;
+        auto result = HAL_I2C_Mem_Write(&hi2c1, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, remaining, 20);
+        if (result != HAL_OK) {
+            ERROR("EEPROM write remainder error = %lu.", hi2c1.ErrorCode);
+            if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+            return false;
         }
-        if (result != HAL_OK) Error_Handler();
         osDelay(write_time);
         index += remaining;
         remaining = 0;
-        while (HAL_I2C_GetState(&hi2c3) != HAL_I2C_STATE_READY)
-        {
-            if (osKernelSysTick() > start + timeout) return false;
-            osThreadYield();
-        }
     }
+
+    if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
 
     return true;
 }
 
-#endif
 
 }}} // mobilinkd::tnc::kiss
 

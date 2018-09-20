@@ -4,7 +4,7 @@
 #ifndef MOBILINKD__TNC__KISS_HARDWARE_HPP_
 #define MOBILINKD__TNC__KISS_HARDWARE_HPP_
 
-#include <Log.h>
+#include "Log.h"
 #include "HdlcFrame.hpp"
 
 #include <cstdint>
@@ -14,6 +14,9 @@
 extern "C" void updatePtt(void);
 
 namespace mobilinkd { namespace tnc { namespace kiss {
+
+extern const char FIRMWARE_VERSION[];
+extern const char HARDWARE_VERSION[];
 
 namespace hardware {
 
@@ -213,11 +216,13 @@ struct Hardware
 
     void update_crc() {
         checksum = crc();
-        INFO("EEPROM checksum = %04xs", checksum);
+        INFO("EEPROM checksum = %04x", checksum);
     }
 
     bool crc_ok() const {
-        return crc() == checksum;
+        auto result = (crc() == checksum);
+        if (!result) WARN("CRC mismatch %04x != %04x", checksum, crc());
+        return result;
     }
 
     /**
@@ -227,14 +232,6 @@ struct Hardware
      */
     void init()
     {
-      if (crc_ok()) {
-        DEBUG("CRC OK");
-        return;
-      }
-
-      DEBUG("CRC FAILED");
-      DEBUG("checksum 0x%04x != CRC 0x%04x", checksum, crc());
-
       txdelay = 30;
       ppersist = 64;
       slot = 10;
@@ -250,7 +247,7 @@ struct Hardware
       options = KISS_OPTION_PTT_SIMPLEX;
 
       /// Callsign.   Pad unused with NUL.
-      strcpy((char*)mycall, "MYCALL");
+      strcpy((char*)mycall, "NOCALL");
 
       dedupe_seconds = 30;
       memset(aliases, 0, sizeof(aliases));
@@ -258,8 +255,6 @@ struct Hardware
       update_crc();
 
       updatePtt();
-
-      debug();
 
       DEBUG("Settings initialized");
     }
@@ -297,7 +292,7 @@ struct Hardware
             DEBUG(" text: %s", (char*)b.text);
             DEBUG(" frequency (secs): %d", (int)b.seconds);
         }
-        DEBUG("Checksum: %04xs", checksum);
+        DEBUG("Checksum: %04x", checksum);
     }
 
     bool load();
@@ -323,10 +318,10 @@ extern Hardware& settings();
 
 struct I2C_Storage
 {
-    constexpr static const uint16_t i2c_address{0xA0};
-    constexpr static const uint16_t capacity{4096};
-    constexpr static const uint16_t page_size{32};
-    constexpr static const uint32_t write_time{5};
+    constexpr static const uint16_t i2c_address{EEPROM_ADDRESS};
+    constexpr static const uint16_t capacity{EEPROM_CAPACITY};
+    constexpr static const uint16_t page_size{EEPROM_PAGE_SIZE};
+    constexpr static const uint32_t write_time{EEPROM_WRITE_TIME};
 
     static bool load(void* ptr, size_t len);
 
