@@ -276,7 +276,7 @@ bool UsbPort::write(hdlc::IoFrame* frame, uint32_t timeout)
 
     if (osMutexWait(mutex_, timeout) != osOK) {
       hdlc::release(frame);
-      TNC_Error_Handler(6,0);
+      CxxErrorHandler();
       return false;
     }
 
