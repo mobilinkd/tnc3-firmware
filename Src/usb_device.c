@@ -57,10 +57,16 @@
 
 /* USER CODE BEGIN Includes */
 
+#include "cmsis_os.h"
+#include "LEDIndicator.h"
+#include "Log.h"
+
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+
+extern osMessageQId ioEventQueueHandle;
 
 /* USER CODE END PV */
 
@@ -126,35 +132,37 @@ void HAL_PCDEx_BCD_Callback(PCD_HandleTypeDef *hpcd, PCD_BCD_MsgTypeDef msg)
   USBD_HandleTypeDef usbdHandle = hUsbDeviceFS;
 
   /* USER CODE BEGIN 7 */
-  if (hpcd->battery_charging_active == ENABLE)
-  {
     switch(msg)
     {
       case PCD_BCD_CONTACT_DETECTION:
 
-      break;
+          break;
 
       case PCD_BCD_STD_DOWNSTREAM_PORT:
-
-      break;
+          // Only charge after negotiation
+          DEBUG("Detected standard downstream USB port");
+          break;
 
       case PCD_BCD_CHARGING_DOWNSTREAM_PORT:
-
-      break;
+          DEBUG("Detected charging downstream USB port");
+          osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
+          break;
 
       case PCD_BCD_DEDICATED_CHARGING_PORT:
-
-      break;
+          DEBUG("Detected dedicated charging port");
+          osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
+          break;
 
       case PCD_BCD_DISCOVERY_COMPLETED:
-        USBD_Start(&usbdHandle);
-      break;
+          osMessagePut(ioEventQueueHandle, CMD_USB_DISCOVERY_COMPLETE, 0);
+          break;
 
       case PCD_BCD_ERROR:
+          osMessagePut(ioEventQueueHandle, CMD_USB_DISCOVERY_ERROR, 0);
+          break;
       default:
       break;
     }
-  }
   /* USER CODE END 7 */
 }
 
