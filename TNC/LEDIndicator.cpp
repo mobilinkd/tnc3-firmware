@@ -2,22 +2,23 @@
 // All rights reserved.
 
 #include "LEDIndicator.h"
+#include "main.h"
 
 #include <stm32l4xx_hal.h>
 #include <stm32l4xx_hal_tim.h>
 #include <stm32l4xx_hal_tim_ex.h>
+#include <cmsis_os.h>
 
 #include <functional>
+#include <atomic>
 
 #include <stdint.h>
 
-extern "C" void _Error_Handler(char *, int);
-
 extern TIM_HandleTypeDef htim1;
 
-namespace mobilinkd { namespace tnc {
+namespace mobilinkd {
+namespace tnc {
 
-}} // mobilinkd::tnc
 
 /**
  * No connection shows a low, slow breathing. Each breath inhale takes
@@ -34,57 +35,71 @@ namespace mobilinkd { namespace tnc {
  *
  *
  */
-struct NoConnection {
-  enum STATE {
-    RAMP_UP_1, WAIT_1, RAMP_DN_1, WAIT_2
-  };
+struct NoConnection
+{
+    enum STATE
+    {
+        RAMP_UP_1, WAIT_1, RAMP_DN_1, WAIT_2
+    };
 
-  int count{0};
-  int state{RAMP_UP_1};
+    int count { 0 };
+    int state { RAMP_UP_1 };
 
-  int operator()()
-  {
-    int result;
-    switch (state) {
-    case RAMP_UP_1:
-      result = count * 40;
-      if (count == 49) {
-        count = 0;
-        state = WAIT_1;
-      } else {
-        ++count;
-      }
-      break;
-    case WAIT_1:
-      result = 2000;
-      if (count == 49) {
-        state = RAMP_DN_1;
-        count = 49;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_1:
-      result = count * 40;
-      if (count == 0) {
-        count = 0;
-        state = WAIT_2;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_2:
-      result = 0;
-      if (count == 849) {
-        state = RAMP_UP_1;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
+    int operator()()
+    {
+        int result;
+        switch (state) {
+        case RAMP_UP_1:
+            result = count * 40;
+            if (count == 49)
+            {
+                count = 0;
+                state = WAIT_1;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case WAIT_1:
+            result = 2000;
+            if (count == 49)
+            {
+                state = RAMP_DN_1;
+                count = 49;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_1:
+            result = count * 40;
+            if (count == 0)
+            {
+                count = 0;
+                state = WAIT_2;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_2:
+            result = 0;
+            if (count == 849)
+            {
+                state = RAMP_UP_1;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        }
+        return result;
     }
-    return result;
-  }
 };
 
 /**
@@ -103,73 +118,94 @@ struct NoConnection {
  *
  *
  */
-struct BluetoothConnection {
-  enum STATE {
-    RAMP_UP_1, RAMP_DN_1, WAIT_1, RAMP_UP_2, RAMP_DN_2, WAIT_2
-  };
+struct BluetoothConnection
+{
+    enum STATE
+    {
+        RAMP_UP_1, RAMP_DN_1, WAIT_1, RAMP_UP_2, RAMP_DN_2, WAIT_2
+    };
 
-  int count{0};
-  int pulse{0};
-  int state{RAMP_UP_1};
-  int ramp[10] = {1564,3090,4540,5878,7071,8090,8910,9510,9877,9999};
+    int count { 0 };
+    int pulse { 0 };
+    int state { RAMP_UP_1 };
+    int ramp[10] =
+        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
 
-  int operator()()
-  {
-    int result;
-    switch (state) {
-    case RAMP_UP_1:
-      result = ramp[count] / 2;
-      if (count == 9) {
-        state = RAMP_DN_1;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_1:
-      result = ramp[count] / 2;
-      if (count == 0) {
-        state = WAIT_1;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_1:
-      result = 0;
-      if (count == 19) {
-        state = RAMP_UP_2;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_UP_2:
-      result = ramp[count] / 2;
-      if (count == 9) {
-        state = RAMP_DN_2;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_2:
-      result = ramp[count] / 2;
-      if (count == 0) {
-        state = WAIT_2;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_2:
-      result = 0;
-      if (count == 439) {
-        state = RAMP_UP_1;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
+    int operator()()
+    {
+        int result;
+        switch (state) {
+        case RAMP_UP_1:
+            result = ramp[count] / 2;
+            if (count == 9)
+            {
+                state = RAMP_DN_1;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_1:
+            result = ramp[count] / 2;
+            if (count == 0)
+            {
+                state = WAIT_1;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_1:
+            result = 0;
+            if (count == 19)
+            {
+                state = RAMP_UP_2;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_UP_2:
+            result = ramp[count] / 2;
+            if (count == 9)
+            {
+                state = RAMP_DN_2;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_2:
+            result = ramp[count] / 2;
+            if (count == 0)
+            {
+                state = WAIT_2;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_2:
+            result = 0;
+            if (count == 439)
+            {
+                state = RAMP_UP_1;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        }
+        return result;
     }
-    return result;
-  }
 };
 
 /**
@@ -192,270 +228,352 @@ struct BluetoothConnection {
  *
  *
  */
-struct USBConnection {
-  enum STATE {
-    RAMP_UP_1, RAMP_DN_1, WAIT_1, RAMP_UP_2, RAMP_DN_2, WAIT_2, RAMP_UP_3, RAMP_DN_3, WAIT_3
-  };
+struct USBConnection
+{
+    enum STATE
+    {
+        RAMP_UP_1,
+        RAMP_DN_1,
+        WAIT_1,
+        RAMP_UP_2,
+        RAMP_DN_2,
+        WAIT_2,
+        RAMP_UP_3,
+        RAMP_DN_3,
+        WAIT_3
+    };
 
-  int count{0};
-  int pulse{0};
-  int state{RAMP_UP_1};
-  int ramp[10] = {1564,3090,4540,5878,7071,8090,8910,9510,9877,9999};
+    int count { 0 };
+    int pulse { 0 };
+    int state { RAMP_UP_1 };
+    int ramp[10] =
+        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
 
-  int operator()()
-  {
-    int result;
-    switch (state) {
-    case RAMP_UP_1:
-      result = ramp[count];
-      if (count == 9) {
-        state = RAMP_DN_1;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_1:
-      result = ramp[count];
-      if (count == 0) {
-        state = WAIT_1;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_1:
-      result = 0;
-      if (count == 39) {
-        state = RAMP_UP_2;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_UP_2:
-      result = ramp[count];
-      if (count == 9) {
-        state = RAMP_DN_2;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_2:
-      result = ramp[count];
-      if (count == 0) {
-        state = WAIT_2;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_2:
-      result = 0;
-      if (count == 19) {
-        state = RAMP_UP_3;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_UP_3:
-      result = ramp[count];
-      if (count == 9) {
-        state = RAMP_DN_3;
-      } else {
-        ++count;
-      }
-      break;
-    case RAMP_DN_3:
-      result = ramp[count];
-      if (count == 0) {
-        state = WAIT_3;
-      } else {
-        --count;
-      }
-      break;
-    case WAIT_3:
-      result = 0;
-      if (count == 379) {
-        state = RAMP_UP_1;
-        count = 0;
-      } else {
-        ++count;
-      }
-      break;
+    int operator()()
+    {
+        int result;
+        switch (state) {
+        case RAMP_UP_1:
+            result = ramp[count];
+            if (count == 9)
+            {
+                state = RAMP_DN_1;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_1:
+            result = ramp[count];
+            if (count == 0)
+            {
+                state = WAIT_1;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_1:
+            result = 0;
+            if (count == 39)
+            {
+                state = RAMP_UP_2;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_UP_2:
+            result = ramp[count];
+            if (count == 9)
+            {
+                state = RAMP_DN_2;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_2:
+            result = ramp[count];
+            if (count == 0)
+            {
+                state = WAIT_2;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_2:
+            result = 0;
+            if (count == 19)
+            {
+                state = RAMP_UP_3;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_UP_3:
+            result = ramp[count];
+            if (count == 9)
+            {
+                state = RAMP_DN_3;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_3:
+            result = ramp[count];
+            if (count == 0)
+            {
+                state = WAIT_3;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_3:
+            result = 0;
+            if (count == 379)
+            {
+                state = RAMP_UP_1;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        }
+        return result;
     }
-    return result;
-  }
 };
 
-struct Flash {
-  enum STATE {
-    RAMP_UP, ON, RAMP_DN, OFF
-  };
+struct Flash
+{
+    enum class STATE
+    {
+        RAMP_UP, ON, RAMP_DN, OFF
+    };
 
-  int gr_count{9};
-  STATE gr_state{OFF};
-  int rd_count{9};
-  STATE rd_state{OFF};
-  int ramp[10] = {1564,3090,4540,5878,7071,8090,8910,9510,9877,9999};
+    typedef std::atomic<STATE> state_type;
+    typedef std::function<int(void)> function_type;
 
-  typedef std::function<int(void)> function_type;
+    constexpr static const int ramp[10] =
+        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
 
-  NoConnection noConnection;
-  BluetoothConnection btConnection;
-  USBConnection usbConnection;
+    constexpr static const uint32_t BLUE_CHANNEL = TIM_CHANNEL_1;
+    constexpr static const uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
+    constexpr static const uint32_t RED_CHANNEL = TIM_CHANNEL_3;
 
-  function_type blue_func{noConnection};
+    int gr_count { 9 };
+    state_type gr_state { STATE::OFF };
+    int rd_count { 9 };
+    state_type rd_state { STATE::OFF };
 
-  int blue()
-  {
-    return blue_func();
-  }
+    NoConnection noConnection;
+    BluetoothConnection btConnection;
+    USBConnection usbConnection;
 
-  int green()
-  {
-    int result = 0;
-    switch (gr_state) {
-    case RAMP_UP:
-      result = ramp[gr_count] / 3;
-      if (gr_count == 9) {
-        gr_state = ON;
-      } else {
-        ++gr_count;
-      }
-      break;
-    case ON:
-      result = ramp[gr_count] / 3;
-      break;
-    case RAMP_DN:
-      result = ramp[gr_count] / 3;
-      if (gr_count == 0) {
-        gr_state = OFF;
-        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_3);
-      } else {
-        --gr_count;
-      }
-      break;
-    case OFF:
-      result = 0;
-      break;
+    function_type blue_func { noConnection };
+
+    int blue()
+    {
+        return blue_func();
     }
-    return result;
-  }
 
-  int red()
-  {
-    int result = 0;
-    switch (rd_state) {
-    case RAMP_UP:
-      result = ramp[rd_count] / 3;
-      if (rd_count == 9) {
-        rd_state = ON;
-      } else {
-        ++rd_count;
-      }
-      break;
-    case ON:
-      result = ramp[rd_count] / 3;
-      break;
-    case RAMP_DN:
-      result = ramp[rd_count] / 3;
-      if (rd_count == 0) {
-        rd_state = OFF;
-        HAL_TIM_PWM_Stop(&htim1, TIM_CHANNEL_2);
-      } else {
-        --rd_count;
-      }
-      break;
-    case OFF:
-      result = 0;
-      break;
+    int plain(state_type& state, int& counter, uint32_t channel)
+    {
+        int result = 0;
+        switch (state) {
+        case STATE::RAMP_UP:
+            result = ramp[rd_count] / 3;
+            if (counter == 9)
+            {
+                state = STATE::ON;
+            }
+            else
+            {
+                ++counter;
+            }
+            break;
+        case STATE::ON:
+            result = ramp[counter] / 3;
+            break;
+        case STATE::RAMP_DN:
+            result = ramp[counter] / 3;
+            if (counter == 0)
+            {
+                state = STATE::OFF;
+                HAL_TIM_PWM_Stop(&htim1, channel);
+            }
+            else
+            {
+                --counter;
+            }
+            break;
+        case STATE::OFF:
+            result = 0;
+            break;
+        }
+        return result;
     }
-    return result;
-  }
 
-  void dcd_on() {
-    if (gr_state == OFF)
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
-    gr_state = RAMP_UP;
-  }
-  void dcd_off() {
-    if (gr_state != OFF) gr_state = RAMP_DN;
-  }
 
-  void tx_on() {
-    if (rd_state == OFF)
-      HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-    rd_state = RAMP_UP;
-  }
-  void tx_off() {
-    if (rd_state != OFF) rd_state = RAMP_DN;
-  }
-  void disconnect() { blue_func = noConnection; }
-  void usb() { blue_func = usbConnection; }
-  void bt() { blue_func = btConnection; }
+    int green()
+    {
+        return plain(gr_state, gr_count, GREEN_CHANNEL);
+    }
+
+    int red()
+    {
+        return plain(rd_state, rd_count, RED_CHANNEL);
+    }
+
+    void dcd_on()
+    {
+        auto expected = STATE::OFF;
+        if (gr_state.compare_exchange_strong(expected, STATE::RAMP_UP))
+        {
+            HAL_TIM_PWM_Start(&htim1, GREEN_CHANNEL);
+        }
+        else
+        {
+            gr_state = STATE::RAMP_UP;
+        }
+
+    }
+    void dcd_off()
+    {
+
+        if (gr_state != STATE::OFF)
+            gr_state = STATE::RAMP_DN;
+
+    }
+
+    void tx_on()
+    {
+        auto expected = STATE::OFF;
+        if (rd_state.compare_exchange_strong(expected, STATE::RAMP_UP))
+        {
+            // PWM Channel must match
+            HAL_TIM_PWM_Start(&htim1, RED_CHANNEL);
+        }
+        else
+        {
+            rd_state = STATE::RAMP_UP;
+        }
+    }
+
+    void tx_off()
+    {
+
+        if (rd_state != STATE::OFF)
+            rd_state = STATE::RAMP_DN;
+
+    }
+
+    void disconnect()
+    {
+        blue_func = noConnection;
+        HAL_TIM_PWM_Start(&htim1, BLUE_CHANNEL);
+    }
+
+    void usb()
+    {
+        blue_func = usbConnection;
+        HAL_TIM_PWM_Start(&htim1, BLUE_CHANNEL);
+    }
+
+    void bt()
+    {
+        blue_func = btConnection;
+        HAL_TIM_PWM_Start(&htim1, BLUE_CHANNEL);
+    }
 };
 
-Flash flash;
+Flash& flash()
+{
+    static Flash blinker;
+    return blinker;
+}
+
+
+}
+} // mobilinkd::tnc
 
 void HTIM1_PeriodElapsedCallback()
 {
-  htim1.Instance->CCR1 = flash.blue();
-  htim1.Instance->CCR2 = flash.red();
-  htim1.Instance->CCR3 = flash.green();
+    using mobilinkd::tnc::flash;
+
+    // CCR registers must match the TIM_CHANNEL used for each LED in Flash.
+    htim1.Instance->CCR1 = flash().blue();
+    htim1.Instance->CCR2 = flash().green();
+    htim1.Instance->CCR3 = flash().red();
 }
 
 void indicate_turning_on(void)
 {
-  HAL_TIM_Base_Start_IT(&htim1);
-  tx_on();
-
-  HAL_Delay(200);
+    HAL_TIM_Base_Start_IT(&htim1);
+    tx_on();
+    rx_on();
 }
 
 void indicate_initializing_ble(void)
 {
-  rx_on();
+    tx_off();
 }
 
 void indicate_on()
 {
-  tx_off();
-  rx_off();
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2);
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_3);
+    tx_off();
+    rx_off();
 }
 
 void indicate_waiting_to_connect(void)
 {
-  flash.disconnect();
+    mobilinkd::tnc::flash().disconnect();
 }
+
 void indicate_connected_via_usb(void)
 {
-  flash.usb();
+    mobilinkd::tnc::flash().usb();
 }
+
 void indicate_connected_via_ble(void)
 {
-  flash.bt();
+    mobilinkd::tnc::flash().bt();
 }
 
 void tx_on(void)
 {
-  flash.tx_on();
+    mobilinkd::tnc::flash().tx_on();
 }
 
 void tx_off(void)
 {
-  flash.tx_off();
+    mobilinkd::tnc::flash().tx_off();
 }
 
 // DCD is active.
 void rx_on()
 {
-   flash.dcd_on();
+    mobilinkd::tnc::flash().dcd_on();
 }
 
 // DCD is active.
 void rx_off()
 {
-  flash.dcd_off();
+    mobilinkd::tnc::flash().dcd_off();
 }
