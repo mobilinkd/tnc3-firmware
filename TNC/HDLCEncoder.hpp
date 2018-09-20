@@ -117,6 +117,8 @@ struct Encoder {
      * For APRS digipeaters, the slot_time and p values should be 0 and 255,
      * respectively.  This is equivalent to 1-persistent CSMA.
      *
+     * @pre The demodulator is running in order to detect the data carrier.
+     *
      * @note For this to work, the demodulator must be left running
      *  while CSMA is taking place in order to do carrier detection.
      *
@@ -160,6 +162,10 @@ struct Encoder {
      * flag is not cleared.  This will cause CSMA and TX delay to be
      * attempted on the next frame.
      *
+     * @pre either send_delay_ is false or the demodulator is running.  We
+     *  expect that send_delay_ is false only when we have back-to-back
+     *  packets.
+     *
      * @param frame
      */
     void process(IoFrame* frame) {
@@ -168,7 +174,10 @@ struct Encoder {
         frame->add_fcs();
 
         if (send_delay_) {
-            if (not do_csma()) return;
+            if (not do_csma()) {
+                release(frame);
+                return;
+            }
             if (!duplex_) {
                 osMessagePut(audioInputQueueHandle, audio::IDLE, osWaitForever);
             }
