@@ -53,7 +53,7 @@
 #include "usbd_conf.h"
 
 /* USER CODE BEGIN INCLUDE */
-
+#include "main.h"
 /* USER CODE END INCLUDE */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -95,7 +95,7 @@
 #define USBD_LANGID_STRING     1033
 #define USBD_MANUFACTURER_STRING     "Mobilinkd LLC"
 #define USBD_PID_FS     22336
-#define USBD_PRODUCT_STRING_FS     "Mobilinkd TNC3 v2.1.0"
+#define USBD_PRODUCT_STRING_FS     "Mobilinkd TNC3 v2.1.1"
 #define USBD_SERIALNUMBER_STRING_FS     "00000000001A"
 #define USBD_CONFIGURATION_STRING_FS     "CDC Config"
 #define USBD_INTERFACE_STRING_FS     "CDC Interface"
@@ -329,11 +329,11 @@ uint8_t * USBD_FS_SerialStrDescriptor(USBD_SpeedTypeDef speed, uint16_t *length)
 {
   if(speed == USBD_SPEED_HIGH)
   {
-    USBD_GetString((uint8_t *)USBD_SERIALNUMBER_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)serial_number, USBD_StrDesc, length);
   }
   else
   {
-    USBD_GetString((uint8_t *)USBD_SERIALNUMBER_STRING_FS, USBD_StrDesc, length);
+    USBD_GetString((uint8_t *)serial_number, USBD_StrDesc, length);
   }
   return USBD_StrDesc;
 }
