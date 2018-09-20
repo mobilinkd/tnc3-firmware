@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-void beacon(void* arg)
+void beacon(void* arg);
 
 #ifdef __cplusplus
 }
