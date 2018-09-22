@@ -40,7 +40,7 @@ struct NullPort : PortInterface
     }
     virtual bool write(hdlc::IoFrame* frame, uint32_t = osWaitForever)
     {
-        hdlc::ioFramePool().release(frame);
+        hdlc::release(frame);
         return true;
     }
 

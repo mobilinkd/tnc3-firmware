@@ -56,7 +56,7 @@ extern "C" void startSerialTask(void const* arg)
 
     State state = WAIT_FBEGIN;
 
-    hdlc::IoFrame* frame = hdlc::ioFramePool().acquire();
+    hdlc::IoFrame* frame = hdlc::acquire();
 
     HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
 
@@ -69,10 +69,10 @@ extern "C" void startSerialTask(void const* arg)
         }
 
         if (evt.value.v & 0x100) {
-            hdlc::ioFramePool().release(frame);
+            hdlc::release(frame);
             ERROR("UART Error: %08lx", evt.value.v);
             uart_error.store(HAL_UART_ERROR_NONE);
-            frame = hdlc::ioFramePool().acquire();
+            frame = hdlc::acquire();
             HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
             continue;
         }
@@ -96,14 +96,14 @@ extern "C" void startSerialTask(void const* arg)
                 DEBUG("Received frame of %d bytes", frame->size());
                 frame->source(hdlc::IoFrame::SERIAL_DATA);
                 osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever);
-                frame = hdlc::ioFramePool().acquire();
+                frame = hdlc::acquire();
                 state = WAIT_FBEGIN;
                 break;
             default:
                 if (not frame->push_back(c)) {
-                    hdlc::ioFramePool().release(frame);
+                    hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::ioFramePool().acquire();
+                    frame = hdlc::acquire();
                 }
             }
             break;
@@ -112,22 +112,22 @@ extern "C" void startSerialTask(void const* arg)
             switch (c) {
             case TFESC:
                 if (not frame->push_back(FESC)) {
-                    hdlc::ioFramePool().release(frame);
+                    hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::ioFramePool().acquire();
+                    frame = hdlc::acquire();
                 }
                 break;
             case TFEND:
                 if (not frame->push_back(FEND)) {
-                    hdlc::ioFramePool().release(frame);
+                    hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::ioFramePool().acquire();
+                    frame = hdlc::acquire();
                 }
                 break;
             default:
-                hdlc::ioFramePool().release(frame);
+                hdlc::release(frame);
                 state = WAIT_FBEGIN;  // Drop frame;
-                frame = hdlc::ioFramePool().acquire();
+                frame = hdlc::acquire();
             }
             break;
         }

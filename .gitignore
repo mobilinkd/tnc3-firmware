@@ -30,7 +30,15 @@
 *.exe
 *.out
 *.app
+*.elf
+*.bin
+*.map
 
 # TrueStudio Junk
 firmware.elf.launch
 *.s
+_FLASH.ld
+TrueSTUDIO/
+ARM_Debug/
+com.atollic*
+

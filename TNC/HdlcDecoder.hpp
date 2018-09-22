@@ -283,7 +283,7 @@ struct Decoder
 #if 0
 
 Decoder::Decoder(bool pass_all)
-: state_(SEARCH), ones_(0), buffer_(0), frame_(ioFramePool().acquire())
+: state_(SEARCH), ones_(0), buffer_(0), frame_(acquire())
 , bits_(0), passall_(pass_all), ready_(false)
 {}
 
@@ -293,7 +293,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
 
     // It appears that the ioFramePool may not get initialized in the proper
     // order during some builds.
-    if (nullptr == frame_) frame_ = ioFramePool().acquire();
+    if (nullptr == frame_) frame_ = acquire();
 
     if (not pll) {
         if ((state_ == FRAMING) and (frame_->size() > 17) and passall_) {
@@ -301,7 +301,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
             if (passall_ or frame_->ok()) {
                 result = frame_;
                 ready_ = false;
-                frame_ = ioFramePool().acquire();
+                frame_ = acquire();
                 return result;
             }
         }
@@ -312,7 +312,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
             frame_->parse_fcs();
             if (passall_ or frame_->ok()) {
                 result = frame_;
-                frame_ = ioFramePool().acquire();
+                frame_ = acquire();
                 return result;
             }
             frame_->clear();

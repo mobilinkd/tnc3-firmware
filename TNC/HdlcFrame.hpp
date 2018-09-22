@@ -170,10 +170,12 @@ public:
             free_list_.pop_front();
         }
         taskEXIT_CRITICAL_FROM_ISR(x);
+        DEBUG("Acquired frame %p (size after = %d)", result, free_list_.size());
         return result;
     }
 
     void release(frame_type* frame) {
+        DEBUG("Released frame %p (size before = %d)", frame, free_list_.size());
         frame->clear();
         auto x = taskENTER_CRITICAL_FROM_ISR();
         free_list_.push_back(*frame);
@@ -195,12 +197,14 @@ IoFramePool& ioFramePool(void);
  * that causes functions using ioFramePool().release(frame) to use an
  * extremely large amount of stack space (4-6K vs. 24 bytes).
  *
- * This function merely acts as some sort of firewall to the stack usage.
+ * This function merely acts as a compiler firewall to the stack usage.
  * It's own stack usage is minimal even though it is making the same call.
  *
  * @param frame
  */
 void release(IoFrame* frame);
+
+IoFrame* acquire(void);
 
 }}} // mobilinkd::tnc::hdlc
 

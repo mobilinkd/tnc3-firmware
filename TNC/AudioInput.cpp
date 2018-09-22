@@ -465,11 +465,11 @@ void demodulatorTask() {
                   last_fcs = save_fcs;
                   last_counter = counter;
                 } else {
-                  hdlc::ioFramePool().release(frame);
+                  hdlc::release(frame);
                 }
             }
             else {
-                hdlc::ioFramePool().release(frame);
+                hdlc::release(frame);
             }
         }
 #endif
@@ -483,11 +483,11 @@ void demodulatorTask() {
                 last_fcs = save_fcs;
                 last_counter = counter;
               } else {
-                hdlc::ioFramePool().release(frame);
+                hdlc::release(frame);
               }
           }
           else {
-              hdlc::ioFramePool().release(frame);
+              hdlc::release(frame);
           }
         }
 #endif
@@ -501,11 +501,11 @@ void demodulatorTask() {
                 last_fcs = save_fcs;
                 last_counter = counter;
               } else {
-                hdlc::ioFramePool().release(frame);
+                hdlc::release(frame);
               }
           }
           else {
-              hdlc::ioFramePool().release(frame);
+              hdlc::release(frame);
           }
         }
 #endif

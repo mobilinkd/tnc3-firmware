@@ -33,7 +33,7 @@ hdlc::IoFrame* Demodulator::operator()(float* samples, size_t len)
             // not enough bits in a block for more than one.
             if (result) {
                 auto tmp = hdlc_decoder_(nrzi_.decode(bit), pll.locked);
-                if (tmp) hdlc::ioFramePool().release(tmp);
+                if (tmp) hdlc::release(tmp);
             } else {
                 result = hdlc_decoder_(nrzi_.decode(bit), pll.locked);
             }

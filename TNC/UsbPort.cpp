@@ -16,7 +16,7 @@ extern osMessageQId ioEventQueueHandle;
 extern "C" void cdc_receive(const uint8_t* buf, uint32_t len) {
   using namespace mobilinkd::tnc::hdlc;
   if (mobilinkd::tnc::getUsbPort()->queue() != 0) {
-    auto frame = mobilinkd::tnc::hdlc::ioFramePool().acquire();
+    auto frame = mobilinkd::tnc::hdlc::acquire();
     if (frame) {
       for (uint32_t i = 0; i != len; ++i) {
         frame->push_back(*buf++);
@@ -48,7 +48,7 @@ extern "C" void startCDCTask(void const* arg)
 
     State state = WAIT_FBEGIN;
 
-    hdlc::IoFrame* frame = hdlc::ioFramePool().acquire();
+    hdlc::IoFrame* frame = hdlc::acquire();
 
     while (true) {
         osEvent evt = osMessageGet(usbPort->queue(), osWaitForever);
@@ -81,14 +81,14 @@ extern "C" void startCDCTask(void const* arg)
                 case FEND:
                     frame->source(hdlc::IoFrame::SERIAL_DATA);
                     osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever);
-                    frame = hdlc::ioFramePool().acquire();
+                    frame = hdlc::acquire();
                     state = WAIT_FBEGIN;
                     break;
                 default:
                     if (not frame->push_back(c)) {
                         hdlc::release(frame);
                         state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::ioFramePool().acquire();
+                        frame = hdlc::acquire();
                     }
                 }
                 break;
@@ -99,20 +99,20 @@ extern "C" void startCDCTask(void const* arg)
                     if (not frame->push_back(FESC)) {
                         hdlc::release(frame);
                         state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::ioFramePool().acquire();
+                        frame = hdlc::acquire();
                     }
                     break;
                 case TFEND:
                     if (not frame->push_back(FEND)) {
                         hdlc::release(frame);
                         state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::ioFramePool().acquire();
+                        frame = hdlc::acquire();
                     }
                     break;
                 default:
                     hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::ioFramePool().acquire();
+                    frame = hdlc::acquire();
                 }
                 break;
             }
