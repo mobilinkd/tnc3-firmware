@@ -33,16 +33,16 @@ namespace hardware {
  */
 constexpr const uint16_t KISS_API_VERSION = 0x0200;
 
-constexpr const uint16_t CAP_DCD = 0x0001;
-constexpr const uint16_t CAP_SQUELCH = 0x0002;
-constexpr const uint16_t CAP_INPUT_ATTEN = 0x0004;
-constexpr const uint16_t CAP_FIRMWARE_VERSION = 0x0008;
-constexpr const uint16_t CAP_BATTERY_LEVEL = 0x0010;
-constexpr const uint16_t CAP_BT_CONN_TRACK = 0x0020;
-constexpr const uint16_t CAP_BT_NAME_CHANGE = 0x0040;
-constexpr const uint16_t CAP_BT_PIN_CHANGE = 0x0080;
-constexpr const uint16_t CAP_VERBOSE_ERROR = 0x0100;
-constexpr const uint16_t CAP_EEPROM_SAVE = 0x0200;
+constexpr const uint16_t CAP_DCD = 0x0100;
+constexpr const uint16_t CAP_SQUELCH = 0x0200;
+constexpr const uint16_t CAP_INPUT_ATTEN = 0x0400;
+constexpr const uint16_t CAP_FIRMWARE_VERSION = 0x0800;
+constexpr const uint16_t CAP_BATTERY_LEVEL = 0x1000;
+constexpr const uint16_t CAP_BT_CONN_TRACK = 0x2000;
+constexpr const uint16_t CAP_BT_NAME_CHANGE = 0x4000;
+constexpr const uint16_t CAP_BT_PIN_CHANGE = 0x8000;
+constexpr const uint16_t CAP_VERBOSE_ERROR = 0x0001;
+constexpr const uint16_t CAP_EEPROM_SAVE = 0x0002;
 
 constexpr const uint8_t SAVE = 0; // Save settings to EEPROM.
 constexpr const uint8_t SET_OUTPUT_GAIN = 1;
