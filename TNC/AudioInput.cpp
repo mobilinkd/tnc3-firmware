@@ -946,27 +946,74 @@ void pollAmplifiedInputLevel() {
 void pollBatteryLevel() {
     DEBUG("enter pollBatteryLevel");
 
+    ADC_ChannelConfTypeDef sConfig;
+
+    sConfig.Channel = ADC_CHANNEL_VREFINT;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    sConfig.SingleDiff = ADC_SINGLE_ENDED;
+    sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
+    sConfig.OffsetNumber = ADC_OFFSET_NONE;
+    sConfig.Offset = 0;
+    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        CxxErrorHandler();
+
+    htim6.Init.Period = 48000;
+    if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
+
+    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
+        CxxErrorHandler();
+
+    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
+    if (HAL_ADC_PollForConversion(&hadc1, 3) != HAL_OK) CxxErrorHandler();
+    auto vrefint = HAL_ADC_GetValue(&hadc1);
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
+
+    // Disable battery charging while measuring battery voltage.
+    auto usb_ce = gpio::USB_CE::get();
+    gpio::USB_CE::on();
+
     gpio::BAT_DIVIDER::off();
+    HAL_Delay(1);
 
-    uint16_t Vpp, Vavg, Vmin, Vmax;
+    sConfig.Channel = ADC_CHANNEL_15;
+    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        CxxErrorHandler();
 
-    std::tie(Vpp, Vavg, Vmin, Vmax) = readLevels(ADC_CHANNEL_VREFINT, 264);
-    auto vref = Vavg;
-    INFO("Vref = %hu", vref);
+    uint32_t vbat = 0;
+    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
+    for (size_t i = 0; i != 8; ++i)
+    {
+        if (HAL_ADC_PollForConversion(&hadc1, 1) != HAL_OK) CxxErrorHandler();
+        vbat += HAL_ADC_GetValue(&hadc1);
+    }
 
-    std::tie(Vpp, Vavg, Vmin, Vmax) = readLevels(ADC_CHANNEL_8, 264);
-    uint32_t Vbat = Vavg;
-    INFO("Vbat = %lu", Vbat);
+    vbat /= 8;
+
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
+    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
+        CxxErrorHandler();
+
+    htim6.Init.Period = 1817;
+    if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
+
+    HAL_Delay(1);
 
     gpio::BAT_DIVIDER::on();
+    if (!usb_ce) gpio::USB_CE::off();   // Restore battery charging state.
 
-    Vbat *= 6600;
-    Vbat /= 4096;
+    INFO("Vref = %lu", vrefint);
+    INFO("Vbat = %lu (raw)", vbat);
+
+    // Order of operations is important to avoid underflow.
+    vbat *= 6600;
+    vbat /= (vref + 1);
+
+    INFO("Vbat = %lumV", vbat);
 
     uint8_t data[3];
     data[0] = kiss::hardware::GET_BATTERY_LEVEL;
-    data[1] = (Vbat >> 8) & 0xFF;
-    data[2] = (Vbat & 0xFF);
+    data[1] = (vbat >> 8) & 0xFF;
+    data[2] = (vbat & 0xFF);
 
     ioport->write(data, 3, 6, 10);
     DEBUG("exit pollBatteryLevel");
