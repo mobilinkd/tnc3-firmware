@@ -239,8 +239,7 @@ void HAL_PCD_SuspendCallback(PCD_HandleTypeDef *hpcd)
   /* USER CODE BEGIN 2 */
   if (hpcd->Init.low_power_enable)
   {
-    /* Set SLEEPDEEP bit and SleepOnExit of Cortex System Control Register. */
-    SCB->SCR |= (uint32_t)((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
+      osMessagePut(ioEventQueueHandle, CMD_USB_SUSPEND, 0);
   }
   /* USER CODE END 2 */
 }
@@ -257,9 +256,7 @@ void HAL_PCD_ResumeCallback(PCD_HandleTypeDef *hpcd)
   /* USER CODE BEGIN 3 */
   if (hpcd->Init.low_power_enable)
   {
-    /* Reset SLEEPDEEP bit of Cortex System Control Register. */
-    SCB->SCR &= (uint32_t)~((uint32_t)(SCB_SCR_SLEEPDEEP_Msk | SCB_SCR_SLEEPONEXIT_Msk));
-    SystemClockConfig_Resume();
+      osMessagePut(ioEventQueueHandle, CMD_USB_RESUME, 0);
   }
   /* USER CODE END 3 */
   USBD_LL_Resume((USBD_HandleTypeDef*)hpcd->pData);
@@ -645,6 +642,7 @@ USBD_StatusTypeDef USBD_LL_SetUSBAddress(USBD_HandleTypeDef *pdev, uint8_t dev_a
      
   switch (hal_status) {
     case HAL_OK :
+        osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
       usb_status = USBD_OK;
     break;
     case HAL_ERROR :
@@ -660,13 +658,6 @@ USBD_StatusTypeDef USBD_LL_SetUSBAddress(USBD_HandleTypeDef *pdev, uint8_t dev_a
       usb_status = USBD_FAIL;
     break;
   }
-
-  /* USER CODE BEGIN USBD_LL_SetUSBAddress 1 */
-  // We can now draw 500mA from the port.
-  DEBUG("USB address assigned");
-  osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
-  /* USER CODE END USBD_LL_SetUSBAddress 1 */
-
   return usb_status;  
 }
 
@@ -842,12 +833,11 @@ void HAL_PCDEx_SetConnectionState(PCD_HandleTypeDef *hpcd, uint8_t state)
   if (state == 1)
   {
     /* Configure Low connection state. */
-
+      UNUSED(hpcd);
   }
   else
   {
     /* Configure High connection state. */
-
   }
   /* USER CODE END 6 */
 }
