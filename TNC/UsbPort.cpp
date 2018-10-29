@@ -1,10 +1,11 @@
 // Copyright 2016 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#include <Log.h>
 #include "UsbPort.hpp"
 #include "HdlcFrame.hpp"
 #include "Kiss.hpp"
+#include "Log.h"
+
 #include "usbd_cdc_if.h"
 #include "usb_device.h"
 #include "cmsis_os.h"
@@ -13,115 +14,138 @@ extern "C" void TNC_Error_Handler(int dev, int err);
 
 extern osMessageQId ioEventQueueHandle;
 
-extern "C" void cdc_receive(const uint8_t* buf, uint32_t len) {
-  using namespace mobilinkd::tnc::hdlc;
-  if (mobilinkd::tnc::getUsbPort()->queue() != 0) {
-    auto frame = mobilinkd::tnc::hdlc::acquire();
-    if (frame) {
-      for (uint32_t i = 0; i != len; ++i) {
-        frame->push_back(*buf++);
-      }
-      frame->source(IoFrame::SERIAL_DATA);
-      if (osMessagePut(mobilinkd::tnc::getUsbPort()->queue(), (uint32_t) frame,
-        osWaitForever) != osOK) {
-        mobilinkd::tnc::hdlc::release(frame);
-      }
-    }
-  }
-}
+extern "C" void cdc_receive(const uint8_t* buf, uint32_t len)
+{
+    using namespace mobilinkd::tnc;
+    if (mobilinkd::tnc::getUsbPort()->queue() != 0)
+    {
+        if (len == 1)
+        {
+            // Send single byte via queue directly.  Linux seems to do
+            // this for ttyACM ports.
+            osMessagePut(getUsbPort()->queue(), *buf, osWaitForever);
+            return;
+        }
 
+        auto frame = hdlc::acquire();
+        if (frame)
+        {
+            for (uint32_t i = 0; i != len; ++i)
+            {
+                frame->push_back(*buf++);
+            }
+            frame->source(hdlc::IoFrame::SERIAL_DATA);
+            if (osMessagePut(mobilinkd::tnc::getUsbPort()->queue(),
+                (uint32_t) frame,
+                osWaitForever) != osOK)
+            {
+                mobilinkd::tnc::hdlc::release(frame);
+            }
+        }
+    }
+}
 
 extern "C" void startCDCTask(void const* arg)
 {
     using namespace mobilinkd::tnc;
 
-    auto usbPort = static_cast<const UsbPort*>(arg);
+    auto usbPort = const_cast<UsbPort*>(static_cast<UsbPort const*>(arg));
 
-    const uint8_t FEND = 0xC0;
-    const uint8_t FESC = 0xDB;
-    const uint8_t TFEND = 0xDC;
-    const uint8_t TFESC = 0xDD;
+    usbPort->run();
+}
 
-    uint8_t frame_type = kiss::FRAME_DATA;
+namespace mobilinkd { namespace tnc {
 
-    enum State {WAIT_FBEGIN, WAIT_FRAME_TYPE, WAIT_FEND, WAIT_ESCAPED};
 
-    State state = WAIT_FBEGIN;
+void UsbPort::add_char(uint8_t c)
+{
+    switch (state_) {
+    case WAIT_FBEGIN:
+        if (c == FEND) state_ = WAIT_FRAME_TYPE;
+        break;
+    case WAIT_FRAME_TYPE:
+        if (c == FEND) break;   // Still waiting for FRAME_TYPE.
+        frame_->type(c);
+        state_ = WAIT_FEND;
+        break;
+    case WAIT_FEND:
+        switch (c) {
+        case FESC:
+            state_ = WAIT_ESCAPED;
+            break;
+        case FEND:
+            frame_->source(hdlc::IoFrame::SERIAL_DATA);
+            osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame_),
+                osWaitForever);
+            frame_ = hdlc::acquire();
+            state_ = WAIT_FBEGIN;
+            break;
+        default:
+            if (not frame_->push_back(c)) {
+                hdlc::release(frame_);
+                state_ = WAIT_FBEGIN;  // Drop frame;
+                frame_ = hdlc::acquire();
+            }
+        }
+        break;
+    case WAIT_ESCAPED:
+        state_ = WAIT_FEND;
+        switch (c) {
+        case TFESC:
+            if (not frame_->push_back(FESC)) {
+                hdlc::release(frame_);
+                state_ = WAIT_FBEGIN;  // Drop frame;
+                frame_ = hdlc::acquire();
+            }
+            break;
+        case TFEND:
+            if (not frame_->push_back(FEND)) {
+                hdlc::release(frame_);
+                state_ = WAIT_FBEGIN;  // Drop frame;
+                frame_ = hdlc::acquire();
+            }
+            break;
+        default:
+            hdlc::release(frame_);
+            state_ = WAIT_FBEGIN;  // Drop frame;
+            frame_ = hdlc::acquire();
+        }
+        break;
+    }
+}
 
-    hdlc::IoFrame* frame = hdlc::acquire();
+void UsbPort::run()
+{
+    frame_ = hdlc::acquire();
 
     while (true) {
-        osEvent evt = osMessageGet(usbPort->queue(), osWaitForever);
+        osEvent evt = osMessageGet(queue(), osWaitForever);
         if (evt.status != osEventMessage) {
+            continue;
+        }
+
+        uint32_t c = evt.value.v;
+
+        if (c < 0x100) // Assume single byte transfer.
+        {
+            add_char(c);
             continue;
         }
 
         auto input = static_cast<hdlc::IoFrame*>(evt.value.p);
 
-        if (!usbPort->isOpen()) {
+        if (!isOpen()) {
             hdlc::release(input);
             continue;
         }
 
-        for (auto& c : *input) {
-            switch (state) {
-            case WAIT_FBEGIN:
-                if (c == FEND) state = WAIT_FRAME_TYPE;
-                break;
-            case WAIT_FRAME_TYPE:
-                if (c == FEND) break;   // Still waiting for FRAME_TYPE.
-                frame->type(c);
-                state = WAIT_FEND;
-                break;
-            case WAIT_FEND:
-                switch (c) {
-                case FESC:
-                    state = WAIT_ESCAPED;
-                    break;
-                case FEND:
-                    frame->source(hdlc::IoFrame::SERIAL_DATA);
-                    osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever);
-                    frame = hdlc::acquire();
-                    state = WAIT_FBEGIN;
-                    break;
-                default:
-                    if (not frame->push_back(c)) {
-                        hdlc::release(frame);
-                        state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::acquire();
-                    }
-                }
-                break;
-            case WAIT_ESCAPED:
-                state = WAIT_FEND;
-                switch (c) {
-                case TFESC:
-                    if (not frame->push_back(FESC)) {
-                        hdlc::release(frame);
-                        state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::acquire();
-                    }
-                    break;
-                case TFEND:
-                    if (not frame->push_back(FEND)) {
-                        hdlc::release(frame);
-                        state = WAIT_FBEGIN;  // Drop frame;
-                        frame = hdlc::acquire();
-                    }
-                    break;
-                default:
-                    hdlc::release(frame);
-                    state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::acquire();
-                }
-                break;
-            }
+        for (uint8_t c : *input) {
+            add_char(c);
         }
         hdlc::release(input);
     }
-}
 
-namespace mobilinkd { namespace tnc {
+}
 
 void UsbPort::init()
 {
@@ -308,6 +332,11 @@ bool UsbPort::write(hdlc::IoFrame* frame, uint32_t timeout)
       // Buffer has room for at least one more byte.  It cannot be full here.
       TxBuffer[pos++] = 0xC0;
       result = transmit_buffer(pos, start, timeout);
+    }
+
+    if (result and pos == TX_BUFFER_SIZE) {
+        // Must send an empty packet to flush the endpoint.
+        result = transmit_buffer(0, start, timeout);
     }
 
     hdlc::release(frame);
