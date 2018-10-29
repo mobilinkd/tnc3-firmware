@@ -1,12 +1,15 @@
 // Copyright 2016 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#include <Log.h>
+#include "Log.h"
 #include "SerialPort.hpp"
+#include "PortInterface.h"
 #include "HdlcFrame.hpp"
+#include "bm78.h"
 #include "Kiss.hpp"
-#include "stm32l4xx_hal.h"
 #include "main.h"
+
+#include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
 
 #include <cstdlib>
@@ -21,15 +24,14 @@ std::atomic<int> uart_error{HAL_UART_ERROR_NONE};
 
 std::atomic<bool> txDoneFlag{true};
 
-const uint32_t BLE_BUFFER_SIZE = 512;
-uint8_t tmpBuffer[BLE_BUFFER_SIZE];
-uint8_t tmpBuffer2[BLE_BUFFER_SIZE];
+uint8_t tmpBuffer[mobilinkd::tnc::TX_BUFFER_SIZE];
+uint8_t tmpBuffer2[mobilinkd::tnc::TX_BUFFER_SIZE];
 
 void log_frame(mobilinkd::tnc::hdlc::IoFrame* frame)
 {
     int pos = 0;
     for (auto c: *frame) {
-        if (isprint(c)) pos += sprintf((char*)tmpBuffer2 + pos, " %c ", c);
+        if (isprint(int(c))) pos += sprintf((char*)tmpBuffer2 + pos, " %c ", c);
         else pos += sprintf((char*)tmpBuffer2 + pos, "/%02x", c);
         if (pos > 80) {
           DEBUG((char*)tmpBuffer2);
@@ -49,8 +51,6 @@ extern "C" void startSerialTask(void const* arg)
     const uint8_t FESC = 0xDB;
     const uint8_t TFEND = 0xDC;
     const uint8_t TFESC = 0xDD;
-
-    uint8_t frame_type = kiss::FRAME_DATA;
 
     enum State {WAIT_FBEGIN, WAIT_FRAME_TYPE, WAIT_FEND, WAIT_ESCAPED};
 
@@ -93,7 +93,6 @@ extern "C" void startSerialTask(void const* arg)
                 state = WAIT_ESCAPED;
                 break;
             case FEND:
-                DEBUG("Received frame of %d bytes", frame->size());
                 frame->source(hdlc::IoFrame::SERIAL_DATA);
                 osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever);
                 frame = hdlc::acquire();
@@ -172,16 +171,11 @@ void SerialPort::init()
     osThreadDef(serialTask, startSerialTask, osPriorityAboveNormal, 0, 128);
     serialTaskHandle_ = osThreadCreate(osThread(serialTask), this);
     DEBUG("serialTaskHandle_ = %p", serialTaskHandle_);
-
-    __HAL_UART_DISABLE(&huart3);
 }
 
 bool SerialPort::open()
 {
     if (open_ or !serialTaskHandle_) return open_;
-
-    HAL_UART_Init(&huart3);
-    __HAL_UART_ENABLE(&huart3);
 
     open_ = true;
     return open_;
@@ -189,7 +183,6 @@ bool SerialPort::open()
 
 void SerialPort::close()
 {
-    __HAL_UART_DISABLE(&huart3);
     open_ = false;
 }
 
@@ -208,20 +201,20 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
     auto slip_end = slip_encoder();
 
     size_t pos = 0;
-    memset(tmpBuffer, 0, BLE_BUFFER_SIZE);
+    memset(tmpBuffer, 0, TX_BUFFER_SIZE);
 
     tmpBuffer[pos++] = 0xC0;   // FEND
     tmpBuffer[pos++] = type;   // KISS Data Frame
 
     while (slip_iter != slip_end) {
         tmpBuffer[pos++] = *slip_iter++;
-        if (pos == BLE_BUFFER_SIZE) {
+        if (pos == TX_BUFFER_SIZE) {
 
             while (!txDoneFlag) osThreadYield();
-            memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
+            memcpy(TxBuffer, tmpBuffer, TX_BUFFER_SIZE);
             txDoneFlag = false;
 
-            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
+            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, TX_BUFFER_SIZE) == HAL_BUSY)
             {
                 if (osKernelSysTick() > start + timeout) {
                     osMutexRelease(mutex_);
@@ -231,7 +224,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
                 osThreadYield();
             }
             pos = 0;
-            memset(TxBuffer, 0, BLE_BUFFER_SIZE);
+            memset(TxBuffer, 0, TX_BUFFER_SIZE);
         }
     }
 
@@ -309,6 +302,30 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
     return true;
 }
 
+/*
+ * Abort the DMA transmission. Release the mutex and the frame.  Set the
+ * txDoneFlag so other writes may be attempted.
+ *
+ * This really sucks. The BM78 seems to just give up the ghost in BLE mode
+ * when connected for long periods of time (and long is relative, but
+ * typically more than an hour).  To deal with this, we reset the device
+ * and the client needs to attempt to reconnect when disconnection is
+ * detected.
+ */
+bool SerialPort::abort_tx(hdlc::IoFrame* frame)
+{
+    HAL_UART_AbortTransmit(&huart3);
+    hdlc::release(frame);
+    WARN("SerialPort::write timed out -- DMA aborted.");
+    HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
+    osDelay(1);
+    HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
+    bm78_wait_until_ready();
+    txDoneFlag = true;
+    osMutexRelease(mutex_);
+    return false;
+}
+
 bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
 {
     DEBUG("SerialPort::write sending frame");
@@ -341,42 +358,54 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     tmpBuffer[pos++] = 0xC0;   // FEND
     tmpBuffer[pos++] = static_cast<int>(frame->type());   // KISS Data Frame
 
-    while (slip_iter != slip_end) {
+    while (slip_iter != slip_end)
+    {
         tmpBuffer[pos++] = *slip_iter++;
-        if (pos == BLE_BUFFER_SIZE) {
-            while (!txDoneFlag) osThreadYield();
-            memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
-            txDoneFlag = false;
-            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, BLE_BUFFER_SIZE) == HAL_BUSY)
-            {
-                if (osKernelSysTick() > start + timeout) {
-                    txDoneFlag = true;
-                    osMutexRelease(mutex_);
-                    hdlc::release(frame);
-                    WARN("SerialPort::write timed out");
-                    return false;
+        if (pos == TX_BUFFER_SIZE) {
+            while (!txDoneFlag) {
+                // txDoneFlag set in HAL_UART_TxCpltCallback() above when DMA completes.
+                if (osKernelSysTick() > (start + timeout)) {
+                    return abort_tx(frame); // Abort DMA xfer on timeout.
+                } else {
+                    osThreadYield();
                 }
-                osThreadYield();
             }
-
+            memcpy(TxBuffer, tmpBuffer, TX_BUFFER_SIZE);
+            txDoneFlag = false;
+            while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, TX_BUFFER_SIZE) == HAL_BUSY)
+            {
+                // This should not happen.  HAL_BUSY should not occur when txDoneFlag set.
+                if (osKernelSysTick() > (start + timeout)) {
+                    return abort_tx(frame); // Abort DMA xfer on timeout.
+                } else {
+                    osThreadYield();
+                }
+            }
             pos = 0;
         }
     }
 
     // Buffer has room for at least one more byte.
     tmpBuffer[pos++] = 0xC0;
-    while (!txDoneFlag) osThreadYield();
-    memcpy(TxBuffer, tmpBuffer, BLE_BUFFER_SIZE);
+
+    while (!txDoneFlag) {
+        // txDoneFlag set in HAL_UART_TxCpltCallback() above when DMA completes.
+        if (osKernelSysTick() > (start + timeout)) {
+            return abort_tx(frame); // Abort DMA xfer on timeout.
+        } else {
+            osThreadYield();
+        }
+    }
+
+    memcpy(TxBuffer, tmpBuffer, TX_BUFFER_SIZE);
     txDoneFlag = false;
     while (open_ and HAL_UART_Transmit_DMA(&huart3, TxBuffer, pos) == HAL_BUSY) {
-        if (osKernelSysTick() > start + timeout) {
-            txDoneFlag = true;
-            osMutexRelease(mutex_);
-            hdlc::release(frame);
-            WARN("SerialPort::write timed out");
-            return false;
+        // This should not happen.  HAL_BUSY should not occur when txDoneFlag set.
+        if (osKernelSysTick() > (start + timeout)) {
+            return abort_tx(frame); // Abort DMA xfer on timeout.
+        } else {
+            osThreadYield();
         }
-        osThreadYield();
     }
 
     osMutexRelease(mutex_);

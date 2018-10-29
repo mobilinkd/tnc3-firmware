@@ -26,10 +26,13 @@ struct SerialPort : PortInterface
 
     void init();
 
+private:
     bool open_{false};                  // opened/closed
     osMutexId mutex_{0};                // TX Mutex
     osMessageQId queue_{0};             // ISR read queue
     osThreadId serialTaskHandle_{0};
+
+    bool abort_tx(hdlc::IoFrame* frame);
 };
 
 SerialPort* getSerialPort();
