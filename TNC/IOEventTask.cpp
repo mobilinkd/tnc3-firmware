@@ -16,6 +16,7 @@
 #include "SerialPort.hpp"
 #include "NullPort.hpp"
 #include "LEDIndicator.h"
+#include "bm78.h"
 
 #include "stm32l4xx_hal.h"
 #include "usbd_cdc_if.h"
@@ -52,16 +53,21 @@ void startIOEventTask(void const*)
     mobilinkd::tnc::audio::setAudioOutputLevel();
     mobilinkd::tnc::audio::setAudioInputLevels();
 
-//  if (reset_requested) {}
+    // Cannot enable these interrupts until we start the io loop because
+    // they send messages on the queue.
+    HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
+    HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
 
-    osDelay(100);
-    HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-    osDelay(100);
+    HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
+    HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
 
-    HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
+    HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
+
+    HAL_NVIC_SetPriority(EXTI4_IRQn, 6, 0);
     HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
-    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6, 0);
     HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
     if (reset_requested)
@@ -81,6 +87,9 @@ void startIOEventTask(void const*)
         indicate_waiting_to_connect();
     }
 
+    uint32_t power_button_counter{0};
+    uint32_t power_button_duration{0};
+
     /* Infinite loop */
     for (;;)
     {
@@ -98,7 +107,6 @@ void startIOEventTask(void const*)
                     // Disable Bluetooth Module
                     HAL_NVIC_DisableIRQ(EXTI4_IRQn);
                     HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
-                    HAL_UART_DeInit(&huart3);
                     HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
                         GPIO_PIN_RESET);
                     INFO("CDC Opened");
@@ -115,7 +123,7 @@ void startIOEventTask(void const*)
                 {
                     break;
                 }
-            [[fallthrough]] // when the CDC part was connected.
+            /* Fallthrough*/ // when the CDC part was connected.
             case CMD_USB_CDC_DISCONNECT:
                 closeCDC();
                 INFO("CDC Closed");
@@ -125,7 +133,6 @@ void startIOEventTask(void const*)
                     GPIO_PIN_SET);
 
                 osDelay(500);  // Avoid spurious interrupts during wake up.
-                HAL_UART_Init(&huart3);
                 HAL_NVIC_EnableIRQ(EXTI4_IRQn);
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
@@ -135,25 +142,36 @@ void startIOEventTask(void const*)
                 break;
             case CMD_POWER_BUTTON_DOWN:
                 INFO("Power Down");
+                power_button_counter = osKernelSysTick();
                 HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_SET);
                 osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
                     osWaitForever);
                 break;
             case CMD_POWER_BUTTON_UP:
                 DEBUG("Power Up");
+                power_button_duration = osKernelSysTick() - power_button_counter;
+                DEBUG("Button pressed for %lums", power_button_duration);
                 stop2();
                 INFO("RUN mode");
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
                 mobilinkd::tnc::audio::setAudioOutputLevel();
                 mobilinkd::tnc::audio::setAudioInputLevels();
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-
-                osDelay(100);
+                bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
                 HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
 
                 break;
             case CMD_BOOT_BUTTON_DOWN:
@@ -177,7 +195,6 @@ void startIOEventTask(void const*)
                 break;
             case CMD_BT_CONNECT:
                 DEBUG("BT Connect");
-                HAL_UART_MspInit(&huart3);
                 if (openSerial())
                 {
                     osMessagePut(audioInputQueueHandle,
@@ -190,8 +207,6 @@ void startIOEventTask(void const*)
             case CMD_BT_DISCONNECT:
                 INFO("BT Disconnect");
                 closeSerial();
-                // De-initialize the UART until a connection is established.
-                HAL_UART_MspDeInit(&huart3);
                 indicate_waiting_to_connect();
                 HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
                 osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
@@ -208,17 +223,25 @@ void startIOEventTask(void const*)
                 INFO("STOP mode");
                 stop2();
                 INFO("RUN mode");
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
                 mobilinkd::tnc::audio::setAudioOutputLevel();
                 mobilinkd::tnc::audio::setAudioInputLevels();
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-
-                osDelay(100);
+                bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
                 HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
 
                 break;
             case CMD_USB_CONNECTED:
@@ -251,20 +274,34 @@ void startIOEventTask(void const*)
             case CMD_BT_IDLE:
                 INFO("BT idle");
                 break;
+            case CMD_USB_SUSPEND:
+                INFO("USB suspend");
+                break;
+            case CMD_USB_RESUME:
+                INFO("USB resume");
+                break;
             case CMD_RUN:
                 // No need to reload settings.  SRAM was retained.
                 INFO("RUN mode");
+                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
                 mobilinkd::tnc::audio::setAudioOutputLevel();
                 mobilinkd::tnc::audio::setAudioInputLevels();
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-
-                osDelay(100);
+                bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI4_IRQn);
 
                 HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+                HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
+
+                HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
+                HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
 
                 break;
             default:
