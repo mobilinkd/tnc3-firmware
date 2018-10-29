@@ -34,11 +34,13 @@ extern "C" void startLedBlinkerTask(void const*);
 
 void startIOEventTask(void const*)
 {
+    using namespace mobilinkd::tnc;
+
     indicate_on();
 
-    mobilinkd::tnc::print_startup_banner();
+    print_startup_banner();
 
-    auto& hardware = mobilinkd::tnc::kiss::settings();
+    auto& hardware = kiss::settings();
 
     if (! hardware.load() or reset_requested or !hardware.crc_ok())
     {
@@ -49,9 +51,9 @@ void startIOEventTask(void const*)
     }
     hardware.debug();
 
-    mobilinkd::tnc::audio::init_log_volume();
-    mobilinkd::tnc::audio::setAudioOutputLevel();
-    mobilinkd::tnc::audio::setAudioInputLevels();
+    audio::init_log_volume();
+    audio::setAudioOutputLevel();
+    audio::setAudioInputLevels();
 
     // Cannot enable these interrupts until we start the io loop because
     // they send messages on the queue.
@@ -112,14 +114,14 @@ void startIOEventTask(void const*)
                     INFO("CDC Opened");
                     indicate_connected_via_usb();
                     osMessagePut(audioInputQueueHandle,
-                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                        audio::DEMODULATOR, osWaitForever);
                 }
                 break;
             case CMD_USB_DISCONNECTED:
                 INFO("VBUS Lost");
                 HAL_PCD_MspDeInit(&hpcd_USB_FS);
                 HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
-                if (mobilinkd::tnc::ioport != mobilinkd::tnc::getUsbPort())
+                if (ioport != getUsbPort())
                 {
                     break;
                 }
@@ -137,14 +139,14 @@ void startIOEventTask(void const*)
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
                 indicate_waiting_to_connect();
-                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
                 break;
             case CMD_POWER_BUTTON_DOWN:
                 INFO("Power Down");
                 power_button_counter = osKernelSysTick();
                 HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_SET);
-                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
                 break;
             case CMD_POWER_BUTTON_UP:
@@ -154,8 +156,8 @@ void startIOEventTask(void const*)
                 stop2();
                 INFO("RUN mode");
                 HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-                mobilinkd::tnc::audio::setAudioOutputLevel();
-                mobilinkd::tnc::audio::setAudioInputLevels();
+                audio::setAudioOutputLevel();
+                audio::setAudioInputLevels();
                 bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
@@ -176,21 +178,29 @@ void startIOEventTask(void const*)
                 break;
             case CMD_BOOT_BUTTON_DOWN:
                 DEBUG("BOOT Down");
+                // If the TNC has USB power, reboot.  The boot pin is being
+                // held so it will boot into the bootloader.  This is a bit
+                // of a hack, since we really should check if the port is a
+                // standard USB port and not just a charging port.
+                if (gpio::USB_POWER::get() and ioport == getNullPort())
+                {
+                    HAL_NVIC_SystemReset();
+                }
                 break;
             case CMD_BOOT_BUTTON_UP:
                 DEBUG("BOOT Up");
                 osMessagePut(audioInputQueueHandle,
-                    mobilinkd::tnc::audio::AUTO_ADJUST_INPUT_LEVEL,
+                    audio::AUTO_ADJUST_INPUT_LEVEL,
                     osWaitForever);
-                if (mobilinkd::tnc::ioport != mobilinkd::tnc::getNullPort())
+                if (ioport != getNullPort())
                 {
                     osMessagePut(audioInputQueueHandle,
-                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                        audio::DEMODULATOR, osWaitForever);
                 }
                 else
                 {
                     osMessagePut(audioInputQueueHandle,
-                        mobilinkd::tnc::audio::IDLE, osWaitForever);
+                        audio::IDLE, osWaitForever);
                 }
                 break;
             case CMD_BT_CONNECT:
@@ -198,7 +208,7 @@ void startIOEventTask(void const*)
                 if (openSerial())
                 {
                     osMessagePut(audioInputQueueHandle,
-                        mobilinkd::tnc::audio::DEMODULATOR, osWaitForever);
+                        audio::DEMODULATOR, osWaitForever);
                     INFO("BT Opened");
                     indicate_connected_via_ble();
                     HAL_PCD_EP_SetStall(&hpcd_USB_FS, CDC_CMD_EP);
@@ -209,7 +219,7 @@ void startIOEventTask(void const*)
                 closeSerial();
                 indicate_waiting_to_connect();
                 HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
-                osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::IDLE,
+                osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
                 INFO("BT Closed");
                 break;
@@ -224,8 +234,8 @@ void startIOEventTask(void const*)
                 stop2();
                 INFO("RUN mode");
                 HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-                mobilinkd::tnc::audio::setAudioOutputLevel();
-                mobilinkd::tnc::audio::setAudioInputLevels();
+                audio::setAudioOutputLevel();
+                audio::setAudioInputLevels();
                 bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
@@ -284,8 +294,8 @@ void startIOEventTask(void const*)
                 // No need to reload settings.  SRAM was retained.
                 INFO("RUN mode");
                 HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-                mobilinkd::tnc::audio::setAudioOutputLevel();
-                mobilinkd::tnc::audio::setAudioInputLevels();
+                audio::setAudioOutputLevel();
+                audio::setAudioInputLevels();
                 bm78_wait_until_ready();
 
                 HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
@@ -311,18 +321,18 @@ void startIOEventTask(void const*)
             continue;
         }
 
-        using mobilinkd::tnc::hdlc::IoFrame;
+        using hdlc::IoFrame;
 
         auto frame = static_cast<IoFrame*>(evt.value.p);
 
         switch (frame->source()) {
         case IoFrame::RF_DATA:
             DEBUG("RF frame");
-            if (!mobilinkd::tnc::ioport->write(frame, 100))
+            if (!ioport->write(frame, 100))
             {
                 ERROR("Timed out sending frame");
                 // The frame has been passed to the write() call.  It owns it now.
-                // mobilinkd::tnc::hdlc::release(frame);
+                // hdlc::release(frame);
             }
             break;
         case IoFrame::SERIAL_DATA:
@@ -334,12 +344,12 @@ void startIOEventTask(void const*)
                     osWaitForever) != osOK)
                 {
                     ERROR("Failed to write frame to TX queue");
-                    mobilinkd::tnc::hdlc::release(frame);
+                    hdlc::release(frame);
                 }
             }
             else
             {
-                mobilinkd::tnc::kiss::handle_frame(frame->type(), frame);
+                kiss::handle_frame(frame->type(), frame);
             }
             break;
         case IoFrame::DIGI_DATA:
@@ -348,11 +358,11 @@ void startIOEventTask(void const*)
                 reinterpret_cast<uint32_t>(frame),
                 osWaitForever) != osOK)
             {
-                mobilinkd::tnc::hdlc::release(frame);
+                hdlc::release(frame);
             }
             break;
         case IoFrame::FRAME_RETURN:
-            mobilinkd::tnc::hdlc::release(frame);
+            hdlc::release(frame);
             break;
         }
     }
