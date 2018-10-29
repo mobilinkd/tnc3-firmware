@@ -57,6 +57,7 @@ struct Digipeater
   /**
    * Can the frame be digipeated?
    *
+   *  - Is it a UI frame
    *  - Does it match an active digi alias?
    *    - set = true
    *    - use = true
@@ -65,11 +66,12 @@ struct Digipeater
    *      matches any frame via.
    *  - Does it not exist in history?
    * @param frame
-   * @return
+   * @return nullptr if the frame cannot be digipeated, otherwise a pointer
+   *    to the alias that it matched.
    */
-  bool can_repeat(hdlc::IoFrame* frame)
+  const kiss::Alias* can_repeat(hdlc::IoFrame* frame)
   {
-    return false;
+    return nullptr;
   }
 
   hdlc::IoFrame* rewrite_frame(hdlc::IoFrame* frame)
