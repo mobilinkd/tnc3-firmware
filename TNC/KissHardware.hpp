@@ -20,6 +20,19 @@ extern const char HARDWARE_VERSION[];
 
 namespace hardware {
 
+/**
+ * This indicates the API version of the device.  API versions are used to
+ * indicate to the user that the config app may need to be upgraded because
+ * the device is using a newer configuration API.
+ *
+ * The minor version should be updated whenever the API is extended (new
+ * GET/SET or CAP types added.
+ *
+ * The major version should be updated whenever non-backwards compatible
+ * changes to the API are made.
+ */
+constexpr const uint16_t KISS_API_VERSION = 0x0200;
+
 constexpr const uint16_t CAP_DCD = 0x0001;
 constexpr const uint16_t CAP_SQUELCH = 0x0002;
 constexpr const uint16_t CAP_INPUT_ATTEN = 0x0004;
@@ -30,7 +43,6 @@ constexpr const uint16_t CAP_BT_NAME_CHANGE = 0x0040;
 constexpr const uint16_t CAP_BT_PIN_CHANGE = 0x0080;
 constexpr const uint16_t CAP_VERBOSE_ERROR = 0x0100;
 constexpr const uint16_t CAP_EEPROM_SAVE = 0x0200;
-constexpr const uint16_t CAP_ADJUST_INPUT = 0x0400;
 
 constexpr const uint8_t SAVE = 0; // Save settings to EEPROM.
 constexpr const uint8_t SET_OUTPUT_GAIN = 1;
@@ -45,7 +57,7 @@ constexpr const uint8_t SEND_BOTH = 9;
 constexpr const uint8_t STOP_TX = 10;
 constexpr const uint8_t RESET = 11;
 constexpr const uint8_t GET_OUTPUT_GAIN = 12;
-constexpr const uint8_t GET_INPUT_ATTEN = 13;
+constexpr const uint8_t GET_INPUT_GAIN = 13;
 constexpr const uint8_t GET_SQUELCH_LEVEL = 14;
 constexpr const uint8_t STREAM_DCD_VALUE = 15;
 
@@ -103,6 +115,9 @@ constexpr const uint8_t GET_BT_POWER_OFF = 78;
 constexpr const uint8_t SET_PTT_CHANNEL = 79; // Which PTT line to use (currently 0 or 1,
 constexpr const uint8_t GET_PTT_CHANNEL = 80; // multiplex or simplex)
 
+constexpr const uint8_t GET_API_VERSION = 123;      ///< uint16_t (major/minor)
+constexpr const uint8_t GET_MIN_INPUT_GAIN = 124;   ///< int16_t (may be negative/attenuated).
+constexpr const uint8_t GET_MAX_INPUT_GAIN = 125;   ///< int16_t (may be negative/attenuated).
 constexpr const uint8_t GET_CAPABILITIES = 126;   ///< Send all capabilities.
 constexpr const uint8_t GET_ALL_VALUES = 127;     ///< Send all settings & versions.
 

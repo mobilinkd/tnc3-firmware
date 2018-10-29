@@ -15,7 +15,7 @@ extern I2C_HandleTypeDef hi2c1;
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.6";
+const char FIRMWARE_VERSION[] = "0.8.7";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
@@ -118,12 +118,11 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     switch (command) {
 
-#if 0
+#if 1
     case hardware::SAVE:
     case hardware::SAVE_EEPROM_SETTINGS:
-        save();
+        store();
         reply8(hardware::OK, hardware::SAVE_EEPROM_SETTINGS);
-        audio::adcState = audio::DEMODULATOR;
         break;
 #endif
     case hardware::POLL_INPUT_LEVEL:
@@ -344,7 +343,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::GET_CAPABILITIES:
         DEBUG("GET_CAPABILITIES");
-        reply16(hardware::GET_CAPABILITIES, 0);
+        reply16(hardware::GET_CAPABILITIES, hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL);
         break;
 
     case hardware::GET_ALL_VALUES:
@@ -355,6 +354,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             osWaitForever);
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
+        reply16(hardware::GET_API_VERSION, hardware::KISS_API_VERSION);
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
           sizeof(FIRMWARE_VERSION) - 1);
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
@@ -372,7 +372,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_DUPLEX, duplex);
         reply8(hardware::GET_PTT_CHANNEL,
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
-        reply16(hardware::GET_CAPABILITIES, 0);
+        reply16(hardware::GET_CAPABILITIES, hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL);
+        reply16(hardware::GET_MIN_INPUT_GAIN, 0);
+        reply16(hardware::GET_MAX_INPUT_GAIN, 4);
 
         break;
     case hardware::EXTENDED_CMD:
