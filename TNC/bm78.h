@@ -14,6 +14,19 @@ extern "C" {
 #include <stdint.h>
 #endif
 
+/**
+ * The BM78 module says that the module is ready about 475ms after start,
+ * but that the proper thing to do is wait until P1_5 (BT_STATE2) is high
+ * and P0_4 (BT_STATE1) is low.
+ *
+ * This waits for the module to reach this state.  If it fails to become
+ * ready after 2 seconds, it enters the error handler.
+ *
+ * @note This does not work to detect whether the module is ready for
+ *  EEPROM programming, only for transparent data mode.  The time required
+ *  and state indication for EEPROM programming mode is not specified.
+ */
+void bm78_wait_until_ready(void);
 void bm78_state_change(void);
 int bm78_disable(void);
 int bm78_enable(void);

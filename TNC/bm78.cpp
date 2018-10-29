@@ -2,9 +2,11 @@
 // All rights reserved.
 
 #include "bm78.h"
+#include "bm78_eeprom.hpp"
 #include "GPIO.hpp"
 #include "Log.h"
 #include "main.h"
+#include "HdlcFrame.hpp"
 
 #include "stm32l4xx_hal.h"
 
@@ -15,6 +17,7 @@
 
 extern RTC_HandleTypeDef hrtc;
 extern UART_HandleTypeDef huart3;
+extern CRC_HandleTypeDef hcrc;
 
 namespace mobilinkd { namespace tnc { namespace bm78 {
 
@@ -23,60 +26,47 @@ namespace mobilinkd { namespace tnc { namespace bm78 {
  * transparent data transfer in one or both modes.  The module documentation
  * only clearly describes how to configure the modules using a (horrible)
  * Windows application.  Microchip publishes a library for use with their
- * PIC chips that we use as a guide for implementing our own configuration
- * code.
+ * PIC chips that we initially used as a guide for implementing our own
+ * configuration code.  We now use a hybrid mechanism, writing out the
+ * entire configuration and tweaking a few settings.
  *
  * The module must be booted into EEPROM programming mode in order to make
- * changes.  This mode uses 115200 baud with no hardware flow control
+ * changes.  This mode uses 115200 baud with no hardware flow control.
  *
  * We program the module for the following features:
  *
  *  - The module is set for 115200 baud with hardware flow control.
  *  - The name is changed to TNC3.
  *  - The BT3.0 pairing PIN is set to 1234
- *  - The BLE5.0 pairing PIN is set to "625653" (MBLNKD on a phone pad).
+ *  - The BLE5.0 pairing PIN is set to "123456".
  *  - The module power setting is set as low as possible for BLE.
  */
-
-const uint32_t BT_INIT_MAGIC = 0xc0a2;
 
 void bm78_reset()
 {
   // Must use HAL_Delay() here as osDelay() may not be available.
   mobilinkd::tnc::gpio::BT_RESET::off();
-  HAL_Delay(1200);
+  HAL_Delay(1);
   mobilinkd::tnc::gpio::BT_RESET::on();
-  HAL_Delay(800);
-
 }
 
-void exit_command_mode()
-{
-    gpio::BT_CMD::on();
-    bm78_reset();
-    INFO("BM78 in PASSTHROUGH mode");
-}
-
-HAL_StatusTypeDef read_response(uint8_t* buffer, uint16_t size, uint32_t timeout)
-{
-    memset(buffer, 0, size);
-
-    auto result = HAL_UART_Receive(&huart3, buffer, size - 1, timeout);
-
-    if (result == HAL_TIMEOUT) result = HAL_OK;
-
-    return result;
-}
-
-bool enter_program_mode()
+/**
+ * Enter BM78 EEPROM programming mode.
+ *
+ * This pulls EAN low on the BM78 and resets the module to enter EEPROM
+ * programming mode and disable HW flow control on the UART.
+ *
+ * @note The timing of this process is not well documented.
+ */
+void enter_program_mode()
 {
     // Ensure we start out disconnected.
     gpio::BT_CMD::off();
     HAL_Delay(10);
     gpio::BT_RESET::off();
-    HAL_Delay(10);      // Spec says minimum 63ns
+    HAL_Delay(1);       // Spec says minimum 63ns.
     gpio::BT_RESET::on();
-    HAL_Delay(200);     // I could not find timing specifications for this.
+    HAL_Delay(200);     // Timing for EEPROM programming is not specified.
 
     huart3.Init.HwFlowCtl = UART_HWCONTROL_NONE;
     huart3.Init.BaudRate = 115200;
@@ -84,95 +74,22 @@ bool enter_program_mode()
     {
         CxxErrorHandler();
     }
-
-    // Read (cmd = 0x29) all 1K bytes, starting at address 0, 128 bytes at a time.
-    uint8_t cmd[] = {0x01, 0x29, 0xfc, 0x03, 0x00, 0x00, 0x80};
-
-    constexpr const uint16_t BLOCK_SIZE = 128;
-
-    for (uint16_t addr = 0; addr != 0x500; addr += BLOCK_SIZE)
-    {
-        cmd[5] = addr & 0xFF;
-        cmd[4] = (addr >> 8) & 0xFF;
-        if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 10) != HAL_OK)
-        {
-            ERROR("Read EEPROM transmit failed");
-            return false;
-        }
-
-        uint8_t buffer[BLOCK_SIZE + 10];
-
-        if (HAL_UART_Receive(&huart3, buffer, BLOCK_SIZE + 10, 1000) != HAL_OK)
-        {
-            ERROR("Read EEPROM receive failed");
-            return false;
-        }
-
-        for (size_t i = 0; i != BLOCK_SIZE; i += 16) {
-            printf("%04X: ", addr + i);
-            for (size_t j = 0; j != 16; j++) {
-                printf("%02X ", buffer[i + j + 10]);
-            }
-            printf("\r\n");
-            HAL_Delay(10);
-        }
-    }
-    return true;
 }
 
-bool exit_program_mode()
+/**
+ * Exit BM78 EEPROM programming mode and return to pass-through mode.
+ *
+ * This asserts EAN on the BM78 and resets the module to exit EEPROM
+ * programming mode, reconfigures the UART for HW flow control, then
+ * waits for the module to become ready.
+ */
+void exit_program_mode()
 {
-    auto result = true;
-
-    // Read (cmd = 0x29) all 1K bytes, starting at address 0, 128 bytes at a time.
-    uint8_t cmd[] = {0x01, 0x29, 0xfc, 0x03, 0x00, 0x00, 0x80};
-
-    constexpr const uint16_t BLOCK_SIZE = 128;
-
-    for (uint16_t addr = 0; addr != 0x500; addr += BLOCK_SIZE)
-    {
-        cmd[5] = addr & 0xFF;
-        cmd[4] = (addr >> 8) & 0xFF;
-        if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 10) != HAL_OK)
-        {
-            ERROR("Read EEPROM transmit failed");
-            result = false;
-            break;
-        }
-
-        uint8_t buffer[BLOCK_SIZE + 10];
-
-        if (HAL_UART_Receive(&huart3, buffer, BLOCK_SIZE + 10, 1000) != HAL_OK)
-        {
-            ERROR("Read EEPROM receive failed");
-            result = false;
-            break;
-        }
-
-        for (size_t i = 0; i != BLOCK_SIZE; i += 16) {
-            printf("%04X: ", addr + i);
-            for (size_t j = 0; j != 16; j++) {
-                int c = buffer[i + j + 10];
-                printf(" %c ", isprint(c) ? (char) c : '.');
-            }
-            printf("\r\n");
-            printf("%04X: ", addr + i);
-            for (size_t j = 0; j != 16; j++) {
-                printf("%02X ", buffer[i + j + 10]);
-            }
-            printf("\r\n");
-            HAL_Delay(10);
-        }
-    }
-
-
-    // Ensure we start out disconnected.
     gpio::BT_CMD::on();
     HAL_Delay(10);
     gpio::BT_RESET::off();
     HAL_Delay(1);       // Spec says minimum 63ns.
     gpio::BT_RESET::on();
-    HAL_Delay(400);     // Spec says 354ms.
 
     huart3.Init.HwFlowCtl = UART_HWCONTROL_RTS_CTS;
     huart3.Init.BaudRate = 115200;
@@ -181,21 +98,32 @@ bool exit_program_mode()
         CxxErrorHandler();
     }
 
-    return result;
+    bm78_wait_until_ready();
 }
 
-bool set_reset()
-{
-    return true;
-}
-
+/**
+ * Parse the result of the previous write.  Return true if the write was
+ * successful and false if either the response could not be read or the
+ * write failed.
+ *
+ * @pre A block of EEPROM data was written to the BM78.
+ * @post The write response has been written.
+ *
+ * The result of the write is 7 bytes in length.  The write was successful
+ * if the last byte returned is a 0.
+ *
+ * @param function is the name of the calling function and is used when
+ *  logging to indicate which write operation failed.
+ * @return true when the write was successful, otherwise false.
+ */
 bool parse_write_result(const char* function)
 {
     uint8_t result[7];
 
-    if (HAL_UART_Receive(&huart3, result, sizeof(result), 1000) != HAL_OK)
+    HAL_StatusTypeDef status;
+    if ((status = HAL_UART_Receive(&huart3, result, sizeof(result), 1000)) != HAL_OK)
     {
-        ERROR("%s receive failed", function);
+        ERROR("%s receive failed (%d)", function, status);
         return false;
     }
 
@@ -207,7 +135,79 @@ bool parse_write_result(const char* function)
     }
 
     return result[6] == 0;
+}
 
+/**
+ * Parse the EEPROM data and write the segments to the BM78 EEPROM.
+ *
+ * @pre The BM78 is in programming mode.
+ * @post The BM78 is programmed.
+ *
+ * The data from the EEPROM programming UI is a sparsely populated memory
+ * map.  That data has been converted into <address> <length> <data> format
+ * in the eeprom_data block.  The last block has a zero length, indicating
+ * EOF.  The address is two bytes, big endian, followed by a one byte
+ * length and *length* bytes of data.
+ *
+ * It is important that memory areas that are not populated by the UI are
+ * not overwritten as they may contain device-specific data elements.  For
+ * example, the first 6 bytes of data are the Bluetooth device MAC address.
+ *
+ * The write command is 7 bytes long.  The first three bytes are static:
+ * {0x01, 0x27, 0xfc}.  The 4th byte is *length* + 3.  The 5th and 6th
+ * are the address, and the 7th is *length*.  The data to be written
+ * follows.
+ *
+ * Once the data has been written, the BM78 module sends a response.  This
+ * must be read and parse before the next block is written.
+ *
+ * @return true if the BM78 is programmed, otherwise false.
+ */
+bool write_eeprom()
+{
+    const uint8_t* data = eeprom_data;
+
+    uint8_t cmd[] = {0x01, 0x27, 0xfc, 0x00, 0x00, 0x00, 0x00};
+
+    bool result = true;
+    while (result)
+    {
+        auto len = data[2];
+
+        cmd[0] = 0x01;
+        cmd[1] = 0x27;
+        cmd[2] = 0xfc;
+        cmd[3] = len + 3;
+        cmd[4] = data[0];
+        cmd[5] = data[1];
+        cmd[6] = len;
+
+        if (len == 0)
+            break;
+
+        data += 3;
+
+        if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 1000) != HAL_OK)
+        {
+            ERROR("%s transmit header failed", __PRETTY_FUNCTION__);
+            return false;
+        }
+
+        if (HAL_UART_Transmit(&huart3, const_cast<uint8_t*>(data), len, 1000) != HAL_OK)
+        {
+            ERROR("%s transmit data failed", __PRETTY_FUNCTION__);
+            return false;
+        } else {
+            DEBUG("%s transmit succeeded %d bytes at 0x%02X%02X",
+                __FUNCTION__, cmd[6], cmd[4], cmd[5]);
+        }
+
+        result = parse_write_result(__PRETTY_FUNCTION__);
+
+        data += len;
+    }
+
+    return result;
 }
 
 bool set_name()
@@ -331,7 +331,7 @@ bool set_le_attribute_properties()
 
     if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 10) != HAL_OK)
     {
-        ERROR("set_le_attribute_properties transmit failed");
+        ERROR("%s transmit failed", __PRETTY_FUNCTION__);
         return false;
     }
 
@@ -429,12 +429,47 @@ bool set_reliable()
 
 }}} // mobilinkd::tnc::bm78
 
+void bm78_wait_until_ready()
+{
+    auto start = HAL_GetTick();
+    // Must wait until P1_5 (BT_STATE2) is high and P0_4 (BT_STATE1) is low.
+    GPIO_PinState bt_state1, bt_state2;
+    do {
+        if (HAL_GetTick() > start + 2000) CxxErrorHandler(); // Timed out.
+
+        HAL_Delay(100);
+        bt_state2 = HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin);
+        bt_state1 = HAL_GPIO_ReadPin(BT_STATE1_GPIO_Port, BT_STATE1_Pin);
+        DEBUG("bt_state2=%d, bt_state1=%d", bt_state2, bt_state1);
+    } while (!((bt_state2 == GPIO_PIN_SET) and (bt_state1 == GPIO_PIN_RESET)));
+}
+
+uint32_t eeprom_crc()
+{
+    const uint8_t* data = eeprom_data;
+
+    while (true)
+    {
+        data++;
+        data++;
+        auto len = *data++;
+        if (!len) break;
+        data += len;
+    }
+
+    uint32_t size = data - eeprom_data;
+
+    return HAL_CRC_Calculate(&hcrc, (uint32_t*)eeprom_data, size);
+}
+
 int bm78_initialized()
 {
     using namespace mobilinkd::tnc;
     using namespace mobilinkd::tnc::bm78;
 
-    return HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) == BT_INIT_MAGIC;
+    auto crc = eeprom_crc();
+
+    return HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) == crc;
 }
 
 int bm78_initialize()
@@ -444,34 +479,18 @@ int bm78_initialize()
 
     int result = 0;
 
-    if (!enter_program_mode()) result = 1;
-    else if (!set_name()) result = 2;
-    else if (!set_pin()) result = 3;
-    else if (!set_misc()) result = 4;
-    else if (!configure_le_service()) result = 5;
+    enter_program_mode();
+    if (!write_eeprom()) result = 1;
     exit_program_mode();
 
-#if 0
-    bt_status_init();
-
-    if (not enter_command_mode()) result = 1;
-    else if (not set_uart()) result = 4;
-    else if (not set_work()) result = 7;
-    else if (not set_power()) result = 8;
-    else if (not set_secure()) result = 9;
-    else if (not set_gpio()) result = 3;
-    else if (not set_name()) result = 2;
-    else if (not set_reset()) result = 10;
-    exit_command_mode();
 #if 1
     if (result == 0) {
-        /* Write BT_INIT_MAGIC to RTC back-up register RTC_BKP_DR1 to indicate
-           that the HC-05 module has been initialized.  */
+        /* Write CRC to RTC back-up register RTC_BKP_DR1 to indicate
+           that the BM78 module has been initialized.  */
         HAL_PWR_EnableBkUpAccess();
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, BT_INIT_MAGIC);
+        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, eeprom_crc());
         HAL_PWR_DisableBkUpAccess();
     }
-#endif
 #endif
     return result;
 }
