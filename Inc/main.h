@@ -157,6 +157,7 @@
 
 extern int reset_requested;
 extern char serial_number[25];
+extern char serial_number_64[17];
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 

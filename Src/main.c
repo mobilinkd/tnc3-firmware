@@ -58,6 +58,7 @@
 #include "PortInterface.h"
 #include "LEDIndicator.h"
 #include "bm78.h"
+#include "base64.h"
 
 /* USER CODE END Includes */
 
@@ -143,6 +144,7 @@ osStaticTimerDef_t beaconTimer4ControlBlock;
 
 int reset_requested = 0;
 char serial_number[25];
+char serial_number_64[17] = {0};
 
 /* USER CODE END PV */
 
@@ -259,8 +261,6 @@ void power_down_vdd()
 {
     __HAL_RCC_GPIOB_CLK_ENABLE();
 
-    GPIO_InitTypeDef GPIO_InitStruct;
-
     HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_RESET);
     for (int i = 0; i < 4800; ++i) asm volatile("nop");
 }
@@ -370,6 +370,11 @@ int main(void)
   // Fetch the device serial number.
   uint32_t* uid = (uint32_t*) UID_BASE;
   snprintf(serial_number, sizeof(serial_number), "%08lx%08lx%08lx", uid[0], uid[1], uid[2]);
+
+  {
+      uint32_t len = 17;
+      base64encode((const uint8_t*) UID_BASE, 12, serial_number_64, &len);
+  }
 
   // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
   // has a weak pull-up on the BT module and is in OD mode.  Pull the

@@ -210,6 +210,26 @@ bool write_eeprom()
     return result;
 }
 
+bool write_serial()
+{
+    uint8_t cmd[] = {0x01, 0x27, 0xfc, 0x13, 02, 0x42, 0x10};
+
+    if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 1000) != HAL_OK)
+    {
+        ERROR("%s transmit header failed", __PRETTY_FUNCTION__);
+        return false;
+    }
+
+    if (HAL_UART_Transmit(&huart3, reinterpret_cast<uint8_t*>(serial_number_64),
+        16, 1000) != HAL_OK)
+    {
+        ERROR("%s transmit data failed", __PRETTY_FUNCTION__);
+        return false;
+    }
+
+    return parse_write_result(__PRETTY_FUNCTION__);
+}
+
 bool set_name()
 {
     uint8_t cmd[] = {0x01, 0x27, 0xfc, 0x13, 0x00, 0x0b, 0x10
@@ -481,6 +501,7 @@ int bm78_initialize()
 
     enter_program_mode();
     if (!write_eeprom()) result = 1;
+    else if (!write_serial()) result = 2;
     exit_program_mode();
 
 #if 1

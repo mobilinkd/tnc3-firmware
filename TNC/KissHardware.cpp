@@ -15,7 +15,7 @@ extern I2C_HandleTypeDef hi2c1;
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.7";
+const char FIRMWARE_VERSION[] = "0.8.8";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
@@ -293,6 +293,11 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
           sizeof(HARDWARE_VERSION) - 1);
         break;
+    case hardware::GET_SERIAL_NUMBER:
+        DEBUG("GET_SERIAL_NUMBER");
+        reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
+          sizeof(serial_number_64) - 1);
+        break;
 
     case hardware::SET_PTT_CHANNEL:
         DEBUG("SET_PTT_CHANNEL");
@@ -343,7 +348,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::GET_CAPABILITIES:
         DEBUG("GET_CAPABILITIES");
-        reply16(hardware::GET_CAPABILITIES, hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL);
+        reply16(hardware::GET_CAPABILITIES,
+            hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
+            hardware::CAP_ADJUST_INPUT);
         break;
 
     case hardware::GET_ALL_VALUES:
@@ -359,6 +366,8 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
           sizeof(FIRMWARE_VERSION) - 1);
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
           sizeof(HARDWARE_VERSION) - 1);
+        reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
+          sizeof(serial_number_64) - 1);
         reply8(hardware::GET_USB_POWER_OFF, options & KISS_OPTION_VIN_POWER_OFF ? 0 : 1);
         reply8(hardware::GET_USB_POWER_ON, options & KISS_OPTION_VIN_POWER_ON ? 0 : 1);
         reply8(hardware::GET_OUTPUT_GAIN, output_gain);
@@ -372,7 +381,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_DUPLEX, duplex);
         reply8(hardware::GET_PTT_CHANNEL,
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
-        reply16(hardware::GET_CAPABILITIES, hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL);
+        reply16(hardware::GET_CAPABILITIES,
+            hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
+            hardware::CAP_ADJUST_INPUT);
         reply16(hardware::GET_MIN_INPUT_GAIN, 0);
         reply16(hardware::GET_MAX_INPUT_GAIN, 4);
 
