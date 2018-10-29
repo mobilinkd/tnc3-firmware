@@ -102,7 +102,11 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-  
+  // Set the MaxPower value to 500mA -- the amount of power needed to
+  // charge the battery.
+  uint16_t length;
+  uint8_t* cfg = USBD_CDC.GetFSConfigDescriptor(&length);
+  cfg[8] = 0xFA;
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
   
   /* Init Device Library, add supported class and start the library. */
