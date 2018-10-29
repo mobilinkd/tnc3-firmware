@@ -152,6 +152,9 @@
 #define CMD_SLEEP 23
 #define CMD_STOP 24
 
+#define CMD_USB_SUSPEND 25
+#define CMD_USB_RESUME 26
+
 extern int reset_requested;
 extern char serial_number[25];
 
@@ -166,7 +169,6 @@ void _Error_Handler(char *, int);
 
 #define Error_Handler() _Error_Handler(__FILE__, __LINE__)
 #ifdef __cplusplus
-
 }
 #endif
 

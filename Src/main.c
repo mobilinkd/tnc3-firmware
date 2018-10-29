@@ -341,6 +341,12 @@ int main(void)
   /* USER CODE BEGIN SysInit */
   printf("start\r\n");
 
+  // Note that it is important that all GPIO interrupts are disabled until
+  // the FreeRTOS kernel has started.  All GPIO interrupts  send messages
+  // to the ioEventTask thread.  Attempts to use any message queues before
+  // FreeRTOS has started will lead to problems.  Because of this, these
+  // interrupts are enabled only when the ioEventTask thread starts.
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -357,12 +363,28 @@ int main(void)
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
 
+  MX_TIM1_Init();           // Initialize the LED PWM timer and GPIOs.
+  SCB->SHCSR |= 0x70000;    // Enable fault handlers;
+  indicate_turning_on();    // LEDs on during boot.
+
+  // Fetch the device serial number.
+  uint32_t* uid = (uint32_t*) UID_BASE;
+  snprintf(serial_number, sizeof(serial_number), "%08lx%08lx%08lx", uid[0], uid[1], uid[2]);
+
+  // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
+  // has a weak pull-up on the BT module and is in OD mode.  Pull the
+  // pin low during boot to enter Bluetooth programming mode.  Here the
+  // BT_CMD pin is switched to input mode to detect the state.  The
+  // TNC must be reset to exit programming mode.
+
+  // Wait for BT module to settle.
   GPIO_InitTypeDef GPIO_InitStructure;
 
   GPIO_InitStructure.Pin = BT_CMD_Pin;
   GPIO_InitStructure.Mode = GPIO_MODE_INPUT;
   GPIO_InitStructure.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
+  HAL_Delay(10);
 
   if (HAL_GPIO_ReadPin(BT_CMD_GPIO_Port, BT_CMD_Pin) == GPIO_PIN_RESET) {
       // Special test mode for programming the Bluetooth module.  The TNC
@@ -372,7 +394,7 @@ int main(void)
       HAL_UART_MspDeInit(&huart3);
 
       HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
-      HAL_Delay(10);
+      HAL_Delay(1);
       HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
       HAL_Delay(200);
 
@@ -381,20 +403,12 @@ int main(void)
       while (1);
   }
 
+  // Not in BT programming mode.  Switch BT_CMD back to OD mode.
   HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_SET);
   GPIO_InitStructure.Pin = BT_CMD_Pin;
   GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStructure.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
-
-  // HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_RESET);
-  MX_TIM1_Init();
-  SCB->SHCSR |= 0x70000; // Enable fault handlers;
-  indicate_turning_on();
-  HAL_Delay(200);
-
-  uint32_t* uid = (uint32_t*) UID_BASE;
-  snprintf(serial_number, sizeof(serial_number), "%08lx%08lx%08lx", uid[0], uid[1], uid[2]);
 
   /* USER CODE END 2 */
 
@@ -489,14 +503,16 @@ int main(void)
   /* add queues, ... */
   /* USER CODE BEGIN RTOS_QUEUES */
 
+  // Initialize the DC offset DAC and the PGA op amp.  Calibrate the ADC.
   if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
   if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
   if (HAL_OPAMP_SelfCalibrate(&hopamp1) != HAL_OK) Error_Handler();
   if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
   if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
 
-//  if (!bm78_initialized()) bm78_initialize();
-  bm78_initialize();
+  // Initialize the BM78 Bluetooth module the first time we boot.
+  if (!bm78_initialized()) bm78_initialize();
+  else bm78_wait_until_ready();
 
   init_ioport();
   initCDC();
@@ -511,7 +527,7 @@ int main(void)
     Error_Handler();
   }
 
-#if 1
+#if 0
   // Do not erase SRAM2 during reset.
   if ((obInit.USERConfig & FLASH_OPTR_SRAM2_RST) == RESET) {
     obInit.OptionType = OPTIONBYTE_USER;
@@ -578,7 +594,7 @@ void SystemClock_Config(void)
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSE
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
                               |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.LSIState = RCC_LSI_OFF;
@@ -690,7 +706,6 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.NbrOfConversion = 1;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfDiscConversion = 1;
   hadc1.Init.ExternalTrigConv = ADC_EXTERNALTRIG_T6_TRGO;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_RISING;
   hadc1.Init.DMAContinuousRequests = ENABLE;
@@ -709,7 +724,7 @@ static void MX_ADC1_Init(void)
     */
   sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_6CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
@@ -871,6 +886,7 @@ static void MX_RTC_Init(void)
 
   RTC_TimeTypeDef sTime;
   RTC_DateTypeDef sDate;
+  RTC_AlarmTypeDef sAlarm;
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -890,9 +906,6 @@ static void MX_RTC_Init(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
-  /* USER CODE BEGIN RTC_Init 2 */
-
-  /* USER CODE END RTC_Init 2 */
 
     /**Initialize RTC and set the Time and Date 
     */
@@ -905,9 +918,6 @@ static void MX_RTC_Init(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
-  /* USER CODE BEGIN RTC_Init 3 */
-
-  /* USER CODE END RTC_Init 3 */
 
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
   sDate.Month = RTC_MONTH_JANUARY;
@@ -918,9 +928,29 @@ static void MX_RTC_Init(void)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
-  /* USER CODE BEGIN RTC_Init 4 */
 
-  /* USER CODE END RTC_Init 4 */
+    /**Enable the Alarm A 
+    */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x0;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+    /**Enable the Alarm B 
+    */
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_B;
 
 }
 
@@ -1136,10 +1166,11 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, BT_SLEEP_Pin|BAT_DIVIDER_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, AUDIO_ATTEN_Pin|VDD_EN_Pin|BT_CMD_Pin|BT_RESET_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, AUDIO_ATTEN_Pin|VDD_EN_Pin|USB_CE_Pin|BT_CMD_Pin 
+                          |BT_RESET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, USB_CE_Pin|PTT_B_Pin|PTT_A_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, PTT_B_Pin|PTT_A_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : BT_WAKE_Pin */
   GPIO_InitStruct.Pin = BT_WAKE_Pin;
@@ -1174,17 +1205,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BAT_DIVIDER_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : AUDIO_ATTEN_Pin BT_RESET_Pin */
-  GPIO_InitStruct.Pin = AUDIO_ATTEN_Pin|BT_RESET_Pin;
+  /*Configure GPIO pins : AUDIO_ATTEN_Pin BT_CMD_Pin BT_RESET_Pin USB_CE_Pin*/
+  GPIO_InitStruct.Pin = AUDIO_ATTEN_Pin|BT_CMD_Pin|BT_RESET_Pin|USB_CE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : VDD_EN_Pin USB_CE_Pin PTT_B_Pin PTT_A_Pin 
-                           BT_CMD_Pin */
-  GPIO_InitStruct.Pin = VDD_EN_Pin|USB_CE_Pin|PTT_B_Pin|PTT_A_Pin 
-                          |BT_CMD_Pin;
+  /*Configure GPIO pins : VDD_EN_Pin PTT_B_Pin PTT_A_Pin */
+  GPIO_InitStruct.Pin = VDD_EN_Pin|PTT_B_Pin|PTT_A_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1195,17 +1224,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-
 }
 
 /* USER CODE BEGIN 4 */
@@ -1318,7 +1336,13 @@ int _write(int file, char *ptr, int len) {
 
 /* USER CODE END 4 */
 
-/* StartDefaultTask function */
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used 
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
   /* init code for USB_DEVICE */
