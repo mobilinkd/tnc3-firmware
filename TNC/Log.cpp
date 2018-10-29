@@ -2,6 +2,8 @@
 // All rights reserved.
 
 #include <Log.h>
+#include <cstdarg>
+#include <cstdio>
 
 void log_(int level, const char* fmt, ...)
 {
