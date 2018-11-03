@@ -136,6 +136,7 @@ void autoAudioInputLevel()
     else if (rx_twist > 9) rx_twist = 9;
     INFO("TWIST = %ddB", rx_twist);
     mobilinkd::tnc::kiss::settings().rx_twist = rx_twist;
+    mobilinkd::tnc::kiss::settings().announce_input_settings();
     mobilinkd::tnc::kiss::settings().update_crc();
     mobilinkd::tnc::kiss::settings().store();
 }

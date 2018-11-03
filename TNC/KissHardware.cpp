@@ -10,18 +10,59 @@
 #include <ModulatorTask.hpp>
 
 #include <memory>
+#include <cstdio>
 
 extern I2C_HandleTypeDef hi2c1;
+extern RTC_HandleTypeDef hrtc;
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.8";
+const char FIRMWARE_VERSION[] = "0.8.9";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
 {
     static Hardware instance __attribute__((section(".bss3")));
     return instance;
+}
+
+const uint8_t* get_rtc_datetime()
+{
+    static uint8_t buffer[8]; // YYMMDDWWHHMMSS
+
+    RTC_TimeTypeDef sTime;
+    RTC_DateTypeDef sDate;
+
+    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+
+    buffer[0] = sDate.Year;
+    buffer[1] = sDate.Month;
+    buffer[2] = sDate.Date;
+    buffer[3] = sDate.WeekDay;
+    buffer[4] = sTime.Hours;
+    buffer[5] = sTime.Minutes;
+    buffer[6] = sTime.Seconds;
+    buffer[7] = 0;
+
+    return buffer;
+}
+
+void set_rtc_datetime(const uint8_t* buffer)
+{
+    RTC_TimeTypeDef sTime;
+    RTC_DateTypeDef sDate;
+
+    sDate.Year = buffer[0];
+    sDate.Month = buffer[1];
+    sDate.Date = buffer[2];
+    sDate.WeekDay = buffer[3];
+    sTime.Hours = buffer[4];
+    sTime.Minutes = buffer[5];
+    sTime.Seconds = buffer[6];
+
+    HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
 }
 
 void Hardware::set_txdelay(uint8_t value) {
@@ -96,13 +137,18 @@ void Hardware::set_alias(const hdlc::IoFrame* frame) {
   UNUSED(frame);
 }
 
+
+void Hardware::announce_input_settings()
+{
+    reply16(hardware::GET_INPUT_GAIN, input_gain);
+    reply8(hardware::GET_INPUT_TWIST, rx_twist);
+}
 void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     static AFSKTestTone testTone;
 
     auto it = frame->begin();
     uint8_t command = *it++;
-    uint8_t v = *it;
 
     switch (command) {
     case hardware::SEND_MARK:
@@ -121,6 +167,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 #if 1
     case hardware::SAVE:
     case hardware::SAVE_EEPROM_SETTINGS:
+        update_crc();
         store();
         reply8(hardware::OK, hardware::SAVE_EEPROM_SETTINGS);
         break;
@@ -175,14 +222,16 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             osWaitForever);
         break;
     case hardware::SET_OUTPUT_GAIN:
-        DEBUG("SET_OUTPUT_VOLUME");
-        output_gain = v;
+        output_gain = *it << 8;
+        ++it;
+        output_gain += *it;
+        DEBUG("SET_OUTPUT_VOLUME = %d", output_gain);
         audio::setAudioOutputLevel();
         update_crc();
         [[fallthrough]];
     case hardware::GET_OUTPUT_GAIN:
         DEBUG("GET_OUTPUT_VOLUME");
-        reply8(hardware::GET_OUTPUT_GAIN, output_gain);
+        reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         break;
 
     case hardware::STREAM_DCD_VALUE:
@@ -209,6 +258,14 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
           osWaitForever);
         break;
 
+    case hardware::ADJUST_INPUT_LEVELS:
+      DEBUG("ADJUST_INPUT_LEVELS");
+      osMessagePut(audioInputQueueHandle, audio::AUTO_ADJUST_INPUT_LEVEL,
+          osWaitForever);
+      osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
+          osWaitForever);
+        break;
+
     case hardware::SET_VERBOSITY:
         DEBUG("SET_VERBOSITY");
         log_level = *it ? Log::Level::debug : Log::Level::warn;
@@ -229,13 +286,28 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply16(hardware::GET_LOWPASS_FREQ, lowpass_freq);
         break;
 #endif
+    case hardware::SET_INPUT_GAIN:
+        input_gain = *it << 8;
+        ++it;
+        input_gain += *it;
+        DEBUG("SET_INPUT_GAIN = %d", input_gain);
+        update_crc();
+        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
+            osWaitForever);
+        osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
+            osWaitForever);
+        [[fallthrough]];
+    case hardware::GET_INPUT_GAIN:
+        DEBUG("GET_INPUT_GAIN");
+        reply16(hardware::GET_INPUT_GAIN, input_gain);
+        break;
     case hardware::SET_INPUT_TWIST:
         DEBUG("SET_INPUT_TWIST");
         rx_twist = *it;
         update_crc();
         osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
             osWaitForever);
-        osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
+        osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
             osWaitForever);
         [[fallthrough]];
     case hardware::GET_INPUT_TWIST:
@@ -346,6 +418,15 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             options & KISS_OPTION_VIN_POWER_ON ? 1 : 0);
         break;
 
+    case hardware::SET_DATETIME:
+        DEBUG("SET_DATETIME");
+        set_rtc_datetime(&*it);
+        [[fallthrough]];
+    case hardware::GET_DATETIME:
+        DEBUG("GET_DATETIME");
+        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
+        break;
+
     case hardware::GET_CAPABILITIES:
         DEBUG("GET_CAPABILITIES");
         reply16(hardware::GET_CAPABILITIES,
@@ -355,13 +436,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::GET_ALL_VALUES:
         DEBUG("GET_ALL_VALUES");
+        reply16(hardware::GET_API_VERSION, hardware::KISS_API_VERSION);
         osMessagePut(audioInputQueueHandle, audio::POLL_BATTERY_LEVEL,
             osWaitForever);
         osMessagePut(audioInputQueueHandle, audio::POLL_TWIST_LEVEL,
             osWaitForever);
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
-        reply16(hardware::GET_API_VERSION, hardware::KISS_API_VERSION);
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
           sizeof(FIRMWARE_VERSION) - 1);
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
@@ -370,8 +451,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
           sizeof(serial_number_64) - 1);
         reply8(hardware::GET_USB_POWER_OFF, options & KISS_OPTION_VIN_POWER_OFF ? 0 : 1);
         reply8(hardware::GET_USB_POWER_ON, options & KISS_OPTION_VIN_POWER_ON ? 0 : 1);
-        reply8(hardware::GET_OUTPUT_GAIN, output_gain);
+        reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         reply8(hardware::GET_OUTPUT_TWIST, tx_twist);
+        reply16(hardware::GET_INPUT_GAIN, input_gain);
         reply8(hardware::GET_INPUT_TWIST, rx_twist);
         reply8(hardware::GET_VERBOSITY, log_level == Log::Level::debug);
         reply8(hardware::GET_TXDELAY, txdelay);
@@ -386,6 +468,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             hardware::CAP_ADJUST_INPUT);
         reply16(hardware::GET_MIN_INPUT_GAIN, 0);
         reply16(hardware::GET_MAX_INPUT_GAIN, 4);
+        reply8(hardware::GET_MIN_INPUT_TWIST, -3);
+        reply8(hardware::GET_MAX_INPUT_TWIST, 9);
+        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
 
         break;
     case hardware::EXTENDED_CMD:

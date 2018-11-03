@@ -120,9 +120,13 @@ constexpr const uint8_t GET_BT_POWER_OFF = 78;
 constexpr const uint8_t SET_PTT_CHANNEL = 79; // Which PTT line to use (currently 0 or 1,
 constexpr const uint8_t GET_PTT_CHANNEL = 80; // multiplex or simplex)
 
+constexpr const uint8_t GET_MIN_OUTPUT_TWIST = 119;  ///< int8_t (may be negative).
+constexpr const uint8_t GET_MAX_OUTPUT_TWIST = 120;  ///< int8_t (may be negative).
+constexpr const uint8_t GET_MIN_INPUT_TWIST = 121;  ///< int8_t (may be negative).
+constexpr const uint8_t GET_MAX_INPUT_TWIST = 122;  ///< int8_t (may be negative).
 constexpr const uint8_t GET_API_VERSION = 123;      ///< uint16_t (major/minor)
-constexpr const uint8_t GET_MIN_INPUT_GAIN = 124;   ///< int16_t (may be negative/attenuated).
-constexpr const uint8_t GET_MAX_INPUT_GAIN = 125;   ///< int16_t (may be negative/attenuated).
+constexpr const uint8_t GET_MIN_INPUT_GAIN = 124;   ///< int8_t (may be negative/attenuated).
+constexpr const uint8_t GET_MAX_INPUT_GAIN = 125;   ///< int8_t (may be negative/attenuated).
 constexpr const uint8_t GET_CAPABILITIES = 126;   ///< Send all capabilities.
 constexpr const uint8_t GET_ALL_VALUES = 127;     ///< Send all settings & versions.
 
@@ -330,6 +334,8 @@ struct Hardware
     void get_aliases();
     void get_alias(uint8_t alias);
     void set_alias(const hdlc::IoFrame* frame);
+
+    void announce_input_settings();
 
 }; // 812 bytes
 
