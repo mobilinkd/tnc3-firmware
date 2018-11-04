@@ -59,6 +59,7 @@
 #include "LEDIndicator.h"
 #include "bm78.h"
 #include "base64.h"
+#include "KissHardware.h"
 
 /* USER CODE END Includes */
 
@@ -276,12 +277,13 @@ void configure_wakeup_gpio()
     HAL_NVIC_DisableIRQ(EXTI1_IRQn);
     HAL_GPIO_DeInit(GPIOH, USB_POWER_Pin|SW_POWER_Pin);
 
-    // Wake up whenever there is a change in VUSB to handle connect and
-    // disconnect events.
-    GPIO_InitStruct.Pin = USB_POWER_Pin;
-    GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING_FALLING;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;   // Pulled down on PCB.
-    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    // Wake up whenever there is a change in VUSB to handle connect events.
+    if (powerOnViaUSB()) {
+        GPIO_InitStruct.Pin = USB_POWER_Pin;
+        GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
+        GPIO_InitStruct.Pull = GPIO_NOPULL;   // Pulled down on PCB.
+        HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+    }
 
     // Only wake up after the button has been released.  This avoids the case
     // where the TNC is woken up on button down and then immediately put back
@@ -1263,57 +1265,7 @@ void stop2()
   HAL_PWREx_DisableLowPowerRunMode();
   HAL_DBGMCU_DisableDBGStopMode();
   HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFE);
-
-  uint16_t wakeup_pin = SW_POWER_Pin;
-
-  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) != usb)
-  {
-      wakeup_pin = USB_POWER_Pin;
-  }
-
-  HAL_NVIC_ClearPendingIRQ(EXTI0_IRQn);
-  HAL_NVIC_ClearPendingIRQ(EXTI1_IRQn);
-  HAL_NVIC_ClearPendingIRQ(EXTI3_IRQn);
-  HAL_NVIC_ClearPendingIRQ(EXTI4_IRQn);
-  HAL_NVIC_ClearPendingIRQ(EXTI9_5_IRQn);
-
-  __asm volatile ( "cpsie i" );
-  __asm volatile ( "dsb" );
-  __asm volatile ( "isb" );
-
-  MX_GPIO_Init();
-
-  // Let power stabilize.
-  for (int i = 0; i < 4800; ++i) asm volatile("nop");
-
-  SystemClock_Config();
-
-  if (HAL_CRC_Init(&hcrc) != HAL_OK) Error_Handler();
-  // Need to re-init and calibrate after deep power down.
-  if (HAL_ADC_Init(&hadc1) != HAL_OK) Error_Handler();
-  if (HAL_DAC_Init(&hdac1) != HAL_OK) Error_Handler();
-  if (HAL_OPAMP_Init(&hopamp1) != HAL_OK) Error_Handler();
-
-  if (HAL_UART_Init(&huart3) != HAL_OK) Error_Handler();
-  __HAL_UART_DISABLE(&huart3);
-
-  HAL_TIM_Base_Init(&htim1);
-  HAL_TIM_MspPostInit(&htim1);
-  HAL_TIM_Base_Init(&htim7);
-  HAL_TIM_Base_Init(&htim6);
-
-  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
-  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
-  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) Error_Handler();
-  if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
-  HAL_PWR_EnablePVD();
-
-  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
-  {
-      HAL_PCD_Init(&hpcd_USB_FS);
-  }
-
-  osThreadResumeAll();
+  HAL_NVIC_SystemReset();
 }
 
 #if 1

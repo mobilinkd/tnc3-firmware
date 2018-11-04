@@ -32,6 +32,11 @@ extern "C" void stop2(void);
 extern "C" void shutdown(void);
 extern "C" void startLedBlinkerTask(void const*);
 
+static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
+{
+    return hardware.options & KISS_OPTION_PTT_SIMPLEX ? PTT::SIMPLEX : PTT::MULTIPLEX;
+}
+
 void startIOEventTask(void const*)
 {
     using namespace mobilinkd::tnc;
@@ -54,6 +59,7 @@ void startIOEventTask(void const*)
     audio::init_log_volume();
     audio::setAudioOutputLevel();
     audio::setAudioInputLevels();
+    setPtt(getPttStyle(hardware));
 
     // Cannot enable these interrupts until we start the io loop because
     // they send messages on the queue.
@@ -119,11 +125,16 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_DISCONNECTED:
                 INFO("VBUS Lost");
-                HAL_PCD_MspDeInit(&hpcd_USB_FS);
-                HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
-                if (ioport != getUsbPort())
-                {
+                if (powerOffViaUSB()) {
+                    stop2();
                     break;
+                } else {
+                    HAL_PCD_MspDeInit(&hpcd_USB_FS);
+                    HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
+                    if (ioport != getUsbPort())
+                    {
+                        break;
+                    }
                 }
             /* Fallthrough*/ // when the CDC part was connected.
             case CMD_USB_CDC_DISCONNECT:

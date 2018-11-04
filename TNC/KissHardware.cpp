@@ -15,9 +15,19 @@
 extern I2C_HandleTypeDef hi2c1;
 extern RTC_HandleTypeDef hrtc;
 
+int powerOnViaUSB(void)
+{
+    return mobilinkd::tnc::kiss::settings().options & KISS_OPTION_VIN_POWER_ON;
+}
+
+int powerOffViaUSB(void)
+{
+    return mobilinkd::tnc::kiss::settings().options & KISS_OPTION_VIN_POWER_OFF;
+}
+
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.9";
+const char FIRMWARE_VERSION[] = "0.8.10";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
@@ -373,8 +383,8 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::SET_PTT_CHANNEL:
         DEBUG("SET_PTT_CHANNEL");
-        options &= ~KISS_OPTION_PTT_SIMPLEX;
         if (*it) {
+          options &= ~KISS_OPTION_PTT_SIMPLEX;
           osMessagePut(ioEventQueueHandle, CMD_SET_PTT_MULTIPLEX, osWaitForever);
         } else {
           options |= KISS_OPTION_PTT_SIMPLEX;
@@ -449,8 +459,8 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
           sizeof(HARDWARE_VERSION) - 1);
         reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
           sizeof(serial_number_64) - 1);
-        reply8(hardware::GET_USB_POWER_OFF, options & KISS_OPTION_VIN_POWER_OFF ? 0 : 1);
-        reply8(hardware::GET_USB_POWER_ON, options & KISS_OPTION_VIN_POWER_ON ? 0 : 1);
+        reply8(hardware::GET_USB_POWER_OFF, options & KISS_OPTION_VIN_POWER_OFF ? 1 : 0);
+        reply8(hardware::GET_USB_POWER_ON, options & KISS_OPTION_VIN_POWER_ON ? 1 : 0);
         reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         reply8(hardware::GET_OUTPUT_TWIST, tx_twist);
         reply16(hardware::GET_INPUT_GAIN, input_gain);

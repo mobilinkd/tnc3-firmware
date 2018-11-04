@@ -4,6 +4,7 @@
 #ifndef MOBILINKD__TNC__KISS_HARDWARE_HPP_
 #define MOBILINKD__TNC__KISS_HARDWARE_HPP_
 
+#include "KissHardware.h"
 #include "Log.h"
 #include "HdlcFrame.hpp"
 
@@ -163,8 +164,8 @@ constexpr const uint8_t MODEM_TYPE_MFSK16 = 6;
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
 #define KISS_OPTION_VERBOSE         0x02
-#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged in to USB
-#define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when plugged in to USB
+#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged into USB
+#define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when unplugged from USB
 #define KISS_OPTION_PTT_SIMPLEX     0x10  // Simplex PTT (the default)
 
 const char TOCALL[] = "APML30"; // Update for every feature change.
