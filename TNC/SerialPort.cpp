@@ -56,7 +56,7 @@ extern "C" void startSerialTask(void const* arg)
 
     State state = WAIT_FBEGIN;
 
-    hdlc::IoFrame* frame = hdlc::acquire();
+    hdlc::IoFrame* frame = hdlc::acquire_wait();
 
     HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
 
@@ -72,7 +72,7 @@ extern "C" void startSerialTask(void const* arg)
             hdlc::release(frame);
             ERROR("UART Error: %08lx", evt.value.v);
             uart_error.store(HAL_UART_ERROR_NONE);
-            frame = hdlc::acquire();
+            frame = hdlc::acquire_wait();
             HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
             continue;
         }
@@ -94,8 +94,12 @@ extern "C" void startSerialTask(void const* arg)
                 break;
             case FEND:
                 frame->source(hdlc::IoFrame::SERIAL_DATA);
-                osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever);
-                frame = hdlc::acquire();
+                if (osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever) != osOK)
+                {
+                    hdlc::release(frame);
+                }
+                osDelay(10);
+                frame = hdlc::acquire_wait();
                 state = WAIT_FBEGIN;
                 break;
             default:
@@ -113,7 +117,7 @@ extern "C" void startSerialTask(void const* arg)
                 if (not frame->push_back(FESC)) {
                     hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::acquire();
+                    frame = hdlc::acquire_wait();
                 }
                 break;
             case TFEND:
@@ -126,7 +130,7 @@ extern "C" void startSerialTask(void const* arg)
             default:
                 hdlc::release(frame);
                 state = WAIT_FBEGIN;  // Drop frame;
-                frame = hdlc::acquire();
+                frame = hdlc::acquire_wait();
             }
             break;
         }

@@ -205,6 +205,7 @@ IoFramePool& ioFramePool(void);
 void release(IoFrame* frame);
 
 IoFrame* acquire(void);
+IoFrame* acquire_wait(void);
 
 }}} // mobilinkd::tnc::hdlc
 

@@ -235,7 +235,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         output_gain = *it << 8;
         ++it;
         output_gain += *it;
-        DEBUG("SET_OUTPUT_VOLUME = %d", output_gain);
+        DEBUG("SET_OUTPUT_GAIN = %d", output_gain);
         audio::setAudioOutputLevel();
         update_crc();
         [[fallthrough]];
