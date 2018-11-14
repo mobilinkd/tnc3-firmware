@@ -79,8 +79,6 @@ void set_input_gain(int level)
         CxxErrorHandler();
     if (HAL_OPAMP_Start(&hopamp1)!= HAL_OK)
         CxxErrorHandler();
-
-    osDelay(100);   // Need time for DC offset to settle.
 }
 
 int adjust_input_gain() __attribute__((noinline));
@@ -93,6 +91,8 @@ int adjust_input_gain() {
     uint16_t vpp, vavg, vmin, vmax;
 
     set_input_gain(gain);
+    osDelay(100);   // Need time for DC offset to settle.
+
     std::tie(vpp, vavg, vmin, vmax) = readLevels(AUDIO_IN);
     INFO("\nVpp = %" PRIu16 ", Vavg = %" PRIu16 "\n", vpp, vavg);
     INFO("\nVmin = %" PRIu16 ", Vmax = %" PRIu16 ", setting = %d\n", vmin, vmax, gain);
@@ -114,6 +114,8 @@ int adjust_input_gain() {
     else gain = 0;
 
     set_input_gain(gain);
+    osDelay(100);   // Need time for DC offset to settle.
+
     std::tie(vpp, vavg, vmin, vmax) = readLevels(AUDIO_IN);
     INFO("\nVpp = %" PRIu16 ", Vavg = %" PRIu16 "\n", vpp, vavg);
     INFO("\nVmin = %" PRIu16 ", Vmax = %" PRIu16 ", setting = %d\n", vmin, vmax, gain);

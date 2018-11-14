@@ -231,6 +231,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
             osWaitForever);
         break;
+
     case hardware::SET_OUTPUT_GAIN:
         output_gain = *it << 8;
         ++it;
@@ -240,7 +241,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         update_crc();
         [[fallthrough]];
     case hardware::GET_OUTPUT_GAIN:
-        DEBUG("GET_OUTPUT_VOLUME");
+        DEBUG("GET_OUTPUT_GAIN");
         reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         break;
 
@@ -280,13 +281,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("SET_VERBOSITY");
         log_level = *it ? Log::Level::debug : Log::Level::warn;
         Log().setLevel(*it ? Log::Level::debug : Log::Level::warn);
-        update_crc();
         [[fallthrough]];
     case hardware::GET_VERBOSITY:
         DEBUG("GET_VERBOSITY");
         reply8(hardware::GET_VERBOSITY, log_level == Log::Level::debug);
         break;
-#if 0
+
+ #if 0
     case hardware::SET_LOWPASS_FREQ:
         lowpass_freq = (*it++ << 8);
         lowpass_freq = *it;
@@ -296,6 +297,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply16(hardware::GET_LOWPASS_FREQ, lowpass_freq);
         break;
 #endif
+
     case hardware::SET_INPUT_GAIN:
         input_gain = *it << 8;
         ++it;
@@ -311,6 +313,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_INPUT_GAIN");
         reply16(hardware::GET_INPUT_GAIN, input_gain);
         break;
+
     case hardware::SET_INPUT_TWIST:
         DEBUG("SET_INPUT_TWIST");
         rx_twist = *it;
@@ -348,18 +351,22 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_TXDELAY");
         reply8(hardware::GET_TXDELAY, txdelay);
         break;
+
     case hardware::GET_PERSIST:
         DEBUG("GET_PERSIST");
         reply8(hardware::GET_PERSIST, ppersist);
         break;
+
     case hardware::GET_TIMESLOT:
         DEBUG("GET_TIMESLOT");
         reply8(hardware::GET_TIMESLOT, slot);
         break;
+
     case hardware::GET_TXTAIL:
         DEBUG("GET_TXTAIL");
         reply8(hardware::GET_TXTAIL, txtail);
         break;
+
     case hardware::GET_DUPLEX:
         DEBUG("GET_DUPLEX");
         reply8(hardware::GET_DUPLEX, duplex);
@@ -370,11 +377,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
           sizeof(FIRMWARE_VERSION) - 1);
         break;
+
     case hardware::GET_HARDWARE_VERSION:
         DEBUG("GET_HARDWARE_VERSION");
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
           sizeof(HARDWARE_VERSION) - 1);
         break;
+
     case hardware::GET_SERIAL_NUMBER:
         DEBUG("GET_SERIAL_NUMBER");
         reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
@@ -481,11 +490,12 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_MIN_INPUT_TWIST, -3);
         reply8(hardware::GET_MAX_INPUT_TWIST, 9);
         reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
-
         break;
+
     case hardware::EXTENDED_CMD:
         handle_ext_request(frame);
         break;
+
     default:
         ERROR("Unknown hardware request");
     }
