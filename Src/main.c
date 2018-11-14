@@ -655,7 +655,9 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
+#ifdef KISS_LOGGING
   HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+#endif
 
     /**Configure the main internal regulator output voltage 
     */
@@ -1275,8 +1277,10 @@ long _write_r(struct _reent *r, int fd, const char *ptr, int len)
 {
   UNUSED(r);
   UNUSED(fd);
-  for (int i = 0; i != len; ++i)
-    ITM_SendChar(ptr[i]);
+#ifdef KISS_LOGGING
+    for (int i = 0; i != len; ++i)
+      ITM_SendChar(ptr[i]);
+#endif
   return len;
 }
 
@@ -1284,8 +1288,10 @@ int _write(int file, char *ptr, int len);
 
 int _write(int file, char *ptr, int len) {
     UNUSED(file);
+#ifdef KISS_LOGGING
     for (int i = 0; i != len; ++i)
       ITM_SendChar(ptr[i]);
+#endif
     return len;
 
 }
