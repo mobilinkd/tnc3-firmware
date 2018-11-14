@@ -27,6 +27,7 @@
 extern osMessageQId hdlcOutputQueueHandle;
 extern PCD_HandleTypeDef hpcd_USB_FS;
 extern UART_HandleTypeDef huart3;
+extern osTimerId beaconTimer1Handle;
 
 extern "C" void stop2(void);
 extern "C" void shutdown(void);
@@ -40,6 +41,8 @@ static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
 void startIOEventTask(void const*)
 {
     using namespace mobilinkd::tnc;
+
+    static bool demod{false};
 
     indicate_on();
 
@@ -129,8 +132,8 @@ void startIOEventTask(void const*)
                     stop2();
                     break;
                 } else {
-                    HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
+                    HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     if (ioport != getUsbPort())
                     {
                         break;
@@ -189,13 +192,37 @@ void startIOEventTask(void const*)
                 break;
             case CMD_BOOT_BUTTON_DOWN:
                 DEBUG("BOOT Down");
-                // If the TNC has USB power, reboot.  The boot pin is being
-                // held so it will boot into the bootloader.  This is a bit
-                // of a hack, since we really should check if the port is a
-                // standard USB port and not just a charging port.
-                if (gpio::USB_POWER::get() and ioport == getNullPort())
+                // switch between demod and idle via boot pin.
+                if (ioport == getNullPort())
                 {
-                    HAL_NVIC_SystemReset();
+                    if (demod) {
+                        osMessagePut(audioInputQueueHandle,
+                            audio::IDLE, osWaitForever);
+
+                        HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                            GPIO_PIN_SET);
+                        bm78_wait_until_ready();
+                        HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+                        HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+                        HAL_UART_MspInit(&huart3);
+
+                        indicate_waiting_to_connect();
+
+                        demod = false;
+                    } else {
+                        osMessagePut(audioInputQueueHandle,
+                            audio::DEMODULATOR, osWaitForever);
+
+                        HAL_UART_MspDeInit(&huart3);
+                        HAL_NVIC_DisableIRQ(EXTI4_IRQn);
+                        HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
+                        HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                            GPIO_PIN_RESET);
+
+                        indicate_testing();
+
+                        demod = true;
+                    }
                 }
                 break;
             case CMD_BOOT_BUTTON_UP:
@@ -203,13 +230,16 @@ void startIOEventTask(void const*)
                 osMessagePut(audioInputQueueHandle,
                     audio::AUTO_ADJUST_INPUT_LEVEL,
                     osWaitForever);
-                if (ioport != getNullPort())
+                if (ioport != getNullPort() or demod)
                 {
                     osMessagePut(audioInputQueueHandle,
                         audio::DEMODULATOR, osWaitForever);
+
+                    osTimerStart(beaconTimer1Handle, 60000);
                 }
                 else
                 {
+                    osTimerStop(beaconTimer1Handle);
                     osMessagePut(audioInputQueueHandle,
                         audio::IDLE, osWaitForever);
                 }

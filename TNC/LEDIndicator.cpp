@@ -360,6 +360,90 @@ struct USBConnection
     }
 };
 
+
+/**
+ * Testing shows a low, medium breathing. Each breath inhale takes
+ * for 200ms, is held for 400ms, and exhaled in 300ms. This is repeated
+ * every 3 seconds.  Maximum brightness is 20%.
+ *
+ * Each interrupt occurs at 10ms intervals.
+ *
+ * The sequence is:
+ *  - ramp up 300ms(30)
+ *  - hold 400ms (40)
+ *  - ramp down 300ms (30)
+ *  - wait 2000ms (200)
+ *
+ *
+ */
+struct Testing
+{
+    enum STATE
+    {
+        RAMP_UP_1, WAIT_1, RAMP_DN_1, WAIT_2
+    };
+
+    int count { 0 };
+    int state { RAMP_UP_1 };
+
+    int operator()()
+    {
+        int result;
+        switch (state) {
+        case RAMP_UP_1:
+            result = count * 50;
+            if (count == 29)
+            {
+                count = 0;
+                state = WAIT_1;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case WAIT_1:
+            result = 1500;
+            if (count == 39)
+            {
+                state = RAMP_DN_1;
+                count = 29;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        case RAMP_DN_1:
+            result = count * 50;
+            if (count == 0)
+            {
+                count = 0;
+                state = WAIT_2;
+            }
+            else
+            {
+                --count;
+            }
+            break;
+        case WAIT_2:
+            result = 0;
+            if (count == 200)
+            {
+                state = RAMP_UP_1;
+                count = 0;
+            }
+            else
+            {
+                ++count;
+            }
+            break;
+        }
+        return result;
+    }
+};
+
+
 struct Flash
 {
     enum class STATE
@@ -385,6 +469,7 @@ struct Flash
     NoConnection noConnection;
     BluetoothConnection btConnection;
     USBConnection usbConnection;
+    Testing regulatoryTesting;
 
     function_type blue_func { noConnection };
 
@@ -501,6 +586,12 @@ struct Flash
         blue_func = btConnection;
         HAL_TIM_PWM_Start(&htim1, BLUE_CHANNEL);
     }
+
+    void test()
+    {
+        blue_func = regulatoryTesting;
+        HAL_TIM_PWM_Start(&htim1, BLUE_CHANNEL);
+    }
 };
 
 Flash& flash()
@@ -554,6 +645,11 @@ void indicate_connected_via_usb(void)
 void indicate_connected_via_ble(void)
 {
     mobilinkd::tnc::flash().bt();
+}
+
+void indicate_testing(void)
+{
+    mobilinkd::tnc::flash().test();
 }
 
 void tx_on(void)

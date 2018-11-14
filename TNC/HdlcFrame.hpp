@@ -33,6 +33,7 @@ class Frame : public list_base_hook<>
 public:
     typedef POOL pool_type;
     typedef buffer::SegmentedBuffer<POOL, allocator> data_type;
+    typedef typename data_type::value_type value_type;
     typedef typename data_type::iterator iterator;
 
     enum Type {

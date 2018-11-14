@@ -15,6 +15,7 @@ void indicate_turning_off(void);
 void indicate_waiting_to_connect(void);
 void indicate_connected_via_usb(void);
 void indicate_connected_via_ble(void);
+void indicate_testing(void);
 void tx_on(void);
 void tx_off(void);
 void rx_on(void);

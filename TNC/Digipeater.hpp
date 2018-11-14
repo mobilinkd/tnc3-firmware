@@ -71,11 +71,13 @@ struct Digipeater
    */
   const kiss::Alias* can_repeat(hdlc::IoFrame* frame)
   {
+    (void) frame;
     return nullptr;
   }
 
   hdlc::IoFrame* rewrite_frame(hdlc::IoFrame* frame)
   {
+    (void) frame;
     frame->source(hdlc::IoFrame::DIGI_DATA);
     return frame;
   }
