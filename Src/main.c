@@ -1188,10 +1188,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BT_WAKE_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : USB_POWER_Pin SW_POWER_Pin SW_BOOT_Pin */
-  GPIO_InitStruct.Pin = USB_POWER_Pin|SW_POWER_Pin|SW_BOOT_Pin;
+  /*Configure GPIO pins : SW_POWER_Pin SW_BOOT_Pin */
+  GPIO_InitStruct.Pin = SW_POWER_Pin|SW_BOOT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : USB_POWER_Pin */
+  GPIO_InitStruct.Pin = USB_POWER_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BT_SLEEP_Pin */
