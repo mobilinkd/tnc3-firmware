@@ -135,30 +135,37 @@ void HAL_PCDEx_BCD_Callback(PCD_HandleTypeDef *hpcd, PCD_BCD_MsgTypeDef msg)
 {
   USBD_HandleTypeDef usbdHandle = hUsbDeviceFS;
 
+  static int downstream_port = 0;
+
   /* USER CODE BEGIN 7 */
     switch(msg)
     {
       case PCD_BCD_CONTACT_DETECTION:
-
+          downstream_port = 0;
           break;
 
       case PCD_BCD_STD_DOWNSTREAM_PORT:
           // Only charge after negotiation
           DEBUG("Detected standard downstream USB port");
+          downstream_port = 1;
           break;
 
       case PCD_BCD_CHARGING_DOWNSTREAM_PORT:
           DEBUG("Detected charging downstream USB port");
           osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
+          downstream_port = 1;
           break;
 
       case PCD_BCD_DEDICATED_CHARGING_PORT:
           DEBUG("Detected dedicated charging port");
           osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
+          downstream_port = 0;
           break;
 
       case PCD_BCD_DISCOVERY_COMPLETED:
-          osMessagePut(ioEventQueueHandle, CMD_USB_DISCOVERY_COMPLETE, 0);
+          if (downstream_port) {
+              osMessagePut(ioEventQueueHandle, CMD_USB_DISCOVERY_COMPLETE, 0);
+          }
           break;
 
       case PCD_BCD_ERROR:
