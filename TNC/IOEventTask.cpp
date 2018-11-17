@@ -126,8 +126,7 @@ void startIOEventTask(void const*)
             case CMD_USB_DISCONNECTED:
                 INFO("VBUS Lost");
                 if (powerOffViaUSB()) {
-                    stop2();
-                    break;
+                    stop2(); // ***NO RETURN***
                 } else {
                     HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
@@ -138,20 +137,20 @@ void startIOEventTask(void const*)
                 }
             /* Fallthrough*/ // when the CDC part was connected.
             case CMD_USB_CDC_DISCONNECT:
+                osMessagePut(audioInputQueueHandle, audio::IDLE,
+                    osWaitForever);
                 closeCDC();
                 INFO("CDC Closed");
 
                 // Enable Bluetooth Module
                 HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
                     GPIO_PIN_SET);
+                bm78_wait_until_ready();
 
-                osDelay(500);  // Avoid spurious interrupts during wake up.
                 HAL_NVIC_EnableIRQ(EXTI4_IRQn);
                 HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
                 indicate_waiting_to_connect();
-                osMessagePut(audioInputQueueHandle, audio::IDLE,
-                    osWaitForever);
                 break;
             case CMD_POWER_BUTTON_DOWN:
                 INFO("Power Down");
@@ -164,28 +163,7 @@ void startIOEventTask(void const*)
                 DEBUG("Power Up");
                 power_button_duration = osKernelSysTick() - power_button_counter;
                 DEBUG("Button pressed for %lums", power_button_duration);
-                stop2();
-                INFO("RUN mode");
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-                audio::setAudioOutputLevel();
-                audio::setAudioInputLevels();
-                bm78_wait_until_ready();
-
-                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-                HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
-
-                HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
-
-                HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
-
+                stop2(); // ***NO RETURN***
                 break;
             case CMD_BOOT_BUTTON_DOWN:
                 DEBUG("BOOT Down");
@@ -268,6 +246,8 @@ void startIOEventTask(void const*)
             case CMD_USB_CONNECTED:
                 INFO("VBUS Detected");
                 HAL_PCD_MspInit(&hpcd_USB_FS);
+                hpcd_USB_FS.Instance->BCDR = 0;
+                HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
                 HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
                 break;
             case CMD_USB_CHARGE_ENABLE:
@@ -282,6 +262,8 @@ void startIOEventTask(void const*)
             case CMD_USB_DISCOVERY_ERROR:
                 // This happens when powering VBUS from a bench supply.
                 INFO("Not a recognized USB charging device");
+                INFO("USB charging enabled");
+                HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
                 break;
             case CMD_BT_DEEP_SLEEP:
                 INFO("BT deep sleep");
@@ -300,30 +282,6 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_RESUME:
                 INFO("USB resume");
-                break;
-            case CMD_RUN:
-                // No need to reload settings.  SRAM was retained.
-                INFO("RUN mode");
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
-                audio::setAudioOutputLevel();
-                audio::setAudioInputLevels();
-                bm78_wait_until_ready();
-
-                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-                HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
-
-                HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
-
-                HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
-                HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
-
                 break;
             default:
                 WARN("unknown command = %04x", static_cast<unsigned int>(cmd));
