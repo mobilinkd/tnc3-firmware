@@ -27,7 +27,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.10";
+const char FIRMWARE_VERSION[] = "0.8.12";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
@@ -277,6 +277,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
           osWaitForever);
         break;
 
+#if 0
     case hardware::SET_VERBOSITY:
         DEBUG("SET_VERBOSITY");
         log_level = *it ? Log::Level::debug : Log::Level::warn;
@@ -287,7 +288,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_VERBOSITY, log_level == Log::Level::debug);
         break;
 
- #if 0
     case hardware::SET_LOWPASS_FREQ:
         lowpass_freq = (*it++ << 8);
         lowpass_freq = *it;
@@ -474,7 +474,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_OUTPUT_TWIST, tx_twist);
         reply16(hardware::GET_INPUT_GAIN, input_gain);
         reply8(hardware::GET_INPUT_TWIST, rx_twist);
-        reply8(hardware::GET_VERBOSITY, log_level == Log::Level::debug);
         reply8(hardware::GET_TXDELAY, txdelay);
         reply8(hardware::GET_PERSIST, ppersist);
         reply8(hardware::GET_TIMESLOT, slot);

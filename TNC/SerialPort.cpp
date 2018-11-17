@@ -98,7 +98,7 @@ extern "C" void startSerialTask(void const* arg)
                 {
                     hdlc::release(frame);
                 }
-                osDelay(10);
+                osDelay(50);
                 frame = hdlc::acquire_wait();
                 state = WAIT_FBEGIN;
                 break;
