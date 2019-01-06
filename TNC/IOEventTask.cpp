@@ -26,7 +26,6 @@
 
 extern osMessageQId hdlcOutputQueueHandle;
 extern PCD_HandleTypeDef hpcd_USB_FS;
-extern UART_HandleTypeDef huart3;
 
 extern "C" void stop2(void);
 extern "C" void shutdown(void);
@@ -49,7 +48,9 @@ void startIOEventTask(void const*)
 
     if (! hardware.load() or reset_requested or !hardware.crc_ok())
     {
-        if (reset_requested) INFO("Hardware reset requested.");
+        if (reset_requested) {
+            INFO("Hardware reset requested.");
+        }
 
         hardware.init();
         hardware.store();
@@ -135,10 +136,11 @@ void startIOEventTask(void const*)
                         break;
                     }
                 }
-            /* Fallthrough*/ // when the CDC part was connected.
+            [[ fallthrough ]]; // when the CDC part was connected.
             case CMD_USB_CDC_DISCONNECT:
                 osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
+                kiss::getAFSKTestTone().stop();
                 closeCDC();
                 INFO("CDC Closed");
 
@@ -210,6 +212,7 @@ void startIOEventTask(void const*)
                 HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
                 osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
+                kiss::getAFSKTestTone().stop();
                 INFO("BT Closed");
                 break;
             case CMD_SET_PTT_SIMPLEX:
@@ -353,13 +356,14 @@ namespace tnc {
 
 void print_startup_banner()
 {
+#ifdef KISS_LOGGING
     uint32_t* uid = (uint32_t*) UID_BASE;  // STM32L4xx (same for 476 and 432)
 
     INFO("%s version %s", mobilinkd::tnc::kiss::HARDWARE_VERSION,
         mobilinkd::tnc::kiss::FIRMWARE_VERSION);
     INFO("CPU core clock: %luHz", SystemCoreClock);
     INFO(" Serial number: %08lX %08lX %08lX", uid[0], uid[1], uid[2]);
-    INFO("MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
+    INFO("   MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
         mac_address[0], mac_address[1], mac_address[2],
         mac_address[3], mac_address[4], mac_address[5])
 
@@ -368,6 +372,7 @@ void print_startup_banner()
     int version = *version_ptr;
 
     INFO("Bootloader version: 0x%02X", version);
+#endif
 }
 
 void start_cdc_blink()
