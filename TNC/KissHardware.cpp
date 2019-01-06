@@ -5,7 +5,6 @@
 #include "PortInterface.hpp"
 #include "AudioInput.hpp"
 #include "AudioLevel.hpp"
-#include "AFSKTestTone.hpp"
 #include "IOEventTask.h"
 #include <ModulatorTask.hpp>
 
@@ -153,9 +152,13 @@ void Hardware::announce_input_settings()
     reply16(hardware::GET_INPUT_GAIN, input_gain);
     reply8(hardware::GET_INPUT_TWIST, rx_twist);
 }
-void Hardware::handle_request(hdlc::IoFrame* frame) {
 
-    static AFSKTestTone testTone;
+AFSKTestTone& getAFSKTestTone() {
+	static AFSKTestTone testTone;
+	return testTone;
+}
+
+void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     auto it = frame->begin();
     uint8_t command = *it++;
@@ -169,7 +172,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
     case hardware::SET_OUTPUT_TWIST:
         break;
     default:
-        testTone.stop();
+        getAFSKTestTone().stop();
     }
 
     switch (command) {
@@ -206,23 +209,23 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("SEND_MARK");
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
-        testTone.mark();
+        getAFSKTestTone().mark();
         break;
     case hardware::SEND_SPACE:
         DEBUG("SEND_SPACE");
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
-        testTone.space();
+        getAFSKTestTone().space();
         break;
     case hardware::SEND_BOTH:
         DEBUG("SEND_BOTH");
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
-        testTone.both();
+        getAFSKTestTone().both();
         break;
     case hardware::STOP_TX:
         DEBUG("STOP_TX");
-        testTone.stop();
+        getAFSKTestTone().stop();
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
         break;

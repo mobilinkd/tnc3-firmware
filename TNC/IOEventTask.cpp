@@ -308,6 +308,7 @@ void startIOEventTask(void const*)
             DEBUG("Serial frame");
             if ((frame->type() & 0x0F) == IoFrame::DATA)
             {
+            	kiss::getAFSKTestTone().stop();
                 if (osMessagePut(hdlcOutputQueueHandle,
                     reinterpret_cast<uint32_t>(frame),
                     osWaitForever) != osOK)

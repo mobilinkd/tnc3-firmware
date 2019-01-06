@@ -7,6 +7,7 @@
 #include "KissHardware.h"
 #include "Log.h"
 #include "HdlcFrame.hpp"
+#include "AFSKTestTone.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -18,6 +19,8 @@ namespace mobilinkd { namespace tnc { namespace kiss {
 
 extern const char FIRMWARE_VERSION[];
 extern const char HARDWARE_VERSION[];
+
+AFSKTestTone& getAFSKTestTone();
 
 namespace hardware {
 
