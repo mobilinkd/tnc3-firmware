@@ -45,6 +45,7 @@ constexpr const uint16_t CAP_BT_PIN_CHANGE = 0x8000;
 constexpr const uint16_t CAP_VERBOSE_ERROR = 0x0001;
 constexpr const uint16_t CAP_EEPROM_SAVE = 0x0002;
 constexpr const uint16_t CAP_ADJUST_INPUT = 0x0004; // Auto-adjust input levels.
+constexpr const uint16_t CAP_DFU_FIRMWARE = 0x0008; // DFU firmware style.
 
 constexpr const uint8_t SAVE = 0; // Save settings to EEPROM.
 constexpr const uint8_t SET_OUTPUT_GAIN = 1;

@@ -27,7 +27,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "0.8.12";
+const char FIRMWARE_VERSION[] = "0.8.13";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
@@ -109,13 +109,11 @@ void reply16(uint8_t cmd, uint16_t result) {
 }
 
 inline void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
-    auto buffer = (uint8_t*) malloc(len + 1);
-    if (buffer == nullptr) return;
+    uint8_t* buffer = static_cast<uint8_t*>(alloca(len + 1));
     buffer[0] = cmd;
-    for (uint16_t i = 0; i != len and data[i] != 0; i++)
+    for (uint16_t i = 0; i != len; i++)
         buffer[i + 1] = data[i];
     ioport->write(buffer, len + 1, 6, osWaitForever);
-    free(buffer);
 }
 
 inline void reply_ext(uint8_t ext, uint8_t cmd, const uint8_t* data, uint16_t len) {
@@ -450,7 +448,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_CAPABILITIES");
         reply16(hardware::GET_CAPABILITIES,
             hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
-            hardware::CAP_ADJUST_INPUT);
+            hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
         break;
 
     case hardware::GET_ALL_VALUES:
@@ -483,7 +481,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
         reply16(hardware::GET_CAPABILITIES,
             hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
-            hardware::CAP_ADJUST_INPUT);
+            hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
         reply16(hardware::GET_MIN_INPUT_GAIN, 0);
         reply16(hardware::GET_MAX_INPUT_GAIN, 4);
         reply8(hardware::GET_MIN_INPUT_TWIST, -3);
