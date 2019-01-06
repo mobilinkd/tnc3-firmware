@@ -149,6 +149,7 @@ char serial_number[25];
 char serial_number_64[17] = {0};
 // Make sure it is not overwritten during resets (bss3).
 uint8_t mac_address[6] __attribute__((section(".bss3"))) = {0};
+char error_message[80] __attribute__((section(".bss3"))) = {0};
 
 /* USER CODE END PV */
 
@@ -346,7 +347,9 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+#ifdef KISS_LOGGING
   printf("start\r\n");
+#endif
 
   // Note that it is important that all GPIO interrupts are disabled until
   // the FreeRTOS kernel has started.  All GPIO interrupts  send messages
@@ -525,6 +528,7 @@ int main(void)
   // Initialize the BM78 Bluetooth module and the RTC date/time the first time we boot.
   if (!bm78_initialized()) {
       bm78_initialize();
+      memset(error_message, 0, sizeof(error_message));
       // init_rtc_date_time();
   }
   else bm78_wait_until_ready();
@@ -567,6 +571,7 @@ int main(void)
     HAL_FLASH_OB_Launch();
   }
 #endif
+
   /* USER CODE END RTOS_QUEUES */
  
 
@@ -1395,9 +1400,9 @@ void _Error_Handler(char *file, int line)
 #ifdef KISS_LOGGING
   printf("Error handler called from file %s on line %d\r\n", file, line);
 #endif
-  while(1)
-  {
-  }
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d", file, line);
+
+  NVIC_SystemReset();
   /* USER CODE END Error_Handler_Debug */
 }
 

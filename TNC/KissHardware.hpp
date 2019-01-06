@@ -105,6 +105,7 @@ constexpr const uint8_t GET_SERIAL_NUMBER = 47;
 constexpr const uint8_t GET_MAC_ADDRESS = 48;
 constexpr const uint8_t GET_DATETIME = 49;
 constexpr const uint8_t SET_DATETIME = 50;
+constexpr const uint8_t GET_ERROR_MSG = 51;
 
 constexpr const uint8_t SET_BLUETOOTH_NAME = 65;
 constexpr const uint8_t GET_BLUETOOTH_NAME = 66;

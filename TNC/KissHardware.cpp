@@ -491,6 +491,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_MAX_INPUT_TWIST, 9);   // Constants for this FW
         reply(hardware::GET_MAC_ADDRESS, mac_address, sizeof(mac_address));
         reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
+        if (*error_message) {
+            reply(hardware::GET_ERROR_MSG, (uint8_t*) error_message, sizeof(error_message));
+        }
         break;
 
     case hardware::EXTENDED_CMD:
