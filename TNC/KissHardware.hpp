@@ -250,7 +250,9 @@ struct Hardware
 
     bool crc_ok() const {
         auto result = (crc() == checksum);
-        if (!result) WARN("CRC mismatch %04x != %04x", checksum, crc());
+        if (!result) {
+            WARN("CRC mismatch %04x != %04x", checksum, crc());
+        }
         return result;
     }
 

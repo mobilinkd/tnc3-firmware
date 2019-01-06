@@ -1392,7 +1392,9 @@ void _Error_Handler(char *file, int line)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+#ifdef KISS_LOGGING
   printf("Error handler called from file %s on line %d\r\n", file, line);
+#endif
   while(1)
   {
   }

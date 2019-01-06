@@ -103,11 +103,11 @@ extern "C" void startAudioInputTask(void const*) {
             break;
         case STREAM_AVERAGE_TWIST_LEVEL:
             DEBUG("STREAM_AVERAGE_TWIST_LEVEL");
-            streamAverageInputTwist();
+            // streamAverageInputTwist();
             break;
         case STREAM_INSTANT_TWIST_LEVEL:
             DEBUG("STREAM_INSTANT_TWIST_LEVEL");
-            streamInstantInputTwist();
+            // streamInstantInputTwist();
             break;
         case AUTO_ADJUST_INPUT_LEVEL:
             DEBUG("AUTO_ADJUST_INPUT_LEVEL");
@@ -769,6 +769,7 @@ void pollInputTwist()
     DEBUG("exit pollInputTwist");
 }
 
+#if 0
 void streamAverageInputTwist()
 {
     DEBUG("enter streamAverageInputTwist");
@@ -821,7 +822,8 @@ void streamAverageInputTwist()
       g2700 += 10.0 * log10(gf2700);
 
       char* buffer = 0;
-      int len = asiprintf(
+      // @TODO: Make re-entrant printf work (or convert to fixed-point).
+      int len = asiprintf_r(
         &buffer,
         "_%f, %f, %f, %f, %f\r\n",
         g700 / acount,
@@ -885,7 +887,8 @@ void streamInstantInputTwist()
       }
 
       char* buffer = 0;
-      int len = asiprintf(
+      // @TODO: Make re-entrant printf work (or convert to fixed-point).
+      int len = asiprintf_r(
         &buffer,
         "_%f, %f, %f, %f, %f\r\n",
         10.0 * log10(gf700),
@@ -910,6 +913,7 @@ void streamInstantInputTwist()
     stopADC();
     DEBUG("exit streamInstantInputTwist");
 }
+#endif
 
 void streamAmplifiedInputLevels() {
     DEBUG("enter streamAmplifiedInputLevels");
@@ -1019,6 +1023,7 @@ void pollBatteryLevel() {
     DEBUG("exit pollBatteryLevel");
 }
 
+#if 0
 void stop() {
     osDelay(100);
 #if 0
@@ -1048,5 +1053,6 @@ void stop() {
     DEBUG("Wake");
 #endif
 }
+#endif
 
 }}} // mobilinkd::tnc::audio

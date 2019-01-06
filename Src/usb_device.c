@@ -133,7 +133,8 @@ void MX_USB_DEVICE_Init(void)
   */
 void HAL_PCDEx_BCD_Callback(PCD_HandleTypeDef *hpcd, PCD_BCD_MsgTypeDef msg)
 {
-  USBD_HandleTypeDef usbdHandle = hUsbDeviceFS;
+    UNUSED(hpcd);
+    // USBD_HandleTypeDef usbdHandle = hUsbDeviceFS;
 
   static int downstream_port = 0;
 
