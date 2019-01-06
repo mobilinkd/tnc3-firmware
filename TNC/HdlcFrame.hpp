@@ -139,7 +139,7 @@ public:
     }
 };
 
-template <typename Frame>
+template <typename Frame, size_t SIZE = 16>
 class FramePool
 {
 public:
@@ -147,7 +147,7 @@ public:
     typedef list<frame_type, constant_time_size<false>> FrameList;
 
 private:
-    static const uint16_t FRAME_COUNT = 16;
+    static const uint16_t FRAME_COUNT = SIZE;
     frame_type frames_[FRAME_COUNT];
     FrameList free_list_;
 
@@ -188,7 +188,7 @@ typedef buffer::Pool<48> FrameSegmentPool;  // 12K buffer of frames;
 extern FrameSegmentPool frameSegmentPool;
 
 typedef Frame<FrameSegmentPool, &frameSegmentPool> IoFrame;
-typedef FramePool<IoFrame> IoFramePool;
+typedef FramePool<IoFrame, 48> IoFramePool;
 
 IoFramePool& ioFramePool(void);
 
