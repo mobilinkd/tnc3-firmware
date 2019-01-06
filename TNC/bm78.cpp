@@ -76,6 +76,32 @@ void enter_program_mode()
     }
 }
 
+bool read_mac_address()
+{
+    // Read (cmd = 0x29) the first 6 bytes at address 0.
+    uint8_t cmd[] = { 0x01, 0x29, 0xfc, 0x03, 0x00, 0x00, 0x06 };
+    constexpr const uint16_t BLOCK_SIZE = 6;
+    if (HAL_UART_Transmit(&huart3, cmd, sizeof(cmd), 100) != HAL_OK)
+    {
+        ERROR("read_mac_address transmit failed");
+        return false;
+    }
+
+    uint8_t buffer[BLOCK_SIZE + 10];
+    if (HAL_UART_Receive(&huart3, buffer, sizeof(buffer), 1000) != HAL_OK)
+    {
+        ERROR("read_mac_address receive failed");
+        return false;
+    }
+
+    for (size_t i = 0; i != BLOCK_SIZE; ++i)
+    {
+        mac_address[5 - i] = buffer[i + 10]; // Reverse the bytes
+    }
+
+    return true;
+}
+
 /**
  * Exit BM78 EEPROM programming mode and return to pass-through mode.
  *
@@ -502,6 +528,7 @@ int bm78_initialize()
     enter_program_mode();
     if (!write_eeprom()) result = 1;
     else if (!write_serial()) result = 2;
+    else if (!read_mac_address()) result = 3;
     exit_program_mode();
 
 #if 1

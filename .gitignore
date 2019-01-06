@@ -43,3 +43,8 @@ ARM_Debug/
 com.atollic*
 
 /ARM_Release/
+*.sav
+*.save
+*.bak
+*.patch
+*.works

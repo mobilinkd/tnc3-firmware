@@ -54,7 +54,7 @@
 /* Includes ------------------------------------------------------------------*/
 
 /* USER CODE BEGIN Includes */
-
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
@@ -158,6 +158,8 @@
 extern int reset_requested;
 extern char serial_number[25];
 extern char serial_number_64[17];
+extern uint8_t mac_address[6];
+
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 

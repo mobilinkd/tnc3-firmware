@@ -485,10 +485,11 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply16(hardware::GET_CAPABILITIES,
             hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
             hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
-        reply16(hardware::GET_MIN_INPUT_GAIN, 0);
-        reply16(hardware::GET_MAX_INPUT_GAIN, 4);
-        reply8(hardware::GET_MIN_INPUT_TWIST, -3);
-        reply8(hardware::GET_MAX_INPUT_TWIST, 9);
+        reply16(hardware::GET_MIN_INPUT_GAIN, 0);   // Constants for this FW
+        reply16(hardware::GET_MAX_INPUT_GAIN, 4);   // Constants for this FW
+        reply8(hardware::GET_MIN_INPUT_TWIST, -3);  // Constants for this FW
+        reply8(hardware::GET_MAX_INPUT_TWIST, 9);   // Constants for this FW
+        reply(hardware::GET_MAC_ADDRESS, mac_address, sizeof(mac_address));
         reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
         break;
 

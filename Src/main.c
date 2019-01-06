@@ -147,6 +147,8 @@ int lost_power = 0;
 int reset_requested = 0;
 char serial_number[25];
 char serial_number_64[17] = {0};
+// Make sure it is not overwritten during resets (bss3).
+uint8_t mac_address[6] __attribute__((section(".bss3"))) = {0};
 
 /* USER CODE END PV */
 
