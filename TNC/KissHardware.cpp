@@ -57,6 +57,9 @@ const uint8_t* get_rtc_datetime()
     return buffer;
 }
 
+// @TODO: determine why this is now necessary.
+void set_rtc_datetime(const uint8_t* buffer) __attribute__((optimize("-O0")));
+
 void set_rtc_datetime(const uint8_t* buffer)
 {
     RTC_TimeTypeDef sTime;
