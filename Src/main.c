@@ -139,6 +139,8 @@ osTimerId beaconTimer3Handle;
 osStaticTimerDef_t beaconTimer3ControlBlock;
 osTimerId beaconTimer4Handle;
 osStaticTimerDef_t beaconTimer4ControlBlock;
+osTimerId usbShutdownTimerHandle;
+osStaticTimerDef_t usbShutdownTimerControlBlock;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
@@ -150,6 +152,11 @@ char serial_number_64[17] = {0};
 // Make sure it is not overwritten during resets (bss3).
 uint8_t mac_address[6] __attribute__((section(".bss3"))) = {0};
 char error_message[80] __attribute__((section(".bss3"))) = {0};
+// USB power control -- need to renegotiate USB charging in STOP mode.
+int go_back_to_sleep __attribute__((section(".bss3")));
+int stop_now __attribute__((section(".bss3")));
+int usb_wake_state;
+int usb_stop_state;
 
 /* USER CODE END PV */
 
@@ -175,6 +182,7 @@ extern void startLedBlinkerTask(void const * argument);
 extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 extern void beacon(void const * argument);
+extern void shutdown(void const * argument);
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
@@ -184,6 +192,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void stop2(void) __attribute__((noinline));
 void configure_gpio_for_stop(void) __attribute__((noinline));
 void power_down_vdd(void);
+void power_up_vdd(void);
 void configure_wakeup_gpio(void);
 void enable_debug_gpio(void);
 void init_rtc_date_time(void);
@@ -239,16 +248,15 @@ void configure_gpio_for_stop()
     HAL_GPIO_DeInit(BAT_LEVEL_GPIO_Port, BAT_LEVEL_Pin);
     HAL_GPIO_DeInit(BAT_DIVIDER_GPIO_Port, BAT_DIVIDER_Pin);
 
+    usb_stop_state = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
     if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_RESET)
     {
         HAL_GPIO_WritePin(GPIOB, USB_CE_Pin, GPIO_PIN_SET);
-        // Pull-down required for these.
         GPIO_InitStruct.Pin = USB_CE_Pin;
         GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;
+        GPIO_InitStruct.Pull = GPIO_PULLUP;         // CE active low.
         HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
     }
-
 
     // Bluetooth module
     HAL_GPIO_DeInit(GPIOC, BT_WAKE_Pin);
@@ -272,6 +280,20 @@ void power_down_vdd()
     for (int i = 0; i < 4800; ++i) asm volatile("nop");
 }
 
+void power_up_vdd()
+{
+    GPIO_InitTypeDef GPIO_InitStruct;
+
+    __HAL_RCC_GPIOB_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = VDD_EN_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_PULLUP;
+    HAL_GPIO_Init(VDD_EN_GPIO_Port, &GPIO_InitStruct);
+
+    HAL_GPIO_WritePin(VDD_EN_GPIO_Port, VDD_EN_Pin, GPIO_PIN_SET);
+}
+
 void configure_wakeup_gpio()
 {
     if (!__HAL_RCC_GPIOH_IS_CLK_ENABLED()) Error_Handler();
@@ -283,13 +305,11 @@ void configure_wakeup_gpio()
     HAL_NVIC_DisableIRQ(EXTI1_IRQn);
     HAL_GPIO_DeInit(GPIOH, USB_POWER_Pin|SW_POWER_Pin);
 
-    // Wake up whenever there is a change in VUSB to handle connect events.
-    if (powerOnViaUSB()) {
-        GPIO_InitStruct.Pin = USB_POWER_Pin;
-        GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
-        GPIO_InitStruct.Pull = GPIO_NOPULL;   // Pulled down on PCB.
-        HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-    }
+    // Wake up whenever there is a change in VUSB to handle connect/disconnect events.
+    GPIO_InitStruct.Pin = USB_POWER_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING_FALLING;
+    GPIO_InitStruct.Pull = GPIO_PULLDOWN;   // needed to act as a voltage divider
+    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
     // Only wake up after the button has been released.  This avoids the case
     // where the TNC is woken up on button down and then immediately put back
@@ -321,6 +341,13 @@ void enable_debug_gpio()
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
+void shutdown(void const * argument)
+{
+    UNUSED(argument);
+    stop_now = 1;
+    HAL_NVIC_SystemReset();
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -331,7 +358,13 @@ void enable_debug_gpio()
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  // If not a software reset, reset the flags.  This prevents odd behavior
+  // during initial power on and hardware resets where SRAM2 may be in an
+  // inconsistent state.  During a soft reset, it should be initialized.
+  if (!(RCC->CSR & RCC_CSR_SFTRSTF)) {
+      go_back_to_sleep = 0;
+      stop_now = 0;
+  }
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -372,10 +405,13 @@ int main(void)
   MX_TIM7_Init();
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
+  if (stop_now) stop2();
 
   MX_TIM1_Init();           // Initialize the LED PWM timer and GPIOs.
   SCB->SHCSR |= 0x70000;    // Enable fault handlers;
-  indicate_turning_on();    // LEDs on during boot.
+  if (!go_back_to_sleep) {
+      indicate_turning_on();    // LEDs on during boot.
+  }
 
   // Fetch the device serial number.
   uint32_t* uid = (uint32_t*) UID_BASE;
@@ -451,6 +487,10 @@ int main(void)
   /* definition and creation of beaconTimer4 */
   osTimerStaticDef(beaconTimer4, beacon, &beaconTimer4ControlBlock);
   beaconTimer4Handle = osTimerCreate(osTimer(beaconTimer4), osTimerPeriodic, NULL);
+
+  /* definition and creation of usbShutdownTimer */
+  osTimerStaticDef(usbShutdownTimer, shutdown, &usbShutdownTimerControlBlock);
+  usbShutdownTimerHandle = osTimerCreate(osTimer(usbShutdownTimer), osTimerOnce, NULL);
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
@@ -546,7 +586,7 @@ int main(void)
     Error_Handler();
   }
 
-#if 0
+#if 1
   // Do not erase SRAM2 during reset.
   if ((obInit.USERConfig & FLASH_OPTR_SRAM2_RST) == RESET) {
     obInit.OptionType = OPTIONBYTE_USER;
@@ -1236,9 +1276,25 @@ void stop2()
   __asm volatile ( "dsb" );
   __asm volatile ( "isb" );
 
+  go_back_to_sleep = 0;
+  stop_now = 0;
+
   HAL_PWREx_DisableLowPowerRunMode();
   HAL_DBGMCU_DisableDBGStopMode();
   HAL_PWREx_EnterSTOP2Mode(PWR_STOPENTRY_WFE);
+
+  // Powered off state
+  // When awakened by USB_POWER pin change:
+  // If unplugged, re-init IO, disabling charging, then go back to STOP.
+  // If plugged, re-init IO, do charger detection then,
+  // If powerOnViaUSB(), stay awake, otherwise go back to STOP.
+  usb_wake_state = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
+  go_back_to_sleep = (usb_stop_state != usb_wake_state);
+  if (usb_wake_state) {
+      if (powerOnViaUSB()) {
+          go_back_to_sleep = 0;
+      }
+  }
   HAL_NVIC_SystemReset();
 }
 

@@ -26,9 +26,10 @@
 
 extern osMessageQId hdlcOutputQueueHandle;
 extern PCD_HandleTypeDef hpcd_USB_FS;
+extern osTimerId usbShutdownTimerHandle;
 
 extern "C" void stop2(void);
-extern "C" void shutdown(void);
+extern "C" void shutdown(void const * argument);
 extern "C" void startLedBlinkerTask(void const*);
 
 static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
@@ -40,61 +41,69 @@ void startIOEventTask(void const*)
 {
     using namespace mobilinkd::tnc;
 
-    indicate_on();
+    if (!go_back_to_sleep) {
+        indicate_on();
 
-    print_startup_banner();
+        print_startup_banner();
 
-    auto& hardware = kiss::settings();
+        auto& hardware = kiss::settings();
 
-    if (! hardware.load() or reset_requested or !hardware.crc_ok())
-    {
-        if (reset_requested) {
-            INFO("Hardware reset requested.");
+        if (! hardware.load() or reset_requested or !hardware.crc_ok())
+        {
+            if (reset_requested) {
+                INFO("Hardware reset requested.");
+            }
+
+            hardware.init();
+            hardware.store();
+        }
+        hardware.debug();
+
+        audio::init_log_volume();
+        audio::setAudioOutputLevel();
+        audio::setAudioInputLevels();
+        setPtt(getPttStyle(hardware));
+
+        // Cannot enable these interrupts until we start the io loop because
+        // they send messages on the queue.
+        HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
+
+        HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
+
+        HAL_NVIC_SetPriority(EXTI4_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+        HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+        if (reset_requested)
+        {
         }
 
-        hardware.init();
-        hardware.store();
+        // FIXME: this is probably not right
+        if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
+        {
+            DEBUG("BT Connected at start");
+            openSerial();
+            INFO("BT Opened");
+            indicate_connected_via_ble();
+        }
+        else
+        {
+            indicate_waiting_to_connect();
+        }
+    } else {
+        if (!usb_wake_state) {
+            shutdown(0);
+        } else {
+            osTimerStart(usbShutdownTimerHandle, 2000);
+        }
     }
-    hardware.debug();
 
-    audio::init_log_volume();
-    audio::setAudioOutputLevel();
-    audio::setAudioInputLevels();
-    setPtt(getPttStyle(hardware));
-
-    // Cannot enable these interrupts until we start the io loop because
-    // they send messages on the queue.
     HAL_NVIC_SetPriority(USB_POWER_EXTI_IRQn, 6, 0);
     HAL_NVIC_EnableIRQ(USB_POWER_EXTI_IRQn);
-
-    HAL_NVIC_SetPriority(SW_POWER_EXTI_IRQn, 6, 0);
-    HAL_NVIC_EnableIRQ(SW_POWER_EXTI_IRQn);
-
-    HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
-    HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
-
-    HAL_NVIC_SetPriority(EXTI4_IRQn, 6, 0);
-    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-
-    HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6, 0);
-    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-    if (reset_requested)
-    {
-    }
-
-    // FIXME: this is probably not right
-    if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
-    {
-        DEBUG("BT Connected at start");
-        openSerial();
-        INFO("BT Opened");
-        indicate_connected_via_ble();
-    }
-    else
-    {
-        indicate_waiting_to_connect();
-    }
 
     uint32_t power_button_counter{0};
     uint32_t power_button_duration{0};
@@ -127,7 +136,7 @@ void startIOEventTask(void const*)
             case CMD_USB_DISCONNECTED:
                 INFO("VBUS Lost");
                 if (powerOffViaUSB()) {
-                    stop2(); // ***NO RETURN***
+                    shutdown(0); // ***NO RETURN***
                 } else {
                     HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
@@ -165,7 +174,7 @@ void startIOEventTask(void const*)
                 DEBUG("Power Up");
                 power_button_duration = osKernelSysTick() - power_button_counter;
                 DEBUG("Button pressed for %lums", power_button_duration);
-                stop2(); // ***NO RETURN***
+                shutdown(0); // ***NO RETURN***
                 break;
             case CMD_BOOT_BUTTON_DOWN:
                 DEBUG("BOOT Down");
@@ -223,7 +232,7 @@ void startIOEventTask(void const*)
                 break;
             case CMD_SHUTDOWN:
                 INFO("STOP mode");
-                stop2();
+                shutdown(0);
                 INFO("RUN mode");
                 HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin, GPIO_PIN_SET);
                 audio::setAudioOutputLevel();
@@ -259,14 +268,22 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_DISCOVERY_COMPLETE:
                 INFO("USB discovery complete");
+                osTimerStop(usbShutdownTimerHandle);
+                if (go_back_to_sleep) shutdown(0);
                 USBD_Start(&hUsbDeviceFS);
                 initCDC();
                 break;
             case CMD_USB_DISCOVERY_ERROR:
                 // This happens when powering VBUS from a bench supply.
-                INFO("Not a recognized USB charging device");
-                INFO("USB charging enabled");
-                HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
+                osTimerStop(usbShutdownTimerHandle);
+                if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
+                {
+                    INFO("Not a recognized USB charging device");
+                    INFO("USB charging enabled");
+                    HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
+                }
+                hpcd_USB_FS.Instance->BCDR = 0;
+                if (go_back_to_sleep) shutdown(0);
                 break;
             case CMD_BT_DEEP_SLEEP:
                 INFO("BT deep sleep");
