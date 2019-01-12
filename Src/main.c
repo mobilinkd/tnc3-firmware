@@ -147,7 +147,6 @@ osStaticTimerDef_t usbShutdownTimerControlBlock;
 
 int lost_power = 0;
 int reset_requested = 0;
-char serial_number[25];
 char serial_number_64[17] = {0};
 // Make sure it is not overwritten during resets (bss3).
 uint8_t mac_address[6] __attribute__((section(".bss3"))) = {0};
@@ -348,6 +347,30 @@ void shutdown(void const * argument)
     HAL_NVIC_SystemReset();
 }
 
+/*
+ * Same algorithm as here: https://github.com/libopencm3/libopencm3/blob/master/lib/stm32/desig.c
+ */
+void encode_serial_number()
+{
+    uint8_t *uid = (uint8_t *)UID_BASE;
+
+    uint8_t serial[6];
+    serial[0] = uid[11];
+    serial[1] = uid[10] + uid[2];
+    serial[2] = uid[9];
+    serial[3] = uid[8] + uid[0];
+    serial[4] = uid[7];
+    serial[5] = uid[6];
+
+    snprintf(
+        serial_number_64,
+        sizeof(serial_number_64),
+        "%02X%02X%02X%02X%02X%02X",
+        serial[0], serial[1], serial[2],
+        serial[3], serial[4], serial[5]
+    );
+}
+
 /* USER CODE END 0 */
 
 /**
@@ -413,14 +436,7 @@ int main(void)
       indicate_turning_on();    // LEDs on during boot.
   }
 
-  // Fetch the device serial number.
-  uint32_t* uid = (uint32_t*) UID_BASE;
-  snprintf(serial_number, sizeof(serial_number), "%08lx%08lx%08lx", uid[0], uid[1], uid[2]);
-
-  {
-      uint32_t len = 17;
-      base64encode((const uint8_t*) UID_BASE, 12, serial_number_64, &len);
-  }
+  encode_serial_number();
 
   // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
   // has a weak pull-up on the BT module and is in OD mode.  Pull the

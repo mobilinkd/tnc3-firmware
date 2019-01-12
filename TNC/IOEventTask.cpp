@@ -366,8 +366,6 @@ void startLedBlinkerTask(void const*)
     }
 }
 
-extern osThreadId cdcBlinkerHandle;
-
 namespace mobilinkd {
 namespace tnc {
 
@@ -379,7 +377,7 @@ void print_startup_banner()
     INFO("%s version %s", mobilinkd::tnc::kiss::HARDWARE_VERSION,
         mobilinkd::tnc::kiss::FIRMWARE_VERSION);
     INFO("CPU core clock: %luHz", SystemCoreClock);
-    INFO(" Serial number: %08lX %08lX %08lX", uid[0], uid[1], uid[2]);
+    INFO("    Device UID: %08lX %08lX %08lX", uid[0], uid[1], uid[2]);
     INFO("   MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
         mac_address[0], mac_address[1], mac_address[2],
         mac_address[3], mac_address[4], mac_address[5])
@@ -390,16 +388,6 @@ void print_startup_banner()
 
     INFO("Bootloader version: 0x%02X", version);
 #endif
-}
-
-void start_cdc_blink()
-{
-    osThreadResume(cdcBlinkerHandle);
-}
-
-void stop_cdc_blink()
-{
-    osThreadSuspend(cdcBlinkerHandle);
 }
 
 }
