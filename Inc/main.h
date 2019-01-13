@@ -161,6 +161,7 @@ extern uint8_t mac_address[6];
 extern char error_message[80];
 extern int go_back_to_sleep;
 extern int usb_wake_state;
+extern int charging_enabled;
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 

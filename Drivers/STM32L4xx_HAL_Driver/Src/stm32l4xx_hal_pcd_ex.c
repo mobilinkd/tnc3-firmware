@@ -379,6 +379,7 @@ HAL_StatusTypeDef HAL_PCDEx_DeActivateBCD(PCD_HandleTypeDef *hpcd)
   hpcd->battery_charging_active = 0U;
 
   USBx->BCDR &= ~(USB_BCDR_BCDEN);
+  USBx->BCDR &= ~(USB_BCDR_DCDEN);
 
   return HAL_OK;
 }

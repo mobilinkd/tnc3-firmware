@@ -45,18 +45,21 @@ void startIOEventTask(void const*)
         indicate_on();
 
         print_startup_banner();
+    }
 
-        auto& hardware = kiss::settings();
+    auto& hardware = kiss::settings();
 
-        if (! hardware.load() or reset_requested or !hardware.crc_ok())
-        {
-            if (reset_requested) {
-                INFO("Hardware reset requested.");
-            }
-
-            hardware.init();
-            hardware.store();
+    if (! hardware.load() or reset_requested or !hardware.crc_ok())
+    {
+        if (reset_requested) {
+            INFO("Hardware reset requested.");
         }
+
+        hardware.init();
+        hardware.store();
+    }
+
+    if (!go_back_to_sleep) {
         hardware.debug();
 
         audio::init_log_volume();
@@ -96,9 +99,13 @@ void startIOEventTask(void const*)
         }
     } else {
         if (!usb_wake_state) {
+            DEBUG("USB disconnected -- shutdown");
             shutdown(0);
         } else {
-            osTimerStart(usbShutdownTimerHandle, 2000);
+            DEBUG("USB connected -- negotiate");
+            HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                GPIO_PIN_RESET);
+            osTimerStart(usbShutdownTimerHandle, 5000);
         }
     }
 
@@ -135,9 +142,11 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_DISCONNECTED:
                 INFO("VBUS Lost");
+                charging_enabled = 0;
                 if (powerOffViaUSB()) {
                     shutdown(0); // ***NO RETURN***
                 } else {
+                    hpcd_USB_FS.Instance->BCDR = 0;
                     HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
                     if (ioport != getUsbPort())
@@ -257,6 +266,7 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_CONNECTED:
                 INFO("VBUS Detected");
+                MX_USB_DEVICE_Init();
                 HAL_PCD_MspInit(&hpcd_USB_FS);
                 hpcd_USB_FS.Instance->BCDR = 0;
                 HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
@@ -265,24 +275,26 @@ void startIOEventTask(void const*)
             case CMD_USB_CHARGE_ENABLE:
                 INFO("USB charging enabled");
                 HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
+                charging_enabled = 1;
+                if (go_back_to_sleep) shutdown(0);
                 break;
             case CMD_USB_DISCOVERY_COMPLETE:
                 INFO("USB discovery complete");
                 osTimerStop(usbShutdownTimerHandle);
-                if (go_back_to_sleep) shutdown(0);
                 USBD_Start(&hUsbDeviceFS);
                 initCDC();
                 break;
             case CMD_USB_DISCOVERY_ERROR:
                 // This happens when powering VBUS from a bench supply.
                 osTimerStop(usbShutdownTimerHandle);
+                HAL_PCDEx_DeActivateBCD(&hpcd_USB_FS);
                 if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
                 {
                     INFO("Not a recognized USB charging device");
                     INFO("USB charging enabled");
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_RESET);
+                    charging_enabled = 1;
                 }
-                hpcd_USB_FS.Instance->BCDR = 0;
                 if (go_back_to_sleep) shutdown(0);
                 break;
             case CMD_BT_DEEP_SLEEP:

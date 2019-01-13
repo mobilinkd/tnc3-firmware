@@ -154,8 +154,8 @@ char error_message[80] __attribute__((section(".bss3"))) = {0};
 // USB power control -- need to renegotiate USB charging in STOP mode.
 int go_back_to_sleep __attribute__((section(".bss3")));
 int stop_now __attribute__((section(".bss3")));
-int usb_wake_state;
-int usb_stop_state;
+int charging_enabled __attribute__((section(".bss3")));
+int usb_wake_state __attribute__((section(".bss3")));
 
 /* USER CODE END PV */
 
@@ -182,6 +182,7 @@ extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 extern void beacon(void const * argument);
 extern void shutdown(void const * argument);
+void encode_serial_number(void);
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
                                 
@@ -247,14 +248,13 @@ void configure_gpio_for_stop()
     HAL_GPIO_DeInit(BAT_LEVEL_GPIO_Port, BAT_LEVEL_Pin);
     HAL_GPIO_DeInit(BAT_DIVIDER_GPIO_Port, BAT_DIVIDER_Pin);
 
-    usb_stop_state = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
-    if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_RESET)
+    if (charging_enabled)
     {
-        HAL_GPIO_WritePin(GPIOB, USB_CE_Pin, GPIO_PIN_SET);
-        GPIO_InitStruct.Pin = USB_CE_Pin;
-        GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
-        GPIO_InitStruct.Pull = GPIO_PULLUP;         // CE active low.
-        HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+        HAL_GPIO_WritePin(GPIOB, USB_CE_Pin, GPIO_PIN_RESET);
+    }
+    else
+    {
+        HAL_GPIO_DeInit(USB_CE_GPIO_Port, USB_CE_Pin);  // Hi-Z
     }
 
     // Bluetooth module
@@ -340,6 +340,14 @@ void enable_debug_gpio()
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 }
 
+/**
+ * Shutdown is used to enter stop mode in a clean state.  This ensures that
+ * all IP have been reset & re-initialized to their default state when
+ * entering low-power stop mode.  This is a work-around until we can
+ * determine what causes a high-discharge state after USB is enabled.
+ *
+ * @param argument is unused.
+ */
 void shutdown(void const * argument)
 {
     UNUSED(argument);
@@ -387,6 +395,7 @@ int main(void)
   if (!(RCC->CSR & RCC_CSR_SFTRSTF)) {
       go_back_to_sleep = 0;
       stop_now = 0;
+      usb_wake_state = 0;
   }
   /* USER CODE END 1 */
 
@@ -438,44 +447,46 @@ int main(void)
 
   encode_serial_number();
 
-  // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
-  // has a weak pull-up on the BT module and is in OD mode.  Pull the
-  // pin low during boot to enter Bluetooth programming mode.  Here the
-  // BT_CMD pin is switched to input mode to detect the state.  The
-  // TNC must be reset to exit programming mode.
+  if (!go_back_to_sleep) {
+      // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
+      // has a weak pull-up on the BT module and is in OD mode.  Pull the
+      // pin low during boot to enter Bluetooth programming mode.  Here the
+      // BT_CMD pin is switched to input mode to detect the state.  The
+      // TNC must be reset to exit programming mode.
 
-  // Wait for BT module to settle.
-  GPIO_InitTypeDef GPIO_InitStructure;
+      // Wait for BT module to settle.
+      GPIO_InitTypeDef GPIO_InitStructure;
 
-  GPIO_InitStructure.Pin = BT_CMD_Pin;
-  GPIO_InitStructure.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStructure.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
-  HAL_Delay(10);
+      GPIO_InitStructure.Pin = BT_CMD_Pin;
+      GPIO_InitStructure.Mode = GPIO_MODE_INPUT;
+      GPIO_InitStructure.Pull = GPIO_PULLUP;
+      HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
+      HAL_Delay(10);
 
-  if (HAL_GPIO_ReadPin(BT_CMD_GPIO_Port, BT_CMD_Pin) == GPIO_PIN_RESET) {
-      // Special test mode for programming the Bluetooth module.  The TNC
-      // has the BT_CMD pin actively being pulled low.  In this case we
-      // power on the BT module with BT_CMD held low and wait here without
-      // initializing the UART.  We only exit via reset.
-      HAL_UART_MspDeInit(&huart3);
+      if (HAL_GPIO_ReadPin(BT_CMD_GPIO_Port, BT_CMD_Pin) == GPIO_PIN_RESET) {
+          // Special test mode for programming the Bluetooth module.  The TNC
+          // has the BT_CMD pin actively being pulled low.  In this case we
+          // power on the BT module with BT_CMD held low and wait here without
+          // initializing the UART.  We only exit via reset.
+          HAL_UART_MspDeInit(&huart3);
 
-      HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
-      HAL_Delay(1);
-      HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
-      HAL_Delay(200);
+          HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_RESET);
+          HAL_Delay(1);
+          HAL_GPIO_WritePin(BT_RESET_GPIO_Port, BT_RESET_Pin, GPIO_PIN_SET);
+          HAL_Delay(200);
 
-      printf("Bluetooth programming mode\r\n");
+          printf("Bluetooth programming mode\r\n");
 
-      while (1);
+          while (1);
+      }
+
+      // Not in BT programming mode.  Switch BT_CMD back to OD mode.
+      HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_SET);
+      GPIO_InitStructure.Pin = BT_CMD_Pin;
+      GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
+      GPIO_InitStructure.Pull = GPIO_PULLUP;
+      HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
   }
-
-  // Not in BT programming mode.  Switch BT_CMD back to OD mode.
-  HAL_GPIO_WritePin(BT_CMD_GPIO_Port, BT_CMD_Pin, GPIO_PIN_SET);
-  GPIO_InitStructure.Pin = BT_CMD_Pin;
-  GPIO_InitStructure.Mode = GPIO_MODE_OUTPUT_OD;
-  GPIO_InitStructure.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
 
   /* USER CODE END 2 */
 
@@ -581,13 +592,16 @@ int main(void)
   if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
   if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
 
-  // Initialize the BM78 Bluetooth module and the RTC date/time the first time we boot.
-  if (!bm78_initialized()) {
-      bm78_initialize();
-      memset(error_message, 0, sizeof(error_message));
-      // init_rtc_date_time();
+  if (!go_back_to_sleep) {
+
+      // Initialize the BM78 Bluetooth module and the RTC date/time the first time we boot.
+      if (!bm78_initialized()) {
+          bm78_initialize();
+          memset(error_message, 0, sizeof(error_message));
+          // init_rtc_date_time();
+      }
+      else bm78_wait_until_ready();
   }
-  else bm78_wait_until_ready();
 
   init_ioport();
   initCDC();
@@ -1269,7 +1283,7 @@ void stop2()
 {
   osThreadSuspendAll();
 
-  GPIO_PinState usb = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
+  int usb_stop_state = HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin);
 
   HAL_OPAMP_DeInit(&hopamp1);
   HAL_TIM_PWM_DeInit(&htim1);
@@ -1279,10 +1293,11 @@ void stop2()
   HAL_UART_DeInit(&huart3);
 
   HAL_PWR_DisablePVD();
+  USB->BCDR = 0;
   HAL_PWREx_DisableVddUSB();
   HAL_ADCEx_EnterADCDeepPowerDownMode(&hadc1);
   configure_gpio_for_stop();
-  power_down_vdd();
+  if (!usb_stop_state) power_down_vdd();
 
   HAL_RCCEx_DisableLSCO();
 
@@ -1310,6 +1325,8 @@ void stop2()
       if (powerOnViaUSB()) {
           go_back_to_sleep = 0;
       }
+  } else {
+      charging_enabled = 0;
   }
   HAL_NVIC_SystemReset();
 }
@@ -1412,20 +1429,22 @@ void init_rtc_alarm()
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
-  /* init code for USB_DEVICE */
-  MX_USB_DEVICE_Init();
-
   /* USER CODE BEGIN 5 */
-  printf("startDefaultTask\r\n");
   UNUSED(argument);
 
   if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
   {
+#ifdef KISS_LOGGING
     printf("VBUS detected\r\n");
+#endif
+    MX_USB_DEVICE_Init();
     HAL_PCD_MspInit(&hpcd_USB_FS);
+    HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
     HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
   } else {
+#ifdef KISS_LOGGING
     printf("VBUS not detected\r\n");
+#endif
   }
 /* Infinite loop */
   for(;;)
@@ -1474,6 +1493,8 @@ void _Error_Handler(char *file, int line)
 #endif
   snprintf(error_message, sizeof(error_message), "Error: %s:%d", file, line);
 
+  stop_now = 0;
+  go_back_to_sleep = 0;
   NVIC_SystemReset();
   /* USER CODE END Error_Handler_Debug */
 }
