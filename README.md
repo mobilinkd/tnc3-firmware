@@ -43,7 +43,7 @@ You should see the serial port device go away and a new DFU device appear.
 
 Run the STM32CubeProgrammer from the command-line.
 
-    ./STM32_Programmer_CLI -c port=USB1 -d firmware-1_0_0.elf -v -g 0x8000000
+    ./STM32_Programmer_CLI -c port=USB1 -d firmware-1_0_1.elf -v -g 0x8000000
 
 When that is complete, the DFU device will disappear and the serial port
 device will re-appear.
