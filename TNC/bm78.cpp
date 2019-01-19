@@ -518,6 +518,15 @@ int bm78_initialized()
     return HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) == crc;
 }
 
+void bm78_initialize_mac_address()
+{
+    using namespace mobilinkd::tnc::bm78;
+
+    enter_program_mode();
+    read_mac_address();
+    exit_program_mode();
+}
+
 int bm78_initialize()
 {
     using namespace mobilinkd::tnc;

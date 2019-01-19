@@ -81,10 +81,6 @@ void startIOEventTask(void const*)
         HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6, 0);
         HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-        if (reset_requested)
-        {
-        }
-
         // FIXME: this is probably not right
         if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
         {
@@ -181,6 +177,7 @@ void startIOEventTask(void const*)
                 break;
             case CMD_POWER_BUTTON_UP:
                 DEBUG("Power Up");
+                if (power_button_counter == 0) break; // reset_requested
                 power_button_duration = osKernelSysTick() - power_button_counter;
                 DEBUG("Button pressed for %lums", power_button_duration);
                 shutdown(0); // ***NO RETURN***

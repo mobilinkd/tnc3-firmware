@@ -162,6 +162,7 @@ extern char error_message[80];
 extern int go_back_to_sleep;
 extern int usb_wake_state;
 extern int charging_enabled;
+extern int reset_button;
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 

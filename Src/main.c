@@ -156,6 +156,7 @@ int go_back_to_sleep __attribute__((section(".bss3")));
 int stop_now __attribute__((section(".bss3")));
 int charging_enabled __attribute__((section(".bss3")));
 int usb_wake_state __attribute__((section(".bss3")));
+int reset_button = 0;
 
 /* USER CODE END PV */
 
@@ -397,6 +398,11 @@ int main(void)
       stop_now = 0;
       usb_wake_state = 0;
   }
+  if (RCC->CSR & (RCC_CSR_PINRSTF|RCC_CSR_BORRSTF)) {
+      reset_button = 1;
+  } else {
+      reset_button = 0;
+  }
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -443,6 +449,9 @@ int main(void)
   SCB->SHCSR |= 0x70000;    // Enable fault handlers;
   if (!go_back_to_sleep) {
       indicate_turning_on();    // LEDs on during boot.
+      if (HAL_GPIO_ReadPin(SW_POWER_GPIO_Port, SW_POWER_Pin) && reset_button) {
+          reset_requested = 1;
+      }
   }
 
   encode_serial_number();
@@ -595,10 +604,12 @@ int main(void)
   if (!go_back_to_sleep) {
 
       // Initialize the BM78 Bluetooth module and the RTC date/time the first time we boot.
-      if (!bm78_initialized()) {
+      if (!bm78_initialized() || reset_requested) {
           bm78_initialize();
           memset(error_message, 0, sizeof(error_message));
           // init_rtc_date_time();
+      } else if (reset_button) {
+          bm78_initialize_mac_address();
       }
       else bm78_wait_until_ready();
   }
