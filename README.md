@@ -35,7 +35,7 @@ Firmware can be installed via the on-board ST/LINK port or via USB DFU.
  4. Put the TNC into DFU mode by pressing the DFU button on the side.  The TNC
 will only enter DFU mode when plugged into a USB port.
 
- ![TNC3 Diagram](https://s3.amazonaws.com/mobilinkd/TNC3/TNC3_Diagram.svg)
+ ![TNC3 Diagram](https://s3.amazonaws.com/mobilinkd/TNC3/TNC3_Diagram.png)
 
 ***There is no visible indication on the TNC that it is in DFU mode***
 
