@@ -222,7 +222,7 @@ struct Decoder
             }
 
             if (have_flag()) {
-                if (frame_->size() > 17) {
+                if (frame_->size() > 15) {
                     ready_ = true;
                 }
             }
@@ -237,7 +237,7 @@ struct Decoder
 
                 // Framing error.  Drop the frame.  If there is a FLAG
                 // in the buffer, go into HUNT otherwise SEARCH.
-                if (frame_->size() > 17) {
+                if (frame_->size() > 15) {
                     ready_ = true;
                     return;
                 }
@@ -296,7 +296,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
     if (nullptr == frame_) frame_ = acquire();
 
     if (not pll) {
-        if ((state_ == FRAMING) and (frame_->size() > 17) and passall_) {
+        if ((state_ == FRAMING) and (frame_->size() > 15) and passall_) {
             frame_->parse_fcs();
             if (passall_ or frame_->ok()) {
                 result = frame_;

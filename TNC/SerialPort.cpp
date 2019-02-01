@@ -60,6 +60,9 @@ extern "C" void startSerialTask(void const* arg)
 
     HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
 
+    uint32_t last_sent_time = osKernelSysTick();
+    uint32_t current_sent_time = 0;
+
     while (true) {
         osEvent evt = osMessageGet(serialPort->queue(), osWaitForever);
 
@@ -78,6 +81,7 @@ extern "C" void startSerialTask(void const* arg)
         }
 
         uint8_t c = evt.value.v;
+        INFO("%02x - %c", c, c);
         switch (state) {
         case WAIT_FBEGIN:
             if (c == FEND) state = WAIT_FRAME_TYPE;
@@ -98,7 +102,11 @@ extern "C" void startSerialTask(void const* arg)
                 {
                     hdlc::release(frame);
                 }
-                osDelay(50);
+                current_sent_time = osKernelSysTick();
+                if (last_sent_time + 50 > current_sent_time) {
+                    uint32_t delay = (last_sent_time + 50) - current_sent_time;
+                    osDelay(delay);
+                }
                 frame = hdlc::acquire_wait();
                 state = WAIT_FBEGIN;
                 break;
@@ -106,7 +114,7 @@ extern "C" void startSerialTask(void const* arg)
                 if (not frame->push_back(c)) {
                     hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::acquire();
+                    frame = hdlc::acquire_wait();
                 }
             }
             break;
