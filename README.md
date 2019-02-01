@@ -24,26 +24,26 @@ Firmware can be installed via the on-board ST/LINK port or via USB DFU.
 
 ## USB DFU
 
-Download the STM32CubeProgrammer from STMicroelectronics.
+ 1. Download the STM32CubeProgrammer.
+    https://s3.amazonaws.com/mobilinkd/en.stm32cubeprog-1.4.0.zip
+    This programmer will work on Linux, OS X, and Windows.
 
-https://www.st.com/en/development-tools/stm32cubeprog.html
+ 2. Download the ELF file from the release (or that you have built from source).
 
-This programmer will work on Linux, OS X, and Windows.
+ 3. Plug the TNC into a USB port and turn the TNC on.  You should see a USB serial port enumerated.
 
-Download the ELF file from the release (or that you have built from source).
-
-Plug the TNC into a USB port.  You should see a USB serial port enumerated.
-
-Put the TNC into DFU mode by pressing the DFU button on the side.  The TNC
+ 4. Put the TNC into DFU mode by pressing the DFU button on the side.  The TNC
 will only enter DFU mode when plugged into a USB port.
+
+ ![TNC3 Diagram](https://s3.amazonaws.com/mobilinkd/TNC3/TNC3_Diagram.png)
 
 ***There is no visible indication on the TNC that it is in DFU mode***
 
-You should see the serial port device go away and a new DFU device appear.
+ 5. You should see the serial port device go away and a new DFU device appear.
 
-Run the STM32CubeProgrammer from the command-line.
+ 6. Run the STM32CubeProgrammer from the command-line. (Replace "firmware.elf" with the appropriate firmware filename.)
 
-    ./STM32_Programmer_CLI -c port=USB1 -d firmware-1_0_1.elf -v -g 0x8000000
+    ./STM32_Programmer_CLI -c port=USB1 -d firmware.elf -v -g 0x8000000
 
-When that is complete, the DFU device will disappear and the serial port
+ 7. When that is complete, the DFU device will disappear and the serial port
 device will re-appear.
