@@ -127,17 +127,16 @@ struct Encoder {
      */
     bool do_csma() {
         // Wait until we can transmit.  If we cannot transmit for 10s
-        // drop the frame.  Note that we cheat a bit by looking at the
-        // state of the DCD_LED to determine if the channel is clear.
+        // drop the frame.
 
-        if (dcd()) {
+        if (!dcd()) {
             // Channel is clear... send now.
             return true;
         }
 
         uint16_t counter = 0;
-        while (counter < 10000) {
-            osDelay(slot_time_);    // We count on minimum delay = 1.
+        while (counter < 1000) {
+            osDelay(slot_time_ * 10);    // We count on minimum delay = 1.
             counter += slot_time_;
 
             if (rng_() < p_persist_) {

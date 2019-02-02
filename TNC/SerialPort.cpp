@@ -362,8 +362,8 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     hdlc::IoFrame::iterator end = frame->begin();
     std::advance(end, frame->size() - 2);           // Drop FCS
 
-    auto slip_iter = slip_encoder2(begin);
-    auto slip_end = slip_encoder2(end);
+    slip_encoder2 slip_iter{begin};
+    slip_encoder2 slip_end{end};
 
     size_t pos = 0;
 
