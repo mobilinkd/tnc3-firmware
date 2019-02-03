@@ -16,6 +16,9 @@ using the STM32CubeProgrammer software.
 
 The third part of this document outlines troubleshooting steps.
 
+If you have already downloaded and installed the STM32CubeProgrammer
+software, feel free to skip to the [Firmware Update Section](#firmware-update-process).
+
 # Installing the Firmware Programmer and Device Drivers
 
 The Mobilinkd TNC3 uses the STM32CubeProgrammer software from
@@ -167,29 +170,140 @@ installation.  Accept the defaults for the next two screens.
 
 ![Install programmer step 8](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_8.png)
 
-The firmware update software 
+The firmware update software is installed and an icon exists on the desktop.
 
+# Firmware Update Process
 
+This section will walk you through the firmware update process.  The
+STM32CubeProgrammer is fairly complex, and it is easy to unintentionally
+damage the TNC if the instructions are not carefully followed.
 
+## Download the Firmware File
 
+To start, download the latest firmware for the TNC3 from the [Mobilinkd
+Downloads page](http://www.mobilinkd.com/downloads/?dl_cat=6).  The file
+will have a ".elf" extension.
 
+## Prepare the TNC
 
+The Mobilinkd TNC3 includes a USB-based DFU (device firmware update) bootloader.
 
+Before we begin, it is helpful to review the TNC3 physical features.
 
+![TNC3 Diagram](https://s3.amazonaws.com/mobilinkd/TNC3/TNC3_Diagram.png)
 
+The DFU button is used to put the TNC into firmware update mode.
 
+To update the firmware you will need a USB cable with a micro-USB connector.
+You will also need a ball-point pen or something that can be inserted into
+the hole in the case where the DFU button is.
 
+To enter the bootloader, follow these steps:
 
+ - Start with the TNC powered off and disconnected from radio and USB.
+ - Turn on the TNC.
+ - Plug USB cable into the computer.
+ - Plug the USB cable into the TNC.  The computer should add a new COM port.
+ - Turn the TNC off for a few seconds, then turn it back on.
+ - After the blue LED flashes at least once, use the tip of a ball-point
+   pen to gently press the DFU button.  You should see the red LED briefly
+   flash, and the blue LED will stop blinking.
 
+The TNC is now ready to accept a firmware update.  If you wish to abandon
+this process, use the same pen to gently depress the reset button.
 
+## Update the Firmware
 
+In this section we are going to:
 
+ - Start the STM32CubeProgrammer
+ - Connect to the TNC's bootloader
+ - Load the firmware file
+ - Write the firmware to the TNC
 
+### Start the STM32CubeProgrammer
 
+When the STM32CubeProgrammer was installed, it should have put an
+application shortcut on your desktop.
 
+![Desktop Icon](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/desktop_icon.png)
 
+Find the shortcut and click it.  The firmware update software will start.
 
+![Programmer start](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_start.png)
 
+### Connect to TNC
 
+In the upper left, there is a blue and a yellow button.  Press the blue
+button to access the drop-down menu and select "USB".
 
+![Select USB](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_select_usb.png)
+
+You should see a device named "USB1" available.  If you do not see it, press
+the refresh button next to the port selection dropdown.
+
+**If you still do not see a device labeled USB1, press the reset button and
+repeat the steps to enter the bootloader.  If you still do not see the
+device listed, go the the [Troubleshooting](#troubleshooting) section.**
+
+Press the yellow "Connect" button to connect to the TNC.  The device's
+firmware will be downloaded from the TNC.
+
+![Select USB](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_usb_connected.png)
+
+### Load the Firmware File
+
+Click on the "Erasing and Programming" icon on the left side of the
+programmer.
+
+![Erasing programming icon](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_erasing_programming.png)
+
+This will bring up the firmware update screen.
+
+![Erasing and programming screen](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_erasing_and_programming.png)
+
+Click on the "Browse" button.
+
+![Open file](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_open_file.png)
+
+Select the firmware file that was downloaded at the beginning of this process.
+
+![Start programming](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_start_programming.png)
+
+Ensure that the options "Verify programming" and "Run after programming" are
+both enabled.
+
+Press the "Start Programming" button.
+
+![Programming](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_programming.png)
+
+When it is complete, the TNC will restart and disconnect from the
+STM32CubeProgrammer application.
+
+![Programming complete](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programming_complete.png)
+
+This warning message is normal.
+
+You can now close the STM32CubeProgrammer and launch the config app on either
+Android or iOS and verify that the firmware version is correct.
+
+# Troubleshooting
+
+This section is very brief for now.
+
+## TNC is not available in programmer
+
+Open the device manager.
+
+Find if “STM Device in DFU Mode” appear under the “Universal Serial Bus Controllers”
+
+If this device appears, right click the device, and select "Uninstall device".
+
+Open a file browser and go to:
+
+C:\Program Files (x86)\STMicroelectronics\STM32Cube\STM32CubeProgrammer\Drivers\DFU_Driver
+
+Run the "STM32Bootloader.bat" file in there to re-install the DFU device drivers.
+
+Refresh the device list in the STM32CubeProgrammer window.
 
