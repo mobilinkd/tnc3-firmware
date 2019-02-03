@@ -62,7 +62,7 @@ Make sure that "Show extracted files when complete" is selected.  Once
 complete, you will be presented with a new file browser showing the
 extracted files.
 
-![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png)
+![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extracted.png)
 
 ### Install Java
 
@@ -97,7 +97,7 @@ Select "Yes" to continue.  You will see the Java installation window appear.
 Once complete, you will need to go back to the File Browser showing the 
 STM32CubeProgrammer extracted files.
 
-![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png)
+![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extracted.png)
 
 Double-click the SetupSTM32CubeProgrammer-1.4.0.exe to run the installer.
 
@@ -146,7 +146,7 @@ The installation process will begin...
 After the software is installed, the installer will install the required
 device drivers.
 
-![Install programmer step 6.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_install_driver.png)
+![Install programmer step 6.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_install_drivers.png)
 
 Select "Next" to proceed with the installation.  You may be asked to confirm
 the installation of the drivers.
