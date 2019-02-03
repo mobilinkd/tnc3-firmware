@@ -157,6 +157,8 @@ Select "Install" to proceed.
 
 ![Install programmer step 6.3](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_drivers_now_installing.png)
 
+When finished, you will see the following.
+
 ![Install programmer step 6.4](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_installed_drivers.png)
 
 Select "Finish" to proceed.
