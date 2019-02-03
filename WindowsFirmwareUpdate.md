@@ -38,28 +38,28 @@ https://s3.amazonaws.com/mobilinkd/en.stm32cubeprog-1.4.0.zip
 
 ### Download the File
 
-[!Download file](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/download.png])
+![Download file](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/download.png])
 
 ### Open the File
 
-[!ZIP file contents](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/zip_contents.png])
+![ZIP file contents](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/zip_contents.png])
 
 ### Extract the Files
 
 Double-click the executable file.  Windows will ask you to extract all
 files.
 
-[!Extract all files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extract_all.png])
+![Extract all files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extract_all.png])
 
 Select "Extract all".
 
-[!Extract to](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extract_to.png])
+![Extract to](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extract_to.png])
 
 Make sure that "Show extracted files when complete" is selected.  Once
 complete, you will be presented with a new file browser showing the
 extracted files.
 
-[!Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png])
+![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png])
 
 ### Install Java
 
@@ -67,7 +67,7 @@ Double-click the SetupSTM32CubeProgrammer-1.4.0.exe to run the installer.
 
 You may be presented with a warning screen.
 
-[!Install warning](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_warning.png])
+![Install warning](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_warning.png])
 
 Select "Yes" to continue.
 
@@ -76,31 +76,31 @@ required.  This section will guide you through the installation
 process.  If this does not appear for you, please skip to the next
 section.
 
-[!Requires Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/requires_java.png])
+![Requires Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/requires_java.png])
 
 Select "OK" to continue.  You will be presented with a browser window
 to download the Java Runtime Environment.
 
-[!Download Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/java_download.png])
+![Download Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/java_download.png])
 
 Windows may ask you to approve this software installation.
 
-[!Download Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/java_download.png])
+![Download Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/java_download.png])
 
 Select "Yes" to continue.  You will see the Java installation window appear.
 
-[!Installing Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/installing_java.png])
+![Installing Java](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/installing_java.png])
 
 Once complete, you will need to go back to the File Browser showing the 
 STM32CubeProgrammer extracted files.
 
-[!Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png])
+![Extracted files](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/extractes.png])
 
 Double-click the SetupSTM32CubeProgrammer-1.4.0.exe to run the installer.
 
 You may be presented with a warning screen.
 
-[!Install warning](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_warning.png])
+![Install warning](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_warning.png])
 
 Select "Yes" to continue.
 
@@ -108,19 +108,19 @@ Select "Yes" to continue.
 
 Follow the installation screens, choosing the defaults.
 
-[!Install programmer step 1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_1.png])
+![Install programmer step 1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_1.png])
 
 Select "Next".
 
-[!Install programmer step 2](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_2.png])
+![Install programmer step 2](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_2.png])
 
 Skip the information... select "Next".
 
-[!Install programmer step 3](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_3.png])
+![Install programmer step 3](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_3.png])
 
 Accept the terms of the software license agreement and press "Next".
 
-[!Install programmer step 4](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_4.png])
+![Install programmer step 4](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_4.png])
 
 Unless you have a very good reason to change the location of the installed
 software, use the default path and select "Next.
@@ -128,44 +128,44 @@ software, use the default path and select "Next.
 You may be presented with a dialog informing you the location will be created.
 Select "OK".
 
-[!Install programmer step 4.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_4_1.png])
+![Install programmer step 4.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_4_1.png])
 
 The next screen asks which components should be installed.  You should just
 select the default components as these are all that is required for the
 firmware update process on the Mobilinkd TNC3.
 
-[!Install programmer step 5](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_5.png])
+![Install programmer step 5](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_5.png])
 
 The installation process will begin...
 
-[!Install programmer step 6](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6.png])
+![Install programmer step 6](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6.png])
 
 After the software is installed, the installer will install the required
 device drivers.
 
-[!Install programmer step 6.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_install_driver.png])
+![Install programmer step 6.1](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_install_driver.png])
 
 Select "Next" to proceed with the installation.  You may be asked to confirm
 the installation of the drivers.
 
-[!Install programmer step 6.2](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_driver_confirm.png])
+![Install programmer step 6.2](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_driver_confirm.png])
 
 Select "Install" to proceed.
 
-[!Install programmer step 6.3](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_drivers_now_installing.png])
+![Install programmer step 6.3](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_drivers_now_installing.png])
 
-[!Install programmer step 6.4](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_installed_drivers.png])
+![Install programmer step 6.4](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_installed_drivers.png])
 
 Select "Finish" to proceed.
 
-[!Install programmer step 6.5](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_finished.png])
+![Install programmer step 6.5](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_6_finished.png])
 
 When complete, select "Finish" to proceed. The installer will finalize the
 installation.  Accept the defaults for the next two screens.
 
-[!Install programmer step 7](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_7.png])
+![Install programmer step 7](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_7.png])
 
-[!Install programmer step 8](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_8.png])
+![Install programmer step 8](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/install_programmer_8.png])
 
 The firmware update software 
 
