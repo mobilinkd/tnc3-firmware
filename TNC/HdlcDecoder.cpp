@@ -21,7 +21,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
     if (nullptr == frame_) return result;
 
     if (not pll) {
-        if ((state_ == FRAMING) and (frame_->size() > 17) and passall_) {
+        if ((state_ == FRAMING) and (frame_->size() > 15) and passall_) {
             frame_->parse_fcs();
             if (passall_ or frame_->ok()) {
                 result = frame_;
@@ -38,6 +38,7 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
             if (passall_ or frame_->ok()) {
                 result = frame_;
                 frame_ = acquire();
+                if (frame_) start_hunt();
                 return result;
             }
             frame_->clear();
