@@ -1,4 +1,4 @@
-// Copyright 2015 Robert C. Riggs <rob@pangalactic.org>
+// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #ifndef INC_PTT_HPP_
