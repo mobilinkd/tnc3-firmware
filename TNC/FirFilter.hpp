@@ -4,7 +4,6 @@
 #ifndef MOBILINKD__TNC__FIR_FILTER_H_
 #define MOBILINKD__TNC__FIR_FILTER_H_
 
-#include "Filter.hpp"
 #include <AudioLevel.hpp>
 
 #include "arm_math.h"
