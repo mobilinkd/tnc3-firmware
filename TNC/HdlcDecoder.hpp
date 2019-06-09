@@ -1,4 +1,4 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #ifndef MOBILINKD___HDLC_DECODER_HPP_
@@ -222,7 +222,7 @@ struct Decoder
             }
 
             if (have_flag()) {
-                if (frame_->size() > 15) {
+                if (frame_->size() >= 15) {
                     ready_ = true;
                 }
             }
@@ -322,6 +322,42 @@ IoFrame* Decoder::operator()(bool bit, bool pll)
     return result;
 }
 #endif
+
+
+struct NewDecoder
+{
+    enum class State {IDLE, SYNC, RECEIVE};
+    using frame_type = IoFrame;
+    using result_type = std::tuple<frame_type*, uint8_t>;
+    using optional_result_type = frame_type*;
+
+    static constexpr uint8_t STATUS_OK{0x01};
+    static constexpr uint8_t STATUS_USER_CANCEL{0x02};
+    static constexpr uint8_t STATUS_FRAME_ABORT{0x04};
+    static constexpr uint8_t STATUS_FRAME_ERROR{0x08};
+    static constexpr uint8_t STATUS_NO_CARRIER{0x10};
+    static constexpr uint8_t STATUS_CRC_ERROR{0x20};
+
+    const uint16_t VALID_CRC = 0xf0b8;
+
+    State state{State::IDLE};
+
+    uint8_t buffer{0};
+
+    uint8_t bits{0};
+    uint8_t ones{0};
+    bool flag{0};
+    bool passall{false};
+
+    frame_type* packet{nullptr};
+
+    NewDecoder(bool pass_all=false)
+    : passall(pass_all)
+    {}
+
+    optional_result_type operator()(bool input, bool pll_lock);
+    uint8_t process(bool input, bool pll_lock);
+};
 
 }}} // mobilinkd::tnc::hdlc
 
