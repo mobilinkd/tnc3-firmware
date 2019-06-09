@@ -13,10 +13,11 @@ extern "C" {
 void startIOEventTask(void const* argument);
 void startCdcBlinker(void const* argument);
 
+extern osMessageQId ioEventQueueHandle;
+extern volatile int cdc_connected;
+
 #ifdef __cplusplus
 }
-
-extern osMessageQId ioEventQueueHandle;
 
 namespace mobilinkd { namespace tnc {
 

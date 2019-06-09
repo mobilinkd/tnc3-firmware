@@ -55,7 +55,7 @@
 #include "UsbPort.h"
 #include "main.h"
 #include "cmsis_os.h"
-extern osMessageQId ioEventQueueHandle;
+#include "IOEventTask.h"
 
 /* USER CODE END INCLUDE */
 
@@ -65,7 +65,6 @@ extern osMessageQId ioEventQueueHandle;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-static int connected = 0;
 /* USER CODE END PV */
 
 /** @addtogroup STM32_USB_OTG_DEVICE_LIBRARY
@@ -262,10 +261,6 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-        if (!connected) {
-            connected = 1;
-            osMessagePut(ioEventQueueHandle, CMD_USB_CDC_CONNECT, 0);
-        }
         LineCoding.bitrate    = (uint32_t)(pbuf[0] | (pbuf[1] << 8) | (pbuf[2] << 16) | (pbuf[3] << 24));
         LineCoding.format     = pbuf[4];
         LineCoding.paritytype = pbuf[5];
@@ -285,11 +280,9 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     case CDC_SET_CONTROL_LINE_STATE:
         if (length == 0) {
           USBD_SetupReqTypedef* req = (USBD_SetupReqTypedef*) pbuf;
-          if ((req->wValue & 1) && (!connected)) {
-            connected = 1;
+          if ((req->wValue & 1)) {
             osMessagePut(ioEventQueueHandle, CMD_USB_CDC_CONNECT, 0);
-          } else if (connected) {
-            connected = 0;
+          } else {
             osMessagePut(ioEventQueueHandle, CMD_USB_CDC_DISCONNECT, 0);
           }
         }
@@ -313,7 +306,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   *
   *         @note
   *         This function will block any OUT packet reception on USB endpoint
-  *         untill exiting this function. If you exit this function before transfer
+  *         until exiting this function. If you exit this function before transfer
   *         is complete on CDC interface (ie. using DMA controller) it will result
   *         in receiving more data while previous ones are still not sent.
   *
@@ -324,8 +317,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-    if (!connected) {
-        connected = 1;
+    if (!cdc_connected) {
         osMessagePut(ioEventQueueHandle, CMD_USB_CDC_CONNECT, 0);
     }
   cdc_receive(Buf, *Len);

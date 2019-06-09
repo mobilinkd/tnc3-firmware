@@ -32,6 +32,8 @@ extern "C" void stop2(void);
 extern "C" void shutdown(void const * argument);
 extern "C" void startLedBlinkerTask(void const*);
 
+volatile int cdc_connected{0};
+
 static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
 {
     return hardware.options & KISS_OPTION_PTT_SIMPLEX ? PTT::SIMPLEX : PTT::MULTIPLEX;
@@ -123,8 +125,9 @@ void startIOEventTask(void const*)
         {
             switch (cmd) {
             case CMD_USB_CDC_CONNECT:
-                if (openCDC())
+                if (!cdc_connected && openCDC())
                 {
+                    cdc_connected = true;
                     // Disable Bluetooth Module
                     HAL_NVIC_DisableIRQ(EXTI4_IRQn);
                     HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
@@ -152,21 +155,24 @@ void startIOEventTask(void const*)
                 }
             [[ fallthrough ]]; // when the CDC part was connected.
             case CMD_USB_CDC_DISCONNECT:
-                osMessagePut(audioInputQueueHandle, audio::IDLE,
-                    osWaitForever);
-                kiss::getAFSKTestTone().stop();
-                closeCDC();
-                INFO("CDC Closed");
+                if (cdc_connected) {
+                    cdc_connected = false;
+                    osMessagePut(audioInputQueueHandle, audio::IDLE,
+                        osWaitForever);
+                    kiss::getAFSKTestTone().stop();
+                    closeCDC();
+                    INFO("CDC Closed");
 
-                // Enable Bluetooth Module
-                HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
-                    GPIO_PIN_SET);
-                bm78_wait_until_ready();
+                    // Enable Bluetooth Module
+                    HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
+                        GPIO_PIN_SET);
+                    bm78_wait_until_ready();
 
-                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+                    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+                    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
 
-                indicate_waiting_to_connect();
+                    indicate_waiting_to_connect();
+                }
                 break;
             case CMD_POWER_BUTTON_DOWN:
                 INFO("Power Down");
