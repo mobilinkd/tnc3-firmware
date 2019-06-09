@@ -21,7 +21,7 @@ extern "C" {
 void log_(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
 #ifndef KISS_LOG_LEVEL
-#define KISS_LOG_LEVEL 0
+#define KISS_LOG_LEVEL 1
 #endif
 
 #ifdef KISS_LOGGING
