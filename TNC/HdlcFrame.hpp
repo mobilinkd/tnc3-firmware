@@ -1,4 +1,4 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 
@@ -36,7 +36,7 @@ public:
     typedef typename data_type::iterator iterator;
 
     enum Type {
-        DATA, TX_DELAY, P_PERSIST, SLOT_TIME, TX_TAIL, DUPLEX, HARDWARE,
+        DATA = 0, TX_DELAY, P_PERSIST, SLOT_TIME, TX_TAIL, DUPLEX, HARDWARE,
         TEXT, LOG};
 
     enum Source {
@@ -95,7 +95,7 @@ public:
         crc_ = -1;
         fcs_ = -2;
         complete_ = false;
-        frame_type_ = 0;
+        frame_type_ = 0;    // RF_DATA.
     }
 
     void assign(data_type& data) {
