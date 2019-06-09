@@ -1,4 +1,4 @@
-// Copyright 2018 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2018-2019 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "KissHardware.hpp"
@@ -26,7 +26,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "1.1.3rc1";
+const char FIRMWARE_VERSION[] = "1.1.3rc2";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 Hardware& settings()
