@@ -188,7 +188,7 @@ mobilinkd::tnc::afsk1200::Demodulator& getDemod3(const TFirCoefficients<9>& f) {
 }
 
 q15_t normalized[ADC_BUFFER_SIZE];
-mobilinkd::tnc::FeedForwardAGC<q15_t, 22 * 8, ADC_BUFFER_SIZE, 8192> agc;
+mobilinkd::tnc::FeedForwardAGC<22, 8> agc;
 
 void demodulatorTask() {
 
