@@ -2,8 +2,11 @@
 #define MOBILINKD__AGC_H_
 
 #include <cmath>
+#include <array>
+#include <numeric>
+#include <algorithm>
 
-namespace mobilinkd { namespace libafsk {
+namespace mobilinkd { namespace tnc {
 
 template <typename T>
 struct BaseAGC {
@@ -54,7 +57,54 @@ struct BaseAGC {
 typedef BaseAGC<double> AGC;
 typedef BaseAGC<float> FastAGC;
 
-}} // mobilinkd::libafsk
+inline uint32_t log_2(const uint32_t x)
+{
+    if (x == 0) return 0;
+    return (31 - __builtin_clz (x));
+}
+
+template <typename T, size_t Delay, size_t BlockSize, T Reference>
+class FeedForwardAGC
+{
+    using buffer_type = std::array<T, Delay>;
+    using block_type = std::array<T, BlockSize>;
+
+    buffer_type buffer{0};
+    block_type block{0};
+    size_t index{0};
+    bool full{false};
+    T gain{0};
+
+    T max_amplitude() const
+    {
+        T result = 0;
+        for (T x : buffer)
+        {
+            T y = std::abs(x);
+            result = std::max(y, result);
+        }
+        return result;
+    }
+
+public:
+
+    T* operator()(T* input)
+    {
+        auto tmp_i = index;
+        for (size_t i = 0; i != BlockSize; ++i) {
+            block[i] = buffer[tmp_i] * gain;
+            buffer[tmp_i++] = input[i];
+            if (tmp_i == Delay) tmp_i = 0;
+        }
+
+        const auto amp = max_amplitude();
+        gain = std::max(T(Reference >> log_2(amp)), T(1));
+
+        return block.begin();
+    }
+};
+
+}} // mobilinkd::tnc
 
 #endif // MOBILINKD__AGC_H_
 
