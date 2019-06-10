@@ -29,7 +29,6 @@ const q15_t lpf_coeffs[] = {
   549,   413,   287,   173,    74,   -10,   -79,  -133,  -173,  -199,  -212,  -215,
  -208,  -194,  -174,  -151,  -126,  -101,   -76,   -53,   -33,   -16,    -2,     7,
    14,    18,    20,    19,    17,    14,    11,     8,     5,     3,     1,     0,
-
 };
 
 typedef FirFilter<audio::ADC_BUFFER_SIZE, 9> emphasis_filter_type;
@@ -41,7 +40,6 @@ struct Demodulator {
     typedef std::function<float_type(float_type)> filter_function_type;
 
     static const size_t SYMBOL_RATE = 1200;
-    static const size_t BUFFER_SIZE = 330;
 
     typedef BaseDigitalPLL<float_type> DPLL;
 
