@@ -14,7 +14,6 @@
 #include "PortInterface.hpp"
 #include "Goertzel.h"
 #include "DCD.h"
-#include "AGC.hpp"
 
 #include "arm_math.h"
 #include "stm32l4xx_hal.h"
@@ -134,25 +133,37 @@ extern "C" void startAudioInputTask(void const*) {
 namespace mobilinkd { namespace tnc { namespace audio {
 
 /*
- * Generated with Scipy Filter, 140 coefficients, 1100-2300Hz bandpass,
+ * Generated with Scipy Filter, 152 coefficients, 1100-2300Hz bandpass,
  * Hann window, starting and ending 0 value coefficients removed.
  *
- * firwin(140, [1100.0/(sample_rate/2), 2300.0/(sample_rate/2)], width = None,
- *      pass_zero = False, scale = True, window='hann')[6:-6]
+ * np.array(
+ *  firwin2(152,
+ *      [
+ *          0.0,
+ *          1000.0/(sample_rate/2),
+ *          1100.0/(sample_rate/2),
+ *          2350.0/(sample_rate/2),
+ *          2500.0/(sample_rate/2),
+ *          1.0
+ *      ],
+ *      [0,0,1,1,0,0],
+ *      antisymmetric = False,
+ *      window='hann') * 32768,
+ *  dtype=int)[10:-10]
  */
-constexpr size_t FILTER_TAP_NUM = 128;
+constexpr size_t FILTER_TAP_NUM = 132;
 const q15_t bpf_coeffs[] = {
-    1,     3,     6,     7,     6,     2,    -7,   -19,   -32,   -42,   -45,   -38,
-  -22,     0,    21,    38,    44,    38,    23,     6,    -3,     2,    28,    71,
-  120,   158,   168,   136,    59,   -53,  -181,  -295,  -366,  -373,  -310,  -191,
-  -46,    87,   173,   190,   140,    48,   -40,   -74,   -10,   163,   426,   718,
-  953,  1038,   900,   510,  -100,  -840, -1568, -2125, -2365, -2199, -1612,  -682,
-  438,  1547,  2433,  2924,  2924,  2433,  1547,   438,  -682, -1612, -2199, -2365,
--2125, -1568,  -840,  -100,   510,   900,  1038,   953,   718,   426,   163,   -10,
-  -74,   -40,    48,   140,   190,   173,    87,   -46,  -191,  -310,  -373,  -366,
- -295,  -181,   -53,    59,   136,   168,   158,   120,    71,    28,     2,    -3,
-    6,    23,    38,    44,    38,    21,     0,   -22,   -38,   -45,   -42,   -32,
-  -19,    -7,     2,     6,     7,     6,     3,     1,
+    4,     0,    -5,   -10,   -13,   -12,    -9,    -4,    -2,    -4,   -12,   -26,
+  -41,   -52,   -51,   -35,    -3,    39,    83,   117,   131,   118,    83,    36,
+   -6,   -32,   -30,    -3,    36,    67,    66,    19,   -74,  -199,  -323,  -408,
+ -421,  -344,  -187,    17,   218,   364,   417,   369,   247,   106,    14,    26,
+  166,   407,   676,   865,   866,   605,    68,  -675, -1484, -2171, -2547, -2471,
+-1895,  -882,   394,  1692,  2747,  3337,  3337,  2747,  1692,   394,  -882, -1895,
+-2471, -2547, -2171, -1484,  -675,    68,   605,   866,   865,   676,   407,   166,
+   26,    14,   106,   247,   369,   417,   364,   218,    17,  -187,  -344,  -421,
+ -408,  -323,  -199,   -74,    19,    66,    67,    36,    -3,   -30,   -32,    -6,
+   36,    83,   118,   131,   117,    83,    39,    -3,   -35,   -51,   -52,   -41,
+  -26,   -12,    -4,    -2,    -4,    -9,   -12,   -13,   -10,    -5,     0,     4,
 };
 
 uint32_t adc_buffer[ADC_BUFFER_SIZE];       // Two samples per element.
@@ -188,7 +199,6 @@ mobilinkd::tnc::afsk1200::Demodulator& getDemod3(const TFirCoefficients<9>& f) {
 }
 
 q15_t normalized[ADC_BUFFER_SIZE];
-mobilinkd::tnc::FeedForwardAGC<22, 8> agc;
 
 void demodulatorTask() {
 
@@ -229,8 +239,7 @@ void demodulatorTask() {
 
         arm_offset_q15(samples, 0 - virtual_ground, normalized, ADC_BUFFER_SIZE);
         adcPool.deallocate(block);
-        q15_t* n = agc(normalized);
-        q15_t* audio = audio_filter(n);
+        q15_t* audio = audio_filter(normalized);
 
 #if 1
         frame = demod1(audio, ADC_BUFFER_SIZE);
