@@ -25,6 +25,7 @@ using namespace mobilinkd::libafsk;
 
 struct Encoder {
 
+    static const uint8_t IDLE = 0x00;
     static const uint8_t FLAG = 0x7E;
 
     enum class state_type {
@@ -71,6 +72,7 @@ struct Encoder {
                 // See if we have back-to-back frames.
                 evt = osMessagePeek(input_, 0);
                 if (evt.status != osEventMessage) {
+                    send_raw(IDLE);
                     send_delay_ = true;
                     if (!duplex_) {
                       osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
@@ -192,8 +194,9 @@ struct Encoder {
     void send_delay() {
         const size_t tmp = (tx_delay_ * 3) / 2;
         for (size_t i = 0; i != tmp; i++) {
-            send_raw(FLAG);
+            send_raw(IDLE);
         }
+        send_raw(FLAG);
     }
 
     void send_fcs(uint16_t fcs) {
