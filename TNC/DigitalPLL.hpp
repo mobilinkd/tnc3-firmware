@@ -90,9 +90,12 @@ struct BaseDigitalPLL
                 count_ -= sps_;
             }
 
+            // Force lock off when no stimulus is present (squelch closed).
+            const float_type adjust = bits_ > 16 ? 5.0 : 0.0;
+
             const float_type offset = count_ / bits_;
             const float_type jitter = loop_filter_(offset);
-            const float_type abs_offset = std::abs(offset);
+            const float_type abs_offset = std::abs(offset) + adjust;
 			jitter_ = lock_filter_(abs_offset);
 
 			count_ -= jitter / 2;
