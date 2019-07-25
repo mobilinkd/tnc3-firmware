@@ -202,6 +202,10 @@ the hole in the case where the DFU button is.
 
 To enter the bootloader, follow these steps:
 
+ - If you have connected any app to the TNC (APRSdroid, aprs.fi, etc)
+   ensure that those apps are disconnected from the TNC.  This is very
+   important as having one of these apps attempt to connect to the TNC
+   may interfere with the ability to enter the bootloader.
  - Start with the TNC powered off and disconnected from radio and USB.
  - Turn on the TNC.
  - Plug USB cable into the computer.
@@ -309,3 +313,11 @@ Run the "STM32Bootloader.bat" file in there to re-install the DFU device drivers
 
 Refresh the device list in the STM32CubeProgrammer window.
 
+## Cannot Enter Bootloader/DFU
+
+Verify that the TNC's blue LED indicates that the TNC is disconnected by
+being in the "slow breathing" state.
+
+If the TNC is connected to any device (blue LED indicating a double blip
+or triple blip), the TNC will not enter DFU mode.  Find the app that is
+connected and disconnect it.
