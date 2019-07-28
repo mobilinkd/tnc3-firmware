@@ -301,7 +301,7 @@ This section is very brief for now.
 
 Open the device manager.
 
-Find if “STM Device in DFU Mode” appear under the “Universal Serial Bus Controllers”
+Check whether “STM Device in DFU Mode” appears under the “Universal Serial Bus Controllers”
 
 If this device appears, right click the device, and select "Uninstall device".
 
