@@ -299,6 +299,22 @@ This section is very brief for now.
 
 ## TNC is not available in programmer
 
+There are a number of possible causes for the TNC not showing up in the programmer.
+
+### Is Bootloader Active
+
+The first thing to check is that the bootloader is active.  If the blue LED flashes or breathes,
+the bootloader is not active.  See [Cannot Enter Bootloader/DFU](#Cannot-Enter-Bootloader-DFU) below.
+
+### Check Your USB Cable
+
+The TNC has a USB serial port.  You should see a notification when the TNC is first attached via USB,
+before entering the bootloader, that a COM port is being added.  If you do not see this occur, verify
+that your USB cable is OK.  Try a different cable.  There are a number of "charge-only" cables being
+sold these days.  These will not work.  You will need a USB data cable.
+
+### Old STM DFU Driver Installed
+
 Open the device manager.
 
 Check whether “STM Device in DFU Mode” appears under the “Universal Serial Bus Controllers”
