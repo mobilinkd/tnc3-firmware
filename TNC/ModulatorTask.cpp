@@ -3,6 +3,7 @@
 
 #include "ModulatorTask.hpp"
 #include "KissHardware.hpp"
+#include "main.h"
 
 mobilinkd::tnc::SimplexPTT simplexPtt;
 mobilinkd::tnc::MultiplexPTT multiplexPtt;
@@ -68,6 +69,9 @@ void updatePtt()
 void startModulatorTask(void const*) {
 
     using namespace mobilinkd::tnc::kiss;
+
+    // Wait until hardware is initialized before creating modulator.
+    osMutexWait(hardwareInitMutexHandle, osWaitForever);
 
     modulator = &(getModulator());
     encoder = &(getEncoder());

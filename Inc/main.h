@@ -55,6 +55,7 @@
 
 /* USER CODE BEGIN Includes */
 #include <stdint.h>
+#include <cmsis_os.h>
 /* USER CODE END Includes */
 
 /* Private define ------------------------------------------------------------*/
@@ -163,6 +164,7 @@ extern int go_back_to_sleep;
 extern int usb_wake_state;
 extern int charging_enabled;
 extern int reset_button;
+extern osMutexId hardwareInitMutexHandle;
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 

@@ -61,7 +61,10 @@ void startIOEventTask(void const*)
         hardware.store();
     }
 
+    osMutexRelease(hardwareInitMutexHandle);
+
     if (!go_back_to_sleep) {
+
         hardware.debug();
 
         audio::init_log_volume();

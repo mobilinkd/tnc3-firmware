@@ -144,6 +144,7 @@ osStaticTimerDef_t usbShutdownTimerControlBlock;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
+osMutexId hardwareInitMutexHandle;
 
 int lost_power = 0;
 int reset_requested = 0;
@@ -501,6 +502,10 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
+  osMutexDef(hardwareInitMutex);
+  hardwareInitMutexHandle = osMutexCreate(osMutex(hardwareInitMutex));
+  osMutexWait(hardwareInitMutexHandle, osWaitForever);
+
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
