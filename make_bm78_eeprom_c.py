@@ -16,6 +16,7 @@ for line in sys.stdin:
 
 chunks = [bytes[i:i+8] for i in range(0, len(bytes), 8)]
 
+print("#include \"bm78_eeprom.h\"")
 print("#include <cstdint>")
 print("const uint8_t eeprom_data[] = {")
 for chunk in chunks:
