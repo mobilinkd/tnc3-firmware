@@ -286,8 +286,6 @@ struct Hardware
       memset(beacons, 0, sizeof(beacons));
       update_crc();
 
-      updatePtt();
-
       DEBUG("Settings initialized");
     }
 
