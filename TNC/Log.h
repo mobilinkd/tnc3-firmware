@@ -20,19 +20,12 @@ extern "C" {
 
 void log_(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
 
-#ifndef KISS_LOG_LEVEL
-#define KISS_LOG_LEVEL 1
-#endif
-
 #ifdef KISS_LOGGING
-
-#define LOG(level, ...) if(level >= KISS_LOG_LEVEL) log_(level, __VA_ARGS__);
-
-#define DEBUG(...)    LOG(0, __VA_ARGS__)
-#define INFO(...)     LOG(1, __VA_ARGS__)
-#define WARN(...)     LOG(2, __VA_ARGS__)
-#define ERROR(...)    LOG(3, __VA_ARGS__)
-#define SEVERE(...)   LOG(4, __VA_ARGS__)
+#define DEBUG(...)    log_(0, __VA_ARGS__)
+#define INFO(...)     log_(1, __VA_ARGS__)
+#define WARN(...)     log_(2, __VA_ARGS__)
+#define ERROR(...)    log_(3, __VA_ARGS__)
+#define SEVERE(...)   log_(4, __VA_ARGS__)
 #else
 #define DEBUG(...)
 #define INFO(...)
@@ -54,7 +47,7 @@ struct Log {
     Level level_;
 
     Log()
-    : level_(Level::debug)
+    : level_(Level::info)
     {}
 
     Log(Level level)

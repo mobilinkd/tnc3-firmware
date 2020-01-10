@@ -1,10 +1,8 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__KISS_HARDWARE_HPP_
-#define MOBILINKD__TNC__KISS_HARDWARE_HPP_
+#pragma once
 
-#include "KissHardware.h"
 #include "Log.h"
 #include "HdlcFrame.hpp"
 #include "AFSKTestTone.hpp"
@@ -159,6 +157,9 @@ constexpr const uint8_t EXT_GET_BEACONS = 12;   ///< Number of beacons supported
 constexpr const uint8_t EXT_GET_BEACON = 13;    ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
 constexpr const uint8_t EXT_SET_BEACON = 14;    ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
 
+constexpr const uint8_t EXT_GET_MYCALL = 16;    ///< MYCALL callsign = 8 characters. right padded with NUL.
+constexpr const uint8_t EXT_SET_MYCALL = 17;    ///< MYCALL callsign = 8 characters. right padded with NUL.
+
 constexpr const uint8_t MODEM_TYPE_1200 = 1;
 constexpr const uint8_t MODEM_TYPE_300 = 2;
 constexpr const uint8_t MODEM_TYPE_9600 = 3;
@@ -169,11 +170,11 @@ constexpr const uint8_t MODEM_TYPE_MFSK16 = 6;
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
 #define KISS_OPTION_VERBOSE         0x02
-#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged into USB
+#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged in to USB
 #define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when unplugged from USB
 #define KISS_OPTION_PTT_SIMPLEX     0x10  // Simplex PTT (the default)
 
-const char TOCALL[] = "APML30"; // Update for every feature change.
+const char TOCALL[] = "APML00"; // Update for every feature change.
 
 } // hardware
 
@@ -214,19 +215,19 @@ struct Hardware
         PSK31
     };
 
-    uint8_t txdelay;        ///< How long in 10mS units to wait for TX to settle before starting data
-    uint8_t ppersist;       ///< Likelihood of taking the channel when its not busy
-    uint8_t slot;           ///< How long in 10mS units to wait between sampling the channel to see if free
+    uint8_t txdelay;       ///< How long in 10mS units to wait for TX to settle before starting data
+    uint8_t ppersist;      ///< Likelihood of taking the channel when its not busy
+    uint8_t slot;          ///< How long in 10mS units to wait between sampling the channel to see if free
     uint8_t txtail;         ///< How long in 10mS units to wait after the data before keying off the transmitter
     uint8_t duplex;         ///< Ignore current channel activity - just key up
-    uint8_t modem_type;     ///< Modem type.
-    uint16_t output_gain;   ///< output volume (0-256).
-    uint16_t input_gain;    ///< input volume (0-256).
-    int8_t tx_twist;        ///< 0 to 100 (50 = even).
-    int8_t rx_twist;        ///< 0, 3, 6 dB
-    uint8_t log_level;      ///< Log level (0 - 4 : debug - severe).
+    uint8_t modem_type;         ///< Modem type.
+    uint16_t output_gain; ///< output volume (0-256).
+    uint16_t input_gain;  ///< input volume (0-256).
+    int8_t tx_twist;           ///< 0 to 100 (50 = even).
+    int8_t rx_twist;            ///< 0, 3, 6 dB
+    uint8_t log_level;          ///< Log level (0 - 4 : debug - severe).
 
-    uint16_t options;       ///< boolean options
+    uint16_t options;           ///< boolean options
 
     /// Callsign.   Pad unused with NUL.
     uint8_t mycall[CALLSIGN_LEN];
@@ -246,7 +247,7 @@ struct Hardware
 
     void update_crc() {
         checksum = crc();
-        INFO("EEPROM checksum = %04x", checksum);
+        INFO("EEPROM checksum = %04xs", checksum);
     }
 
     bool crc_ok() const {
@@ -269,7 +270,7 @@ struct Hardware
       slot = 10;
       txtail = 1;
       duplex = 0;
-      modem_type = ModemType::AFSK1200;
+      modem_type = ModemType::FSK9600;
       output_gain = 63;
       input_gain = 0;   // 0-4 on TNC3
       tx_twist = 50;
@@ -290,6 +291,7 @@ struct Hardware
     }
 
     void debug() {
+#ifdef KISS_LOGGING
         DEBUG("Hardware Settings (size=%d):", sizeof(Hardware));
         DEBUG("TX Delay: %d", (int)txdelay);
         DEBUG("P* Persistence: %d", (int)ppersist);
@@ -322,7 +324,8 @@ struct Hardware
             DEBUG(" text: %s", (char*)b.text);
             DEBUG(" frequency (secs): %d", (int)b.seconds);
         }
-        DEBUG("Checksum: %04x", checksum);
+        DEBUG("Checksum: %04xs", checksum);
+#endif
     }
 
     bool load();
@@ -346,7 +349,6 @@ struct Hardware
 }; // 812 bytes
 
 extern Hardware& settings();
-
 
 struct I2C_Storage
 {
@@ -375,5 +377,3 @@ void reply8(uint8_t cmd, uint8_t result) __attribute__((noinline));
 void reply16(uint8_t cmd, uint16_t result) __attribute__((noinline));
 
 }}} // mobilinkd::tnc::kiss
-
-#endif // INMOBILINKD__TNC__KISS_HARDWARE_HPP_C_KISSHARDWARE_HPP_

@@ -6,7 +6,7 @@
 #include "KissHardware.hpp"
 #include "ModulatorTask.hpp"
 #include "GPIO.hpp"
-#include "LEDIndicator.h"
+#include "Led.h"
 #include "ModulatorTask.hpp"
 
 #include "main.h"
@@ -199,7 +199,7 @@ void setAudioOutputLevel()
   } else {
       gpio::AUDIO_OUT_ATTEN::off();
   }
-  getModulator().set_volume(r);
+  getModulator().set_gain(r);
 }
 
 }}} // mobilinkd::tnc::audio

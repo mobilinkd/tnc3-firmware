@@ -11,70 +11,17 @@
 #include <memory>
 #include <cstdio>
 
-extern I2C_HandleTypeDef hi2c1;
-extern RTC_HandleTypeDef hrtc;
-
-int powerOnViaUSB(void)
-{
-    return mobilinkd::tnc::kiss::settings().options & KISS_OPTION_VIN_POWER_ON;
-}
-
-int powerOffViaUSB(void)
-{
-    return mobilinkd::tnc::kiss::settings().options & KISS_OPTION_VIN_POWER_OFF;
-}
+extern I2C_HandleTypeDef hi2c3;
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "1.1.6";
-const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
+const char FIRMWARE_VERSION[] = "1.0.1";
+const char HARDWARE_VERSION[] = "Mobilinkd Nucleo32 Breadboard TNC";
 
 Hardware& settings()
 {
     static Hardware instance __attribute__((section(".bss3")));
     return instance;
-}
-
-const uint8_t* get_rtc_datetime()
-{
-    static uint8_t buffer[8]; // YYMMDDWWHHMMSS
-
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
-
-    HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-    HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
-
-    buffer[0] = sDate.Year;
-    buffer[1] = sDate.Month;
-    buffer[2] = sDate.Date;
-    buffer[3] = sDate.WeekDay;
-    buffer[4] = sTime.Hours;
-    buffer[5] = sTime.Minutes;
-    buffer[6] = sTime.Seconds;
-    buffer[7] = 0;
-
-    return buffer;
-}
-
-// TODO: determine why this is now necessary.
-void set_rtc_datetime(const uint8_t* buffer) __attribute__((optimize("-O0")));
-
-void set_rtc_datetime(const uint8_t* buffer)
-{
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
-
-    sDate.Year = buffer[0];
-    sDate.Month = buffer[1];
-    sDate.Date = buffer[2];
-    sDate.WeekDay = buffer[3];
-    sTime.Hours = buffer[4];
-    sTime.Minutes = buffer[5];
-    sTime.Seconds = buffer[6];
-
-    HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-    HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
 }
 
 void Hardware::set_txdelay(uint8_t value) {
@@ -98,9 +45,7 @@ void Hardware::set_duplex(uint8_t value) {
     update_crc();
 }
 
-#if 1
-
- void reply8(uint8_t cmd, uint8_t result) {
+void reply8(uint8_t cmd, uint8_t result) {
     uint8_t data[2] { cmd, result };
     ioport->write(data, 2, 6, osWaitForever);
 }
@@ -119,16 +64,13 @@ inline void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
 }
 
 inline void reply_ext(uint8_t ext, uint8_t cmd, const uint8_t* data, uint16_t len) {
-    auto buffer = (uint8_t*) malloc(len + 2);
-    if (buffer == nullptr) return;
+    uint8_t* buffer = static_cast<uint8_t*>(alloca(len + 2));
     buffer[0] = ext;
     buffer[1] = cmd;
     for (uint16_t i = 0; i != len and data[i] != 0; i++)
         buffer[i + 2] = data[i];
     ioport->write(buffer, len + 2, 6, osWaitForever);
-    free(buffer);
 }
-#endif
 
 void Hardware::get_alias(uint8_t alias) {
     uint8_t result[14];
@@ -147,7 +89,6 @@ void Hardware::set_alias(const hdlc::IoFrame* frame) {
   UNUSED(frame);
 }
 
-
 void Hardware::announce_input_settings()
 {
     reply16(hardware::GET_INPUT_GAIN, input_gain);
@@ -155,12 +96,12 @@ void Hardware::announce_input_settings()
 }
 
 AFSKTestTone& getAFSKTestTone() {
-	static AFSKTestTone testTone;
-	return testTone;
+     static AFSKTestTone testTone;
+     return testTone;
 }
 
-void Hardware::handle_request(hdlc::IoFrame* frame) {
-
+void Hardware::handle_request(hdlc::IoFrame* frame)
+{
     auto it = frame->begin();
     uint8_t command = *it++;
 
@@ -178,14 +119,12 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     switch (command) {
 
-#if 1
     case hardware::SAVE:
     case hardware::SAVE_EEPROM_SETTINGS:
         update_crc();
         store();
         reply8(hardware::OK, hardware::SAVE_EEPROM_SETTINGS);
         break;
-#endif
     case hardware::POLL_INPUT_LEVEL:
         DEBUG("POLL_INPUT_VOLUME");
         reply8(hardware::POLL_INPUT_LEVEL, 0);
@@ -195,9 +134,9 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             osWaitForever);
         break;
     case hardware::STREAM_INPUT_LEVEL:
-      DEBUG("STREAM_INPUT_VOLUME");
-      osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
-          osWaitForever);
+        DEBUG("STREAM_INPUT_VOLUME");
+        osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
+            osWaitForever);
         break;
     case hardware::GET_BATTERY_LEVEL:
       DEBUG("GET_BATTERY_LEVEL");
@@ -235,17 +174,17 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
             osWaitForever);
         break;
-
     case hardware::SET_OUTPUT_GAIN:
+        DEBUG("SET_OUTPUT_VOLUME");
         output_gain = *it << 8;
         ++it;
         output_gain += *it;
-        DEBUG("SET_OUTPUT_GAIN = %d", output_gain);
+        DEBUG("SET_OUTPUT_GAIN = %d", int(output_gain));
         audio::setAudioOutputLevel();
         update_crc();
         [[fallthrough]];
     case hardware::GET_OUTPUT_GAIN:
-        DEBUG("GET_OUTPUT_GAIN");
+        DEBUG("GET_OUTPUT_VOLUME");
         reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         break;
 
@@ -274,34 +213,23 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         break;
 
     case hardware::ADJUST_INPUT_LEVELS:
-      DEBUG("ADJUST_INPUT_LEVELS");
-      osMessagePut(audioInputQueueHandle, audio::AUTO_ADJUST_INPUT_LEVEL,
-          osWaitForever);
-      osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
-          osWaitForever);
+        DEBUG("ADJUST_INPUT_LEVELS");
+        osMessagePut(audioInputQueueHandle, audio::AUTO_ADJUST_INPUT_LEVEL,
+            osWaitForever);
+        osMessagePut(audioInputQueueHandle, audio::STREAM_AMPLIFIED_INPUT_LEVEL,
+            osWaitForever);
         break;
 
-#if 0
     case hardware::SET_VERBOSITY:
         DEBUG("SET_VERBOSITY");
         log_level = *it ? Log::Level::debug : Log::Level::warn;
         Log().setLevel(*it ? Log::Level::debug : Log::Level::warn);
+        update_crc();
         [[fallthrough]];
     case hardware::GET_VERBOSITY:
         DEBUG("GET_VERBOSITY");
         reply8(hardware::GET_VERBOSITY, log_level == Log::Level::debug);
         break;
-
-    case hardware::SET_LOWPASS_FREQ:
-        lowpass_freq = (*it++ << 8);
-        lowpass_freq = *it;
-        // lowpass_freq = antiAliasFilter.setFilterFreq(lowpass_freq);
-        audio::adcState = audio::UPDATE_SETTINGS;
-    case hardware::GET_LOWPASS_FREQ:
-        reply16(hardware::GET_LOWPASS_FREQ, lowpass_freq);
-        break;
-#endif
-
     case hardware::SET_INPUT_GAIN:
         input_gain = *it << 8;
         ++it;
@@ -317,7 +245,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_INPUT_GAIN");
         reply16(hardware::GET_INPUT_GAIN, input_gain);
         break;
-
     case hardware::SET_INPUT_TWIST:
         DEBUG("SET_INPUT_TWIST");
         rx_twist = *it;
@@ -337,7 +264,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         if (tx_twist < 0) tx_twist = 0;
         if (tx_twist > 100) tx_twist = 100;
         DEBUG("SET_OUTPUT_TWIST: %d", int(tx_twist));
-        getModulator().set_twist(uint8_t(tx_twist));
+        getModulator().init(*this);
         update_crc();
         [[fallthrough]];
     case hardware::GET_OUTPUT_TWIST:
@@ -355,22 +282,18 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_TXDELAY");
         reply8(hardware::GET_TXDELAY, txdelay);
         break;
-
     case hardware::GET_PERSIST:
         DEBUG("GET_PERSIST");
         reply8(hardware::GET_PERSIST, ppersist);
         break;
-
     case hardware::GET_TIMESLOT:
         DEBUG("GET_TIMESLOT");
         reply8(hardware::GET_TIMESLOT, slot);
         break;
-
     case hardware::GET_TXTAIL:
         DEBUG("GET_TXTAIL");
         reply8(hardware::GET_TXTAIL, txtail);
         break;
-
     case hardware::GET_DUPLEX:
         DEBUG("GET_DUPLEX");
         reply8(hardware::GET_DUPLEX, duplex);
@@ -381,7 +304,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
           sizeof(FIRMWARE_VERSION) - 1);
         break;
-
     case hardware::GET_HARDWARE_VERSION:
         DEBUG("GET_HARDWARE_VERSION");
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
@@ -391,17 +313,17 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
     case hardware::GET_SERIAL_NUMBER:
         DEBUG("GET_SERIAL_NUMBER");
         reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
-          sizeof(serial_number_64) - 1);
+            sizeof(serial_number_64) - 1);
         break;
 
     case hardware::SET_PTT_CHANNEL:
         DEBUG("SET_PTT_CHANNEL");
         if (*it) {
-          options &= ~KISS_OPTION_PTT_SIMPLEX;
-          osMessagePut(ioEventQueueHandle, CMD_SET_PTT_MULTIPLEX, osWaitForever);
+            options &= ~KISS_OPTION_PTT_SIMPLEX;
+            osMessagePut(ioEventQueueHandle, CMD_SET_PTT_MULTIPLEX, osWaitForever);
         } else {
-          options |= KISS_OPTION_PTT_SIMPLEX;
-          osMessagePut(ioEventQueueHandle, CMD_SET_PTT_SIMPLEX, osWaitForever);
+            options |= KISS_OPTION_PTT_SIMPLEX;
+            osMessagePut(ioEventQueueHandle, CMD_SET_PTT_SIMPLEX, osWaitForever);
         }
         update_crc();
         break;
@@ -441,20 +363,12 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
             options & KISS_OPTION_VIN_POWER_ON ? 1 : 0);
         break;
 
-    case hardware::SET_DATETIME:
-        DEBUG("SET_DATETIME");
-        set_rtc_datetime(&*it);
-        [[fallthrough]];
-    case hardware::GET_DATETIME:
-        DEBUG("GET_DATETIME");
-        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
-        break;
-
     case hardware::GET_CAPABILITIES:
         DEBUG("GET_CAPABILITIES");
         reply16(hardware::GET_CAPABILITIES,
-            hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
-            hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
+            hardware::CAP_EEPROM_SAVE|
+            hardware::CAP_ADJUST_INPUT|
+            hardware::CAP_DFU_FIRMWARE);
         break;
 
     case hardware::GET_ALL_VALUES:
@@ -471,9 +385,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
           sizeof(HARDWARE_VERSION) - 1);
         reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
-          sizeof(serial_number_64) - 1);
-        reply8(hardware::GET_USB_POWER_OFF, options & KISS_OPTION_VIN_POWER_OFF ? 1 : 0);
-        reply8(hardware::GET_USB_POWER_ON, options & KISS_OPTION_VIN_POWER_ON ? 1 : 0);
+            sizeof(serial_number_64) - 1);
         reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         reply8(hardware::GET_OUTPUT_TWIST, tx_twist);
         reply16(hardware::GET_INPUT_GAIN, input_gain);
@@ -486,23 +398,18 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_PTT_CHANNEL,
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
         reply16(hardware::GET_CAPABILITIES,
-            hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
-            hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
+            hardware::CAP_EEPROM_SAVE|
+            hardware::CAP_ADJUST_INPUT|
+            hardware::CAP_DFU_FIRMWARE);
         reply16(hardware::GET_MIN_INPUT_GAIN, 0);   // Constants for this FW
         reply16(hardware::GET_MAX_INPUT_GAIN, 4);   // Constants for this FW
         reply8(hardware::GET_MIN_INPUT_TWIST, -3);  // Constants for this FW
         reply8(hardware::GET_MAX_INPUT_TWIST, 9);   // Constants for this FW
-        reply(hardware::GET_MAC_ADDRESS, mac_address, sizeof(mac_address));
-        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
-        if (*error_message) {
-            reply(hardware::GET_ERROR_MSG, (uint8_t*) error_message, sizeof(error_message));
-        }
-        break;
 
+        break;
     case hardware::EXTENDED_CMD:
         handle_ext_request(frame);
         break;
-
     default:
         ERROR("Unknown hardware request");
     }
@@ -538,24 +445,20 @@ bool Hardware::load()
 {
     INFO("Loading settings from EEPROM");
 
-    auto tmp = std::make_unique<Hardware>();
+    Hardware tmp;
 
-    if (!tmp) return false;
+    memset(&tmp, 0, sizeof(Hardware));
 
-    memset(tmp.get(), 0, sizeof(Hardware));
-
-    if (!I2C_Storage::load(*tmp)) {
-        ERROR("Load from EEPROM failed.");
+    if (!I2C_Storage::load(tmp)) {
+        ERROR("EEPROM read failed");
         return false;
     }
 
-    if (tmp->crc_ok())
+    if (tmp.crc_ok())
     {
-        memcpy(this, tmp.get(), sizeof(Hardware));
-        DEBUG("Load from EEPROM succeeded.");
+        memcpy(this, &tmp, sizeof(Hardware));
         return true;
     }
-
     ERROR("EEPROM CRC error");
     return false;
 }
@@ -565,7 +468,7 @@ bool Hardware::store() const
     INFO("Saving settings to EEPROM");
 
     if (!I2C_Storage::store(*this)) {
-        ERROR("Store to EEPROM failed.");
+        ERROR("EEPROM write failed");
         return false;
     }
 
@@ -576,25 +479,25 @@ bool Hardware::store() const
 
 bool I2C_Storage::load(void* ptr, size_t len)
 {
-    if (HAL_I2C_Init(&hi2c1) != HAL_OK) CxxErrorHandler();
+    if (HAL_I2C_Init(&hi2c3) != HAL_OK) CxxErrorHandler();
 
     DEBUG("Attempting to read %d bytes from EEPROM...", len);
 
     uint32_t timeout = 1000;    // systicks... milliseconds
 
     auto tmp = static_cast<uint8_t*>(ptr);
-    auto result = HAL_I2C_Mem_Read(&hi2c1, i2c_address, 0,
+    auto result = HAL_I2C_Mem_Read(&hi2c3, i2c_address, 0,
         I2C_MEMADD_SIZE_16BIT, tmp, len, timeout);
     if (result != HAL_OK) CxxErrorHandler();
 
-    if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+    if (HAL_I2C_DeInit(&hi2c3) != HAL_OK) CxxErrorHandler();
 
     return true;
 }
 
 bool I2C_Storage::store(const void* ptr, size_t len)
 {
-    if (HAL_I2C_Init(&hi2c1) != HAL_OK) CxxErrorHandler();
+    if (HAL_I2C_Init(&hi2c3) != HAL_OK) CxxErrorHandler();
 
     auto tmp = const_cast<uint8_t*>(static_cast<const uint8_t*>(ptr));
 
@@ -602,10 +505,10 @@ bool I2C_Storage::store(const void* ptr, size_t len)
     size_t remaining = len;
     while (remaining > page_size)
     {
-        auto result = HAL_I2C_Mem_Write(&hi2c1, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, page_size, 20);
+        auto result = HAL_I2C_Mem_Write(&hi2c3, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, page_size, 20);
         if (result != HAL_OK) {
-            ERROR("EEPROM write block error = %lu.", hi2c1.ErrorCode);
-            if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+            ERROR("EEPROM write block error = %lu.", hi2c3.ErrorCode);
+            if (HAL_I2C_DeInit(&hi2c3) != HAL_OK) CxxErrorHandler();
             return false;
         }
         osDelay(write_time);
@@ -614,10 +517,10 @@ bool I2C_Storage::store(const void* ptr, size_t len)
     }
 
     while (remaining) {
-        auto result = HAL_I2C_Mem_Write(&hi2c1, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, remaining, 20);
+        auto result = HAL_I2C_Mem_Write(&hi2c3, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, remaining, 20);
         if (result != HAL_OK) {
-            ERROR("EEPROM write remainder error = %lu.", hi2c1.ErrorCode);
-            if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+            ERROR("EEPROM write remainder error = %lu.", hi2c3.ErrorCode);
+            if (HAL_I2C_DeInit(&hi2c3) != HAL_OK) CxxErrorHandler();
             return false;
         }
         osDelay(write_time);
@@ -625,11 +528,10 @@ bool I2C_Storage::store(const void* ptr, size_t len)
         remaining = 0;
     }
 
-    if (HAL_I2C_DeInit(&hi2c1) != HAL_OK) CxxErrorHandler();
+    if (HAL_I2C_DeInit(&hi2c3) != HAL_OK) CxxErrorHandler();
 
     return true;
 }
-
 
 }}} // mobilinkd::tnc::kiss
 
