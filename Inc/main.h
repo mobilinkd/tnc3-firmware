@@ -168,6 +168,20 @@ extern osMutexId hardwareInitMutexHandle;
 
 #define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
 
+#ifdef __cplusplus
+ extern "C" {
+#endif
+
+void SysClock48(void);
+void SysClock80(void);
+void SysClock4(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#define SystemClock_Config_48MHz SystemClock_Config
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
