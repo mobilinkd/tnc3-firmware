@@ -9,6 +9,7 @@
 #include <ModulatorTask.hpp>
 
 #include <memory>
+#include <array>
 #include <cstdio>
 
 extern I2C_HandleTypeDef hi2c1;
@@ -26,8 +27,16 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "1.1.6";
+const char FIRMWARE_VERSION[] = "2.0.0a1";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
+
+
+const std::array<const char*, 4> modem_type_lookup = {
+    "NOT SET",
+    "AFSK1200",
+    "AFSK300",
+    "FSK9600",
+};
 
 Hardware& settings()
 {
@@ -119,7 +128,7 @@ inline void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
 }
 
 inline void reply_ext(uint8_t ext, uint8_t cmd, const uint8_t* data, uint16_t len) {
-    auto buffer = (uint8_t*) malloc(len + 2);
+    auto buffer = static_cast<uint8_t*>(alloca(len + 2));
     if (buffer == nullptr) return;
     buffer[0] = ext;
     buffer[1] = cmd;
@@ -337,7 +346,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         if (tx_twist < 0) tx_twist = 0;
         if (tx_twist > 100) tx_twist = 100;
         DEBUG("SET_OUTPUT_TWIST: %d", int(tx_twist));
-        getModulator().set_twist(uint8_t(tx_twist));
+        getModulator().init(*this);
         update_crc();
         [[fallthrough]];
     case hardware::GET_OUTPUT_TWIST:
@@ -374,6 +383,26 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
     case hardware::GET_DUPLEX:
         DEBUG("GET_DUPLEX");
         reply8(hardware::GET_DUPLEX, duplex);
+        break;
+
+    case hardware::SET_MODEM_TYPE:
+        DEBUG("SET_MODEM_TYPE");
+        if ((*it > 0) and (*it < 4))
+        {
+            modem_type = *it;
+            DEBUG(modem_type_lookup[*it]);
+            update_crc();
+        }
+        else
+        {
+            ERROR("Unknown modem type");
+        }
+        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
+            osWaitForever);
+        [[fallthrough]];
+    case hardware::GET_MODEM_TYPE:
+        DEBUG("GET_MODEM_TYPE");
+        reply8(hardware::GET_MODEM_TYPE, modem_type);
         break;
 
     case hardware::GET_FIRMWARE_VERSION:

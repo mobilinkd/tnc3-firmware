@@ -31,7 +31,8 @@ const q15_t lpf_coeffs[] = {
    14,    18,    20,    19,    17,    14,    11,     8,     5,     3,     1,     0,
 };
 
-typedef FirFilter<audio::ADC_BUFFER_SIZE, 9> emphasis_filter_type;
+static constexpr uint32_t ADC_BUFFER_SIZE = 88;
+typedef FirFilter<ADC_BUFFER_SIZE, 9> emphasis_filter_type;
 
 struct Demodulator {
 

@@ -1,13 +1,13 @@
 // Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__AFSK_MODULATOR_HPP_
-#define MOBILINKD__TNC__AFSK_MODULATOR_HPP_
+#pragma once
 
 #include <stddef.h>
 
 #include "PTT.hpp"
 #include "Log.h"
+#include "Modulator.hpp"
 
 #include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
@@ -62,8 +62,8 @@ const int16_t sin_table[SIN_TABLE_LEN] = {
 };
 
 
-struct AFSKModulator {
-
+struct AFSKModulator : Modulator
+{
     static const size_t DAC_BUFFER_LEN = 44;
     static const size_t BIT_LEN = DAC_BUFFER_LEN / 2;
     static const size_t MARK_SKIP = 12;
@@ -84,7 +84,24 @@ struct AFSKModulator {
             buffer_[i] = 2048;
     }
 
-    void set_volume(uint16_t v)
+   void init(const kiss::Hardware& hw) override
+   {
+       set_twist(hw.tx_twist);
+
+       // Configure 80MHz clock for 26.4ksps.
+       htim7.Init.Period = 3029;
+       if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
+       {
+           ERROR("htim7 init failed");
+           CxxErrorHandler();
+       }
+   }
+
+   void deinit() override
+   {
+   }
+
+   void set_gain(uint16_t v) override
     {
         v = std::max<uint16_t>(256, v);
         v = std::min<uint16_t>(4096, v);
@@ -103,7 +120,8 @@ struct AFSKModulator {
 
     void set_twist(uint8_t twist) {twist_ = twist;}
 
-    void send(bool bit) {
+   void send(bool bit) override
+   {
         switch (running_) {
         case -1:
             fill_first(bit);
@@ -122,8 +140,10 @@ struct AFSKModulator {
         }
     }
 
-    void fill(uint16_t* buffer, bool bit) {
-        for (size_t i = 0; i != BIT_LEN; i++) {
+    void fill(uint16_t* buffer, bool bit)
+    {
+        for (size_t i = 0; i != BIT_LEN; i++)
+        {
             int s = sin_table[pos_];
             s -= 2048;
             s *= volume_;
@@ -149,15 +169,18 @@ struct AFSKModulator {
         }
     }
 
-    void fill_first(bool bit) {
+    void fill_first(bool bit) override
+    {
         fill(buffer_, bit);
     }
 
-    void fill_last(bool bit) {
+    void fill_last(bool bit) override
+    {
         fill(buffer_ + BIT_LEN, bit);
     }
 
-    void empty() {
+    void empty() override
+    {
         switch (running_) {
         case 1:
             running_ = 0;
@@ -174,7 +197,8 @@ struct AFSKModulator {
         }
     }
 
-    void abort() {
+    void abort() override
+    {
         running_ = -1;
         HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
         HAL_TIM_Base_Stop(&htim7);
@@ -184,9 +208,11 @@ struct AFSKModulator {
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
     }
+
+   float bits_per_ms() const override
+   {
+       return 1.2f;
+   }
 };
 
 }} // mobilinkd::tnc
-
-
-#endif // MOBILINKD__TNC__AFSK_MODULATOR_HPP_

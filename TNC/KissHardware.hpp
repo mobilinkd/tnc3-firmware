@@ -94,6 +94,9 @@ constexpr const uint8_t GET_TIMESLOT = 35;
 constexpr const uint8_t GET_TXTAIL = 36;
 constexpr const uint8_t GET_DUPLEX = 37;
 
+constexpr const uint8_t SET_MODEM_TYPE = 38;
+constexpr const uint8_t GET_MODEM_TYPE = 39;
+
 constexpr const uint8_t GET_FIRMWARE_VERSION = 40;
 constexpr const uint8_t GET_HARDWARE_VERSION = 41;
 constexpr const uint8_t SAVE_EEPROM_SETTINGS = 42;
@@ -269,7 +272,7 @@ struct Hardware
       slot = 10;
       txtail = 1;
       duplex = 0;
-      modem_type = ModemType::AFSK1200;
+      modem_type = ModemType::FSK9600;
       output_gain = 63;
       input_gain = 0;   // 0-4 on TNC3
       tx_twist = 50;
