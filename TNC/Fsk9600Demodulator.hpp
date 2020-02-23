@@ -32,7 +32,7 @@ struct Fsk9600Demodulator : IDemodulator
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
 
     static constexpr uint32_t SAMPLE_RATE = 192000;
-    static constexpr uint16_t VREF = 16383;
+    static constexpr uint16_t VREF = 4095;
 
     using bpf_coeffs_type = std::array<int16_t, FILTER_TAP_NUM>;
     using bpf_bank_type = std::array<bpf_coeffs_type, 13>;

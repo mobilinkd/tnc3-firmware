@@ -158,9 +158,9 @@ uint32_t Fsk9600Demodulator::readBatteryLevel()
 
     // Order of operations is important to avoid underflow.
     vbat *= 6600;
-    vbat /= (vrefint + 1);
+    vbat /= (VREF + 1);
 
-    uint32_t vref = (vrefint * 3300) + (VREF / 2) / VREF;
+    uint32_t vref = ((vrefint * 3300) + (VREF / 2)) / VREF;
 
     INFO("Vref = %lumV", vref)
     INFO("Vbat = %lumV", vbat);
