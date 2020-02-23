@@ -29,7 +29,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.0.0b1";
+const char FIRMWARE_VERSION[] = "2.0.0b2";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 
@@ -490,6 +490,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::GET_ALL_VALUES:
         DEBUG("GET_ALL_VALUES");
+        // GET_API_VERSION must always come first.
         reply16(hardware::GET_API_VERSION, hardware::KISS_API_VERSION);
         osMessagePut(audioInputQueueHandle, audio::POLL_BATTERY_LEVEL,
             osWaitForever);
@@ -523,12 +524,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_MIN_INPUT_TWIST, -3);  // Constants for this FW
         reply8(hardware::GET_MAX_INPUT_TWIST, 9);   // Constants for this FW
         reply(hardware::GET_MAC_ADDRESS, mac_address, sizeof(mac_address));
-        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
         ext_reply(hardware::EXT_GET_MODEM_TYPE, modem_type);
         ext_reply(hardware::EXT_GET_MODEM_TYPES, supported_modem_types);
         if (*error_message) {
             reply(hardware::GET_ERROR_MSG, (uint8_t*) error_message, sizeof(error_message));
         }
+        // GET_DATETIME must always be last.  iOS config app depends on it.
+        reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
         break;
 
     default:
