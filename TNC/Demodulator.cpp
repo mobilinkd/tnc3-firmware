@@ -23,7 +23,6 @@ void IDemodulator::startADC(uint32_t period, uint32_t block_size)
     audio::set_adc_block_size(block_size);
 
     htim6.Init.Period = period;
-    htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
     if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
     {
         CxxErrorHandler();
@@ -35,7 +34,7 @@ void IDemodulator::startADC(uint32_t period, uint32_t block_size)
     }
 
     if (HAL_ADC_Start_DMA(&hadc1, audio::adc_buffer,
-        block_size * 2) != HAL_OK)
+        audio::dma_transfer_size) != HAL_OK)
     {
         CxxErrorHandler();
     }

@@ -4,6 +4,7 @@
 #include "Afsk1200Demodulator.hpp"
 #include "Goertzel.h"
 #include "AudioInput.hpp"
+#include "GPIO.hpp"
 
 namespace mobilinkd { namespace tnc {
 
@@ -85,7 +86,6 @@ hdlc::IoFrame* Afsk1200Demodulator::operator()(const q15_t* samples)
 float Afsk1200Demodulator::readTwist()
 {
     DEBUG("enter Afsk1200Demodulator::readTwist");
-    constexpr uint32_t channel = AUDIO_IN;
 
     float g1200 = 0.0f;
     float g2200 = 0.0f;
@@ -135,6 +135,78 @@ float Afsk1200Demodulator::readTwist()
 
     DEBUG("exit readTwist");
     return result;
+}
+
+uint32_t Afsk1200Demodulator::readBatteryLevel()
+{
+    DEBUG("enter Afsk1200Demodulator::readBatteryLevel");
+
+    ADC_ChannelConfTypeDef sConfig;
+
+    sConfig.Channel = ADC_CHANNEL_VREFINT;
+    sConfig.Rank = ADC_REGULAR_RANK_1;
+    sConfig.SingleDiff = ADC_SINGLE_ENDED;
+    sConfig.SamplingTime = ADC_SAMPLETIME_92CYCLES_5;
+    sConfig.OffsetNumber = ADC_OFFSET_NONE;
+    sConfig.Offset = 0;
+    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        CxxErrorHandler();
+
+    htim6.Init.Period = 48000;
+    if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
+
+    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
+        CxxErrorHandler();
+
+    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
+    if (HAL_ADC_PollForConversion(&hadc1, 3) != HAL_OK) CxxErrorHandler();
+    auto vrefint = HAL_ADC_GetValue(&hadc1);
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
+
+    // Disable battery charging while measuring battery voltage.
+    auto usb_ce = gpio::USB_CE::get();
+    gpio::USB_CE::on();
+
+    gpio::BAT_DIVIDER::off();
+    HAL_Delay(1);
+
+    sConfig.Channel = ADC_CHANNEL_15;
+    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        CxxErrorHandler();
+
+    uint32_t vbat = 0;
+    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
+    for (size_t i = 0; i != 8; ++i)
+    {
+        if (HAL_ADC_PollForConversion(&hadc1, 1) != HAL_OK) CxxErrorHandler();
+        vbat += HAL_ADC_GetValue(&hadc1);
+    }
+
+    vbat /= 8;
+
+    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
+    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
+        CxxErrorHandler();
+
+    gpio::BAT_DIVIDER::on();
+
+    // Restore battery charging state.
+    if (!usb_ce) gpio::USB_CE::off();
+
+    INFO("Vref = %lu", vrefint);
+    INFO("Vbat = %lu (raw)", vbat);
+
+    // Order of operations is important to avoid underflow.
+    vbat *= 6600;
+    vbat /= (vrefint + 1);
+
+    uint32_t vref = (vrefint * 3300) + (VREF / 2) / VREF;
+
+    INFO("Vref = %lumV", vref)
+    INFO("Vbat = %lumV", vbat);
+
+    DEBUG("exit Afsk1200Demodulator::readBatteryLevel");
+    return vbat;
 }
 
 const q15_t Afsk1200Demodulator::bpf_coeffs[FILTER_TAP_NUM] = {

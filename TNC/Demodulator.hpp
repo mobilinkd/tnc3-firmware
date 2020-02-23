@@ -24,6 +24,7 @@ struct IDemodulator
     virtual void stop() = 0;
     virtual hdlc::IoFrame* operator()(const q15_t* samples) = 0;
     virtual float readTwist() = 0;
+    virtual uint32_t readBatteryLevel() = 0;
 
     virtual bool locked() const = 0;
     virtual size_t size() const = 0;
@@ -33,10 +34,10 @@ struct IDemodulator
      * are frames which consist of an even multiple of eight bits and are
      * up to 330 bytes, but which do not have a valid checksum.
      *
-     * @param enable is true when enabled and false when disabled.  The
+     * @param enabled is true when enabled and false when disabled.  The
      *  default state is disabled.
      */
-    virtual void passall(bool enable) = 0;
+    virtual void passall(bool enabled) = 0;
 
     virtual ~IDemodulator() {}
 

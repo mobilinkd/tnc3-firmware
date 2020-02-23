@@ -87,9 +87,9 @@ enum AdcState {
 
 const size_t ADC_BUFFER_SIZE = 384;
 extern uint32_t adc_buffer[];       // Two int16_t samples per element.
-extern uint32_t adc_block_size;
-extern uint32_t dma_transfer_size;
-extern uint32_t half_buffer_size;
+extern volatile uint32_t adc_block_size;
+extern volatile uint32_t dma_transfer_size;
+extern volatile uint32_t half_buffer_size;
 
 // 1kB
 typedef memory::Pool<8, ADC_BUFFER_SIZE * 2> adc_pool_type;

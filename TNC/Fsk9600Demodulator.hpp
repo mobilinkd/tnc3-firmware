@@ -29,8 +29,10 @@ struct Fsk9600Demodulator : IDemodulator
 {
     static constexpr size_t FILTER_TAP_NUM = 132;
     static constexpr uint32_t ADC_BLOCK_SIZE = 384;
-    static constexpr uint32_t SAMPLE_RATE = 192000;
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
+
+    static constexpr uint32_t SAMPLE_RATE = 192000;
+    static constexpr uint16_t VREF = 16383;
 
     using bpf_coeffs_type = std::array<int16_t, FILTER_TAP_NUM>;
     using bpf_bank_type = std::array<bpf_coeffs_type, 13>;
@@ -80,12 +82,12 @@ struct Fsk9600Demodulator : IDemodulator
     void stop() override
     {
         stopADC();
-//        INFO("Setting 4MHz SysClock.");
-//        SysClock48();
         locked_ = false;
     }
 
     float readTwist() override;
+
+    uint32_t readBatteryLevel() override;
 
     hdlc::IoFrame* operator()(const q15_t* samples) override;
 
@@ -99,9 +101,9 @@ struct Fsk9600Demodulator : IDemodulator
         return ADC_BLOCK_SIZE;
     }
 
-    void passall(bool enable) override
+    void passall(bool enabled) override
     {
-        hdlc_decoder_.passall = enable;
+        hdlc_decoder_.setPassall(enabled);
     }
 };
 

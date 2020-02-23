@@ -109,6 +109,8 @@ struct Afsk1200Demodulator : IDemodulator
 
     float readTwist() override;
 
+    uint32_t readBatteryLevel() override;
+
     bool locked() const override
     {
         return locked_;
@@ -119,11 +121,11 @@ struct Afsk1200Demodulator : IDemodulator
         return ADC_BLOCK_SIZE;
     }
 
-    void passall(bool enable) override
+    void passall(bool enabled) override
     {
-        demod1.hdlc_decoder_.passall = enable;
-        demod2.hdlc_decoder_.passall = enable;
-        demod3.hdlc_decoder_.passall = enable;
+        demod1.hdlc_decoder_.setPassall(enabled);
+        demod2.hdlc_decoder_.setPassall(enabled);
+        demod3.hdlc_decoder_.setPassall(enabled);
     }
 };
 

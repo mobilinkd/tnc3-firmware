@@ -54,6 +54,10 @@ struct NewDecoder
 
     optional_result_type operator()(bool input, bool pll_lock);
     uint8_t process(bool input, bool pll_lock);
+    void setPassall(bool enabled)
+    {
+        passall = enabled;
+    }
 };
 
 }}} // mobilinkd::tnc::hdlc

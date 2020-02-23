@@ -12,6 +12,7 @@
 #include "PortInterface.hpp"
 #include "Goertzel.h"
 #include "DCD.h"
+#include "ModulatorTask.hpp"
 
 #include "arm_math.h"
 #include "stm32l4xx_hal.h"
@@ -113,6 +114,7 @@ extern "C" void startAudioInputTask(void const*) {
         case UPDATE_SETTINGS:
             DEBUG("UPDATE_SETTINGS");
             setAudioInputLevels();
+            updateModulator();
             break;
         case IDLE:
             DEBUG("IDLE");
@@ -126,9 +128,9 @@ extern "C" void startAudioInputTask(void const*) {
 namespace mobilinkd { namespace tnc { namespace audio {
 
 uint32_t adc_buffer[ADC_BUFFER_SIZE];               // Two samples per element.
-uint32_t adc_block_size = ADC_BUFFER_SIZE;          // Based on demodulator.
-uint32_t dma_transfer_size = adc_block_size * 2;    // Transfer size in bytes.
-uint32_t half_buffer_size = adc_block_size / 2;     // Transfer size in words / 2.
+volatile uint32_t adc_block_size = ADC_BUFFER_SIZE;          // Based on demodulator.
+volatile uint32_t dma_transfer_size = adc_block_size * 2;    // Transfer size in bytes.
+volatile uint32_t half_buffer_size = adc_block_size / 2;     // Transfer size in words / 2.
 adc_pool_type adcPool;
 
 void set_adc_block_size(uint32_t block_size)
@@ -208,7 +210,7 @@ void demodulatorTask() {
 }
 
 
-void streamLevels(uint32_t channel, uint8_t cmd) {
+void streamLevels(uint8_t cmd) {
 
     // Stream out Vpp, Vavg, Vmin, Vmax as four 16-bit values, left justified.
 
@@ -307,7 +309,7 @@ levels_type readLevels(uint32_t)
 
     uint16_t pp = vmax - vmin;
     uint16_t avg = iaccum / BLOCKS;
-    DEBUG("exit readLevels");
+    INFO("exit readLevels");
 
     return levels_type(pp, avg, vmin, vmax);
 }
@@ -352,7 +354,6 @@ float readTwist()
 void pollInputTwist()
 {
     DEBUG("enter pollInputTwist");
-    constexpr uint32_t channel = AUDIO_IN;
 
     float g1200 = 0.0f;
     float g2200 = 0.0f;
@@ -411,7 +412,7 @@ void pollInputTwist()
 
 void streamAmplifiedInputLevels() {
     DEBUG("enter streamAmplifiedInputLevels");
-    streamLevels(AUDIO_IN, kiss::hardware::POLL_INPUT_LEVEL);
+    streamLevels(kiss::hardware::POLL_INPUT_LEVEL);
     DEBUG("exit streamAmplifiedInputLevels");
 }
 
@@ -441,72 +442,9 @@ void pollAmplifiedInputLevel() {
     DEBUG("exit pollAmplifiedInputLevel");
 }
 
-void pollBatteryLevel() {
-    DEBUG("enter pollBatteryLevel");
-
-    ADC_ChannelConfTypeDef sConfig;
-
-    sConfig.Channel = ADC_CHANNEL_VREFINT;
-    sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SingleDiff = ADC_SINGLE_ENDED;
-    sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
-    sConfig.OffsetNumber = ADC_OFFSET_NONE;
-    sConfig.Offset = 0;
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-        CxxErrorHandler();
-
-    htim6.Init.Period = 48000;
-    if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
-
-    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
-        CxxErrorHandler();
-
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
-    if (HAL_ADC_PollForConversion(&hadc1, 3) != HAL_OK) CxxErrorHandler();
-    auto vrefint = HAL_ADC_GetValue(&hadc1);
-    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
-
-    // Disable battery charging while measuring battery voltage.
-    auto usb_ce = gpio::USB_CE::get();
-    gpio::USB_CE::on();
-
-    gpio::BAT_DIVIDER::off();
-    HAL_Delay(1);
-
-    sConfig.Channel = ADC_CHANNEL_15;
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-        CxxErrorHandler();
-
-    uint32_t vbat = 0;
-    if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
-    for (size_t i = 0; i != 8; ++i)
-    {
-        if (HAL_ADC_PollForConversion(&hadc1, 1) != HAL_OK) CxxErrorHandler();
-        vbat += HAL_ADC_GetValue(&hadc1);
-    }
-
-    vbat /= 8;
-
-    if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
-    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
-        CxxErrorHandler();
-
-    htim6.Init.Period = 1817;
-    if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
-
-    HAL_Delay(1);
-
-    gpio::BAT_DIVIDER::on();
-    if (!usb_ce) gpio::USB_CE::off();   // Restore battery charging state.
-
-    INFO("Vref = %lu", vrefint);
-    INFO("Vbat = %lu (raw)", vbat);
-
-    // Order of operations is important to avoid underflow.
-    vbat *= 6600;
-    vbat /= (vref + 1);
-
-    INFO("Vbat = %lumV", vbat);
+void pollBatteryLevel()
+{
+    auto vbat = getDemodulator()->readBatteryLevel();
 
     uint8_t data[3];
     data[0] = kiss::hardware::GET_BATTERY_LEVEL;
@@ -514,7 +452,6 @@ void pollBatteryLevel() {
     data[2] = (vbat & 0xFF);
 
     ioport->write(data, 3, 6, 10);
-    DEBUG("exit pollBatteryLevel");
 }
 
 #if 0
