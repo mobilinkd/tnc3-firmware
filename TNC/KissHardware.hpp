@@ -1,8 +1,7 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__KISS_HARDWARE_HPP_
-#define MOBILINKD__TNC__KISS_HARDWARE_HPP_
+#pragma once
 
 #include "KissHardware.h"
 #include "Log.h"
@@ -35,7 +34,7 @@ namespace hardware {
  * The major version should be updated whenever non-backwards compatible
  * changes to the API are made.
  */
-constexpr const uint16_t KISS_API_VERSION = 0x0200;
+constexpr const uint16_t KISS_API_VERSION = 0x0201;
 
 constexpr const uint16_t CAP_DCD = 0x0100;
 constexpr const uint16_t CAP_SQUELCH = 0x0200;
@@ -94,9 +93,6 @@ constexpr const uint8_t GET_TIMESLOT = 35;
 constexpr const uint8_t GET_TXTAIL = 36;
 constexpr const uint8_t GET_DUPLEX = 37;
 
-constexpr const uint8_t SET_MODEM_TYPE = 38;
-constexpr const uint8_t GET_MODEM_TYPE = 39;
-
 constexpr const uint8_t GET_FIRMWARE_VERSION = 40;
 constexpr const uint8_t GET_HARDWARE_VERSION = 41;
 constexpr const uint8_t SAVE_EEPROM_SETTINGS = 42;
@@ -129,6 +125,9 @@ constexpr const uint8_t GET_BT_POWER_OFF = 78;
 constexpr const uint8_t SET_PTT_CHANNEL = 79; // Which PTT line to use (currently 0 or 1,
 constexpr const uint8_t GET_PTT_CHANNEL = 80; // multiplex or simplex)
 
+constexpr const uint8_t SET_PASSALL = 81;   // Allow invalid CRC through when
+constexpr const uint8_t GET_PASSALL = 82;   // true (1).
+
 constexpr const uint8_t GET_MIN_OUTPUT_TWIST = 119;  ///< int8_t (may be negative).
 constexpr const uint8_t GET_MAX_OUTPUT_TWIST = 120;  ///< int8_t (may be negative).
 constexpr const uint8_t GET_MIN_INPUT_TWIST = 121;  ///< int8_t (may be negative).
@@ -140,34 +139,47 @@ constexpr const uint8_t GET_CAPABILITIES = 126;   ///< Send all capabilities.
 constexpr const uint8_t GET_ALL_VALUES = 127;     ///< Send all settings & versions.
 
 /**
- * Extended commands are two+ bytes in length.  They start at 80:00
- * and go through BF:FF (14 significant bits), then proceed to C0:00:00
- * through CF:FF:FF (20 more significant bits).
+ * Extended commands are two+ bytes in length.  They follow the model used
+ * by UTF-8 to extend the command set.  Extended commands start at C1:80
+ * and go through DF:BF (11 significant bits), then proceed to E0:80:80
+ * through EF:BF:BF (16 significant bits).
  *
- * If needed, the commands can be extended to 9 nibbles (D0 - DF),
- * 13 nibbles (E0-EF) and 17 nibbles (F0-FF).
+ * To avoid special KISS characters, we skip the following byte values in
+ * the first byte:
+ *
+ * - 0xC0 / FEND
+ * - 0xDB / FESC
+ * - 0xDC / TFEND
+ * - 0xDD / TFESC
  */
-constexpr const uint8_t EXTENDED_CMD = 128;
+constexpr const uint8_t EXTENDED_CMD = 0xC1;
 
-constexpr const uint8_t EXT_OK = 0;
-constexpr const uint8_t EXT_GET_MODEM_TYPE = 1;
-constexpr const uint8_t EXT_SET_MODEM_TYPE = 2;
-constexpr const uint8_t EXT_GET_MODEM_TYPES = 3;  ///< Return a list of supported modem types
+constexpr const uint8_t EXT_OK = 0x80;
 
-constexpr const uint8_t EXT_GET_ALIASES = 8;    ///< Number of aliases supported
-constexpr const uint8_t EXT_GET_ALIAS = 9;      ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
-constexpr const uint8_t EXT_SET_ALIAS = 10;     ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
+constexpr std::array<uint8_t, 2> EXT_GET_MODEM_TYPE = {0xC1, 0x81};
+constexpr std::array<uint8_t, 2> EXT_SET_MODEM_TYPE = {0xC1, 0x82};
+constexpr std::array<uint8_t, 2> EXT_GET_MODEM_TYPES = {0xC1, 0x83};    ///< Return a list of supported modem types
 
-constexpr const uint8_t EXT_GET_BEACONS = 12;   ///< Number of beacons supported
-constexpr const uint8_t EXT_GET_BEACON = 13;    ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
-constexpr const uint8_t EXT_SET_BEACON = 14;    ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
+constexpr std::array<uint8_t, 2> EXT_GET_ALIASES = {0xC1, 0x88};        ///< Number of aliases supported
+constexpr std::array<uint8_t, 2> EXT_GET_ALIAS = {0xC1, 0x89};          ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
+constexpr std::array<uint8_t, 2> EXT_SET_ALIAS = {0xC1, 0x0A};          ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
 
-constexpr const uint8_t MODEM_TYPE_1200 = 1;
-constexpr const uint8_t MODEM_TYPE_300 = 2;
-constexpr const uint8_t MODEM_TYPE_9600 = 3;
-constexpr const uint8_t MODEM_TYPE_PSK31 = 4;
-constexpr const uint8_t MODEM_TYPE_OFDM = 5;
-constexpr const uint8_t MODEM_TYPE_MFSK16 = 6;
+constexpr std::array<uint8_t, 2> EXT_GET_BEACON_SLOTS = {0xC1, 0x8C};   ///< Number of beacons supported
+constexpr std::array<uint8_t, 2> EXT_GET_BEACON = {0xC1, 0x8D};         ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
+constexpr std::array<uint8_t, 2> EXT_SET_BEACON = {0xC1, 0x8E};         ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
+
+
+/*
+ * Modem type values 0x00 - 0x7F are single-byte types.  Modem type values
+ * starting at 0xC0 are multi-byte values, and should follow the model used
+ * by UTF-8 to extend the modem types, should that ever be necessary.
+ */
+constexpr uint8_t MODEM_TYPE_1200 = 1;
+constexpr uint8_t MODEM_TYPE_300 = 2;
+constexpr uint8_t MODEM_TYPE_9600 = 3;
+constexpr uint8_t MODEM_TYPE_PSK31 = 4;
+constexpr uint8_t MODEM_TYPE_OFDM = 5;
+constexpr uint8_t MODEM_TYPE_MFSK16 = 6;
 
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
@@ -175,6 +187,7 @@ constexpr const uint8_t MODEM_TYPE_MFSK16 = 6;
 #define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged into USB
 #define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when unplugged from USB
 #define KISS_OPTION_PTT_SIMPLEX     0x10  // Simplex PTT (the default)
+#define KISS_OPTION_PASSALL         0x20  // Ignore invalid CRC.
 
 const char TOCALL[] = "APML30"; // Update for every feature change.
 
@@ -210,11 +223,24 @@ const size_t NUMBER_OF_BEACONS = 4;     // 680 bytes
  */
 struct Hardware
 {
+    static constexpr std::array<const char*, 4> modem_type_lookup = {
+        "NOT SET",
+        "AFSK1200",
+        "AFSK300",
+        "FSK9600",
+    };
+
+    // This must match the constants defined above.
     enum ModemType {
-        AFSK1200 = 1,
-        AFSK300,
-        FSK9600,
-        PSK31
+        AFSK1200 = hardware::MODEM_TYPE_1200,
+        AFSK300 = hardware::MODEM_TYPE_300,
+        FSK9600 = hardware::MODEM_TYPE_9600,
+        PSK31 = hardware::MODEM_TYPE_PSK31
+    };
+
+    static constexpr std::array<uint8_t, 2> supported_modem_types = {
+        hardware::MODEM_TYPE_1200,
+        hardware::MODEM_TYPE_9600
     };
 
     uint8_t txdelay;        ///< How long in 10mS units to wait for TX to settle before starting data
@@ -272,7 +298,7 @@ struct Hardware
       slot = 10;
       txtail = 1;
       duplex = 0;
-      modem_type = ModemType::FSK9600;
+      modem_type = ModemType::AFSK1200;
       output_gain = 63;
       input_gain = 0;   // 0-4 on TNC3
       tx_twist = 50;
@@ -299,13 +325,13 @@ struct Hardware
         DEBUG("Slot Time: %d", (int)slot);
         DEBUG("TX Tail: %d", (int)txtail);
         DEBUG("Duplex: %d", (int)duplex);
-        DEBUG("Modem Type: %d", (int)modem_type);
+        DEBUG("Modem Type: %s", modem_type_lookup[modem_type]);
         DEBUG("TX Gain: %d", (int)output_gain);
         DEBUG("RX Gain: %d", (int)input_gain);
         DEBUG("TX Twist: %d", (int)tx_twist);
         DEBUG("RX Twist: %d", (int)rx_twist);
         DEBUG("Log Level: %d", (int)log_level);
-        DEBUG("Options: %d", (int)options);
+        DEBUG("Options: %04hx", options);
         DEBUG("MYCALL: %s", (char*) mycall);
         DEBUG("Dedupe time (secs): %d", (int)dedupe_seconds);
         DEBUG("Aliases:");
@@ -325,7 +351,7 @@ struct Hardware
             DEBUG(" text: %s", (char*)b.text);
             DEBUG(" frequency (secs): %d", (int)b.seconds);
         }
-        DEBUG("Checksum: %04x", checksum);
+        DEBUG("Checksum: %04hx", checksum);
     }
 
     bool load();
@@ -349,7 +375,6 @@ struct Hardware
 }; // 812 bytes
 
 extern Hardware& settings();
-
 
 struct I2C_Storage
 {
@@ -378,5 +403,3 @@ void reply8(uint8_t cmd, uint8_t result) __attribute__((noinline));
 void reply16(uint8_t cmd, uint16_t result) __attribute__((noinline));
 
 }}} // mobilinkd::tnc::kiss
-
-#endif // INMOBILINKD__TNC__KISS_HARDWARE_HPP_C_KISSHARDWARE_HPP_

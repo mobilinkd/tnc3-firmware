@@ -15,6 +15,68 @@ afsk1200::Demodulator Afsk1200Demodulator::demod1(26400, Afsk1200Demodulator::fi
 afsk1200::Demodulator Afsk1200Demodulator::demod2(26400, Afsk1200Demodulator::filter_2);
 afsk1200::Demodulator Afsk1200Demodulator::demod3(26400, Afsk1200Demodulator::filter_3);
 
+hdlc::IoFrame* Afsk1200Demodulator::operator()(const q15_t* samples)
+{
+    hdlc::IoFrame* result = nullptr;
+
+    q15_t* filtered = demod_filter.filter(const_cast<q15_t* >(samples));
+
+    ++counter;
+
+#if 1
+    auto frame1 = demod1(filtered, ADC_BLOCK_SIZE);
+    if (frame1)
+    {
+        if (frame1->fcs() != last_fcs or counter > last_counter + 2)
+        {
+            last_fcs = frame1->fcs();
+            last_counter = counter;
+            result = frame1;
+        }
+        else
+        {
+            hdlc::release (frame1);
+        }
+    }
+#endif
+
+#if 1
+    auto frame2 = demod2(filtered, ADC_BLOCK_SIZE);
+    if (frame2)
+    {
+        if (frame2->fcs() != last_fcs or counter > last_counter + 2)
+        {
+            last_fcs = frame2->fcs();
+            last_counter = counter;
+            result = frame2;
+        }
+        else
+        {
+            hdlc::release(frame2);
+        }
+    }
+#endif
+
+#if 1
+    auto frame3 = demod3(filtered, ADC_BLOCK_SIZE);
+    if (frame3)
+    {
+        if (frame3->fcs() != last_fcs or counter > last_counter + 2)
+        {
+            last_fcs = frame3->fcs();
+            last_counter = counter;
+            result = frame3;
+        }
+        else
+        {
+            hdlc::release(frame3);
+        }
+    }
+#endif
+    locked_ = demod1.locked() or demod2.locked() or demod3.locked();
+    return result;
+}
+
 /*
  * Return twist as a the difference in dB between mark and space.  The
  * expected values are about 0dB for discriminator output and about 5.5dB

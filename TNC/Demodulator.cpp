@@ -41,4 +41,13 @@ void IDemodulator::startADC(uint32_t period, uint32_t block_size)
     }
 }
 
+void IDemodulator::stopADC()
+{
+    if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
+        CxxErrorHandler();
+    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
+        CxxErrorHandler();
+}
+
+
 }} // mobilinkd::tnc

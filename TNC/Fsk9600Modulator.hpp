@@ -27,6 +27,7 @@ struct Fsk9600Modulator : Modulator
 {
     static constexpr int8_t DAC_BUFFER_LEN = 40;
     static constexpr int8_t BIT_LEN = DAC_BUFFER_LEN / 2;
+    static constexpr uint16_t VREF = 4095;
 
     static constexpr std::array<int16_t, BIT_LEN> cos_table{
         2047,  2020,  1937,  1801,  1616,  1387,  1120,   822,   502,   169,
@@ -54,6 +55,8 @@ struct Fsk9600Modulator : Modulator
     {
         for (auto& x : buffer_) x = 2048;
 
+        (void) hw; // unused
+
         state = State::STOPPED;
         level = Level::HIGH;
 
@@ -64,12 +67,27 @@ struct Fsk9600Modulator : Modulator
             ERROR("htim7 init failed");
             CxxErrorHandler();
         }
+
+        DAC_ChannelConfTypeDef sConfig;
+
+        sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+        sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+        sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+        sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+        sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+        if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+        {
+          CxxErrorHandler();
+        }
+
+        if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048) != HAL_OK) CxxErrorHandler();
+        if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) CxxErrorHandler();
     }
 
     void deinit() override
     {
         state = State::STOPPED;
-        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+        HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
         HAL_TIM_Base_Stop(&htim7);
         ptt_->off();
     }
@@ -100,18 +118,18 @@ struct Fsk9600Modulator : Modulator
         {
         case State::STOPPING:
         case State::STOPPED:
+            ptt_->on();
+            #ifdef KISS_LOGGING
+                HAL_RCCEx_DisableLSCO();
+            #endif
+
             fill_first(scrambled);
             state = State::STARTING;
             break;
         case State::STARTING:
             fill_last(scrambled);
             state = State::RUNNING;
-            ptt_->on();
-            HAL_TIM_Base_Start(&htim7);
-            HAL_DAC_Start_DMA(
-                &hdac1, DAC_CHANNEL_1,
-                reinterpret_cast<uint32_t*>(buffer_.data()), buffer_.size(),
-                DAC_ALIGN_12B_R);
+            start_conversion();
             break;
         case State::RUNNING:
             osMessagePut(dacOutputQueueHandle_, scrambled, osWaitForever);
@@ -142,24 +160,27 @@ struct Fsk9600Modulator : Modulator
             break;
         case State::STOPPING:
             state = State::STOPPED;
-            HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
-            HAL_TIM_Base_Stop(&htim7);
+            stop_conversion();
             ptt_->off();
+            level = Level::HIGH;
+            #ifdef KISS_LOGGING
+                HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+            #endif
             break;
         case State::STOPPED:
             break;
         }
-        state = State::STOPPING;
-        level = Level::HIGH;
     }
 
     void abort() override
     {
         state = State::STOPPED;
-        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
-        HAL_TIM_Base_Stop(&htim7);
+        stop_conversion();
         ptt_->off();
-
+        level = Level::HIGH;
+        #ifdef KISS_LOGGING
+            HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+        #endif
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
     }
@@ -170,6 +191,31 @@ struct Fsk9600Modulator : Modulator
     }
 
 private:
+
+    /**
+     * Configure the DAC for timer-based DMA conversion, start the timer,
+     * and start DMA to DAC.
+     */
+    void start_conversion()
+    {
+        DAC_ChannelConfTypeDef sConfig;
+
+        sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+        sConfig.DAC_Trigger = DAC_TRIGGER_T7_TRGO;
+        sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+        sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+        sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+        if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+        {
+          CxxErrorHandler();
+        }
+
+        HAL_TIM_Base_Start(&htim7);
+        HAL_DAC_Start_DMA(
+            &hdac1, DAC_CHANNEL_1,
+            reinterpret_cast<uint32_t*>(buffer_.data()), buffer_.size(),
+            DAC_ALIGN_12B_R);
+    }
 
     uint16_t adjust_level(int32_t sample) const
     {

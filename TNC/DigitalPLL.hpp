@@ -1,5 +1,7 @@
-#ifndef MOBILINKD__DIGITAL_PLL_H_
-#define MOBILINKD__DIGITAL_PLL_H_
+// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
+// All rights reserved.
+
+#pragma once
 
 #include "Hysteresis.hpp"
 #include "IirFilter.hpp"
@@ -43,8 +45,7 @@ constexpr std::array<float, 5> lock_a = {
 //
 constexpr std::array<float, 7> loop_coeffs = {
 //     0.08160962754214955, 0.25029850550446403, 0.3361837339067726, 0.2502985055044641, 0.08160962754214969
-//    3.196252e-02,1.204223e-01,2.176819e-01,2.598666e-01,2.176819e-01,1.204223e-01,3.196252e-02
-    0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0
+    3.196252e-02,1.204223e-01,2.176819e-01,2.598666e-01,2.176819e-01,1.204223e-01,3.196252e-02
 };
 
 } // pll
@@ -73,8 +74,8 @@ struct BaseDigitalPLL
 	BaseDigitalPLL(float_type sample_rate, float_type symbol_rate)
 	: sample_rate_(sample_rate), symbol_rate_(symbol_rate)
 	, sps_(sample_rate / symbol_rate)
-	, limit_(sps_ / float_type(2.0))
-    , lock_(sps_ * float_type(0.03), sps_ * float_type(0.15), 1, 0)
+    , limit_(sps_ / 2.0)
+    , lock_(sps_ * 0.03, sps_ * 0.15, 1, 0)
 	, last_(false), count_(0), sample_(false)
 	, jitter_(0.0), bits_(1)
 	{}
@@ -128,6 +129,3 @@ typedef BaseDigitalPLL<double> DigitalPLL;
 typedef BaseDigitalPLL<float> FastDigitalPLL;
 
 }} // mobilinkd::tnc
-
-#endif // MOBILINKD__DIGITAL_PLL_H_
-

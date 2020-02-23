@@ -11,7 +11,7 @@ hdlc::IoFrame* Fsk9600Demodulator::operator()(const q15_t* samples)
 {
     hdlc::IoFrame* result = nullptr;
 
-    auto filtered = demod_filter(const_cast<q15_t* >(samples));
+    auto filtered = demod_filter.filter(const_cast<q15_t* >(samples));
 
     for (size_t i = 0; i != ADC_BLOCK_SIZE; ++i)
     {

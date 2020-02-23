@@ -6,7 +6,9 @@
 #include "AudioInput.hpp"
 #include "AudioLevel.hpp"
 #include "IOEventTask.h"
-#include <ModulatorTask.hpp>
+#include "ModulatorTask.hpp"
+#include "Modulator.hpp"
+#include "HDLCEncoder.hpp"
 
 #include <memory>
 #include <array>
@@ -27,16 +29,9 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.0.0a1";
+const char FIRMWARE_VERSION[] = "2.0.0b1";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
-
-const std::array<const char*, 4> modem_type_lookup = {
-    "NOT SET",
-    "AFSK1200",
-    "AFSK300",
-    "FSK9600",
-};
 
 Hardware& settings()
 {
@@ -107,9 +102,7 @@ void Hardware::set_duplex(uint8_t value) {
     update_crc();
 }
 
-#if 1
-
- void reply8(uint8_t cmd, uint8_t result) {
+void reply8(uint8_t cmd, uint8_t result) {
     uint8_t data[2] { cmd, result };
     ioport->write(data, 2, 6, osWaitForever);
 }
@@ -127,17 +120,33 @@ inline void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
     ioport->write(buffer, len + 1, 6, osWaitForever);
 }
 
-inline void reply_ext(uint8_t ext, uint8_t cmd, const uint8_t* data, uint16_t len) {
-    auto buffer = static_cast<uint8_t*>(alloca(len + 2));
+template <size_t N>
+void reply_ext(const std::array<uint8_t, N>& cmd, const uint8_t* data, uint16_t len) {
+    auto buffer = static_cast<uint8_t*>(alloca(len + N));
     if (buffer == nullptr) return;
-    buffer[0] = ext;
-    buffer[1] = cmd;
+    std::copy(std::begin(cmd), std::end(cmd), buffer);
     for (uint16_t i = 0; i != len and data[i] != 0; i++)
-        buffer[i + 2] = data[i];
+        buffer[i + N] = data[i];
     ioport->write(buffer, len + 2, 6, osWaitForever);
     free(buffer);
 }
-#endif
+
+
+template <size_t N>
+inline void ext_reply(const std::array<uint8_t, N>& cmd, uint8_t result) {
+    std::array<uint8_t, 1 + N> buffer;
+    std::copy(std::begin(cmd), std::end(cmd), std::begin(buffer));
+    buffer[N] = result;
+    ioport->write(buffer.data(), N + 1, 6, osWaitForever);
+}
+
+template <size_t M, size_t N>
+void ext_reply(const std::array<uint8_t, M>& cmd, const std::array<uint8_t, N>& result) {
+    std::array<uint8_t, M + N> data;
+    std::copy(std::begin(cmd), std::end(cmd), std::begin(data));
+    std::copy(std::begin(result), std::end(result), std::begin(data) + M);
+    ioport->write(data.data(), M + N, 6, osWaitForever);
+}
 
 void Hardware::get_alias(uint8_t alias) {
     uint8_t result[14];
@@ -149,7 +158,7 @@ void Hardware::get_alias(uint8_t alias) {
     result[11] = aliases[alias].insert_id;
     result[12] = aliases[alias].preempt;
     result[13] = aliases[alias].hops;
-    reply_ext(hardware::EXTENDED_CMD, hardware::EXT_GET_ALIASES, result, 14);
+    reply_ext(hardware::EXT_GET_ALIASES, result, 14);
 }
 
 void Hardware::set_alias(const hdlc::IoFrame* frame) {
@@ -187,14 +196,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     switch (command) {
 
-#if 1
     case hardware::SAVE:
     case hardware::SAVE_EEPROM_SETTINGS:
         update_crc();
         store();
         reply8(hardware::OK, hardware::SAVE_EEPROM_SETTINGS);
         break;
-#endif
+
     case hardware::POLL_INPUT_LEVEL:
         DEBUG("POLL_INPUT_VOLUME");
         reply8(hardware::POLL_INPUT_LEVEL, 0);
@@ -385,26 +393,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_DUPLEX, duplex);
         break;
 
-    case hardware::SET_MODEM_TYPE:
-        DEBUG("SET_MODEM_TYPE");
-        if ((*it > 0) and (*it < 4))
-        {
-            modem_type = *it;
-            DEBUG(modem_type_lookup[*it]);
-            update_crc();
-        }
-        else
-        {
-            ERROR("Unknown modem type");
-        }
-        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
-            osWaitForever);
-        [[fallthrough]];
-    case hardware::GET_MODEM_TYPE:
-        DEBUG("GET_MODEM_TYPE");
-        reply8(hardware::GET_MODEM_TYPE, modem_type);
-        break;
-
     case hardware::GET_FIRMWARE_VERSION:
         DEBUG("GET_FIRMWARE_VERSION");
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
@@ -438,6 +426,20 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         DEBUG("GET_PTT_CHANNEL");
         reply8(hardware::GET_PTT_CHANNEL,
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
+        break;
+
+    case hardware::SET_PASSALL:
+        DEBUG("SET_PASSALL");
+        if (!*it) {
+          options &= ~KISS_OPTION_PASSALL;
+        } else {
+          options |= KISS_OPTION_PASSALL;
+        }
+        update_crc();
+        break;
+    case hardware::GET_PASSALL:
+        DEBUG("GET_PASSALL");
+        reply8(hardware::GET_PASSALL, options & KISS_OPTION_PASSALL ? 1 : 0);
         break;
 
     case hardware::SET_USB_POWER_OFF:
@@ -491,8 +493,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply16(hardware::GET_API_VERSION, hardware::KISS_API_VERSION);
         osMessagePut(audioInputQueueHandle, audio::POLL_BATTERY_LEVEL,
             osWaitForever);
-        osMessagePut(audioInputQueueHandle, audio::POLL_TWIST_LEVEL,
-            osWaitForever);
         osMessagePut(audioInputQueueHandle, audio::IDLE,
             osWaitForever);
         reply(hardware::GET_FIRMWARE_VERSION, (uint8_t*) FIRMWARE_VERSION,
@@ -514,6 +514,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_DUPLEX, duplex);
         reply8(hardware::GET_PTT_CHANNEL,
             options & KISS_OPTION_PTT_SIMPLEX ? 0 : 1);
+        reply8(hardware::GET_PASSALL, options & KISS_OPTION_PASSALL ? 1 : 0);
         reply16(hardware::GET_CAPABILITIES,
             hardware::CAP_EEPROM_SAVE|hardware::CAP_BATTERY_LEVEL|
             hardware::CAP_ADJUST_INPUT|hardware::CAP_DFU_FIRMWARE);
@@ -523,43 +524,60 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_MAX_INPUT_TWIST, 9);   // Constants for this FW
         reply(hardware::GET_MAC_ADDRESS, mac_address, sizeof(mac_address));
         reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
+        ext_reply(hardware::EXT_GET_MODEM_TYPE, modem_type);
+        ext_reply(hardware::EXT_GET_MODEM_TYPES, supported_modem_types);
         if (*error_message) {
             reply(hardware::GET_ERROR_MSG, (uint8_t*) error_message, sizeof(error_message));
         }
         break;
 
-    case hardware::EXTENDED_CMD:
-        handle_ext_request(frame);
-        break;
-
     default:
-        ERROR("Unknown hardware request");
+        if (command > 0xC0)
+        {
+            handle_ext_request(frame);
+        }
+        else
+        {
+            ERROR("Unknown hardware request");
+        }
     }
-}
-
-inline void ext_reply(uint8_t cmd, uint8_t result) {
-    uint8_t data[3] { hardware::EXTENDED_CMD, cmd, result };
-    ioport->write(data, 3, 6);
 }
 
 void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
     auto it = frame->begin();
     ++it;
+    // Currently only supports 2-byte extended commands.
     uint8_t ext_command = *it++;
 
     switch (ext_command) {
-    case hardware::EXT_GET_MODEM_TYPE:
+
+    case hardware::EXT_SET_MODEM_TYPE[1]:
+        DEBUG("SET_MODEM_TYPE");
+        if ((*it == hardware::MODEM_TYPE_1200)
+            or (*it == hardware::MODEM_TYPE_9600))
+        {
+            modem_type = *it;
+            DEBUG(modem_type_lookup[modem_type]);
+            update_crc();
+        }
+        else
+        {
+            ERROR("Unsupported modem type");
+        }
+        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
+            osWaitForever);
+        updateModulator();
+        [[fallthrough]];
+    case hardware::EXT_GET_MODEM_TYPE[1]:
         DEBUG("EXT_GET_MODEM_TYPE");
-        ext_reply(hardware::EXT_GET_MODEM_TYPE, 1);
+        ext_reply(hardware::EXT_GET_MODEM_TYPE, modem_type);
         break;
-    case hardware::EXT_SET_MODEM_TYPE:
-        DEBUG("EXT_SET_MODEM_TYPE");
-        ext_reply(hardware::EXT_OK, hardware::EXT_SET_MODEM_TYPE);
-        break;
-    case hardware::EXT_GET_MODEM_TYPES:
+    case hardware::EXT_GET_MODEM_TYPES[1]:
         DEBUG("EXT_GET_MODEM_TYPES");
-        ext_reply(hardware::EXT_GET_MODEM_TYPES, 1);
+        ext_reply(hardware::EXT_GET_MODEM_TYPES, supported_modem_types);
         break;
+    default:
+        ERROR("Unknown extended hardware request");
     }
 }
 

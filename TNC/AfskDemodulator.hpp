@@ -48,11 +48,11 @@ struct Demodulator {
     emphasis_filter_type& audio_filter_;
     libafsk::FixedDelayLine<40> delay_line_;
     DPLL pll_;
-    Q15FirFilter<audio::ADC_BUFFER_SIZE, LPF_FILTER_LEN> lpf_filter_;
+    Q15FirFilter<ADC_BUFFER_SIZE, LPF_FILTER_LEN> lpf_filter_;
     libafsk::NRZI nrzi_;
     hdlc::NewDecoder hdlc_decoder_;
     bool locked_;
-    q15_t buffer_[audio::ADC_BUFFER_SIZE];
+    q15_t buffer_[ADC_BUFFER_SIZE];
 
     Demodulator(size_t sample_rate, emphasis_filter_type& c)
     : sample_rate_(sample_rate)

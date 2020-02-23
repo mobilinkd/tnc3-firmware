@@ -5,6 +5,7 @@
 #include "AudioInput.hpp"
 #include "KissHardware.hpp"
 #include "ModulatorTask.hpp"
+#include "Modulator.hpp"
 #include "GPIO.hpp"
 #include "LEDIndicator.h"
 #include "ModulatorTask.hpp"

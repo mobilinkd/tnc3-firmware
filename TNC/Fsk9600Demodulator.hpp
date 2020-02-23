@@ -55,17 +55,13 @@ struct Fsk9600Demodulator : IDemodulator
         auto const& bpf_coeffs = bpf_bank[kiss::settings().rx_twist + 3];
         const q15_t* bpf = bpf_coeffs.data();
         demod_filter.init(bpf);
+        passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
         hadc1.Init.OversamplingMode = DISABLE;
         if (HAL_ADC_Init(&hadc1) != HAL_OK)
         {
             CxxErrorHandler();
         }
-//
-//        if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK)
-//        {
-//            CxxErrorHandler();
-//        }
 
         ADC_ChannelConfTypeDef sConfig;
 
@@ -101,6 +97,11 @@ struct Fsk9600Demodulator : IDemodulator
     size_t size() const override
     {
         return ADC_BLOCK_SIZE;
+    }
+
+    void passall(bool enable) override
+    {
+        hdlc_decoder_.passall = enable;
     }
 };
 

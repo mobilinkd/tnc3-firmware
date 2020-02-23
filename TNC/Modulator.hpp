@@ -6,6 +6,7 @@
 #include "PTT.hpp"
 #include "KissHardware.hpp"
 
+#include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
 
 #include <cstdint>
@@ -88,6 +89,44 @@ struct Modulator
     virtual void abort() = 0;
 
     virtual float bits_per_ms() const = 0;
+
+protected:
+
+    /**
+     * Stop the DMA conversion and the timer.  Configure DAC for no
+     * trigger and set the DAC level to exactly mid-level.
+     *
+     * @note The DAC is set to mid-level to ensure the audio coupling
+     *  capacitor is kept biased to ensure that there is no DC level
+     *  ramp when we start conversions.  This is bad for FSK.
+     */
+    void stop_conversion()
+    {
+        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
+        HAL_TIM_Base_Stop(&htim7);
+
+        DAC_ChannelConfTypeDef sConfig;
+
+        sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+        sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+        sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+        sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+        sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+        if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+        {
+          CxxErrorHandler();
+        }
+
+        if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048) != HAL_OK)
+        {
+            CxxErrorHandler();
+        }
+        if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK)
+        {
+            CxxErrorHandler();
+        }
+    }
+
 };
 
 }} // mobilinkd::tnc

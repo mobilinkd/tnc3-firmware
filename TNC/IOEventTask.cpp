@@ -12,6 +12,7 @@
 #include "Kiss.hpp"
 #include "KissHardware.hpp"
 #include "ModulatorTask.hpp"
+#include "Modulator.hpp"
 #include "UsbPort.hpp"
 #include "SerialPort.hpp"
 #include "NullPort.hpp"
@@ -60,7 +61,6 @@ void startIOEventTask(void const*)
         hardware.init();
         hardware.store();
     }
-//    hardware.init();
 
     osMutexRelease(hardwareInitMutexHandle);
 
@@ -107,7 +107,6 @@ void startIOEventTask(void const*)
             DEBUG("USB connected -- negotiate");
             HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
                 GPIO_PIN_RESET);
-//            SysClock48();
             osTimerStart(usbShutdownTimerHandle, 5000);
         }
     }

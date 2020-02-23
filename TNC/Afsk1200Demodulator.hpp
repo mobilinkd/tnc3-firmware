@@ -35,13 +35,14 @@ struct Afsk1200Demodulator : IDemodulator
      */
     static constexpr size_t FILTER_TAP_NUM = 132;
     static constexpr uint32_t ADC_BLOCK_SIZE = afsk1200::ADC_BUFFER_SIZE;
-    static constexpr uint32_t SAMPLE_RATE = 26400;
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
+
+    static constexpr uint32_t SAMPLE_RATE = 26400;
+    static constexpr uint16_t VREF = 16383;
 
     using audio_filter_t = Q15FirFilter<ADC_BLOCK_SIZE, FILTER_TAP_NUM>;
 
     static const q15_t bpf_coeffs[FILTER_TAP_NUM];
-
 
     static afsk1200::emphasis_filter_type filter_1;
     static afsk1200::emphasis_filter_type filter_2;
@@ -76,6 +77,7 @@ struct Afsk1200Demodulator : IDemodulator
         counter = 0;
 
         demod_filter.init(bpf_coeffs);
+        passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
         hadc1.Init.OversamplingMode = ENABLE;
         if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -103,67 +105,7 @@ struct Afsk1200Demodulator : IDemodulator
         locked_ = false;
     }
 
-    hdlc::IoFrame* operator()(const q15_t* samples) override
-    {
-        hdlc::IoFrame* result = nullptr;
-
-        q15_t* filtered = demod_filter(const_cast<q15_t* >(samples));
-
-        ++counter;
-
-#if 1
-        auto frame1 = demod1(filtered, ADC_BLOCK_SIZE);
-        if (frame1)
-        {
-            if (frame1->fcs() != last_fcs or counter > last_counter + 2)
-            {
-                last_fcs = frame1->fcs();
-                last_counter = counter;
-                result = frame1;
-            }
-            else
-            {
-                hdlc::release (frame1);
-            }
-        }
-#endif
-
-#if 1
-        auto frame2 = demod2(filtered, ADC_BLOCK_SIZE);
-        if (frame2)
-        {
-            if (frame2->fcs() != last_fcs or counter > last_counter + 2)
-            {
-                last_fcs = frame2->fcs();
-                last_counter = counter;
-                result = frame2;
-            }
-            else
-            {
-                hdlc::release(frame2);
-            }
-        }
-#endif
-
-#if 1
-        auto frame3 = demod3(filtered, ADC_BLOCK_SIZE);
-        if (frame3)
-        {
-            if (frame3->fcs() != last_fcs or counter > last_counter + 2)
-            {
-                last_fcs = frame3->fcs();
-                last_counter = counter;
-                result = frame3;
-            }
-            else
-            {
-                hdlc::release(frame3);
-            }
-        }
-#endif
-        locked_ = demod1.locked() or demod2.locked() or demod3.locked();
-        return result;
-    }
+    hdlc::IoFrame* operator()(const q15_t* samples) override;
 
     float readTwist() override;
 
@@ -175,6 +117,13 @@ struct Afsk1200Demodulator : IDemodulator
     size_t size() const override
     {
         return ADC_BLOCK_SIZE;
+    }
+
+    void passall(bool enable) override
+    {
+        demod1.hdlc_decoder_.passall = enable;
+        demod2.hdlc_decoder_.passall = enable;
+        demod3.hdlc_decoder_.passall = enable;
     }
 };
 

@@ -28,16 +28,21 @@ struct IDemodulator
     virtual bool locked() const = 0;
     virtual size_t size() const = 0;
 
+    /**
+     * Tell the demodulator to return all "passable" HDLC frames.  These
+     * are frames which consist of an even multiple of eight bits and are
+     * up to 330 bytes, but which do not have a valid checksum.
+     *
+     * @param enable is true when enabled and false when disabled.  The
+     *  default state is disabled.
+     */
+    virtual void passall(bool enable) = 0;
+
     virtual ~IDemodulator() {}
 
     static void startADC(uint32_t period, uint32_t block_size);
 
-    static void stopADC() {
-        if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
-            CxxErrorHandler();
-        if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
-            CxxErrorHandler();
-    }
+    static void stopADC();
 };
 
 }} // mobilinkd::tnc

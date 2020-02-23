@@ -1,4 +1,4 @@
-// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -75,7 +75,7 @@ struct AFSKModulator : Modulator
     PTT* ptt_;
     uint8_t twist_{50};
     uint16_t volume_{4096};
-    uint16_t buffer_[DAC_BUFFER_LEN];
+    std::array<uint16_t, DAC_BUFFER_LEN> buffer_;
 
     AFSKModulator(osMessageQId queue, PTT* ptt)
     : dacOutputQueueHandle_(queue), ptt_(ptt)
@@ -88,13 +88,28 @@ struct AFSKModulator : Modulator
    {
        set_twist(hw.tx_twist);
 
-       // Configure 80MHz clock for 26.4ksps.
-       htim7.Init.Period = 3029;
+       // Configure 48MHz clock for 26.4ksps.
+       htim7.Init.Period = 1817;
        if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
        {
            ERROR("htim7 init failed");
            CxxErrorHandler();
        }
+
+       DAC_ChannelConfTypeDef sConfig;
+
+       sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+       sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
+       sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+       sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+       sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+       if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+       {
+         CxxErrorHandler();
+       }
+
+       if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048) != HAL_OK) CxxErrorHandler();
+       if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) CxxErrorHandler();
    }
 
    void deinit() override
@@ -120,19 +135,21 @@ struct AFSKModulator : Modulator
 
     void set_twist(uint8_t twist) {twist_ = twist;}
 
-   void send(bool bit) override
-   {
+    void send(bool bit) override
+    {
         switch (running_) {
         case -1:
+            ptt_->on();
+            #ifdef KISS_LOGGING
+                HAL_RCCEx_DisableLSCO();
+            #endif
             fill_first(bit);
             running_ = 0;
             break;
         case 0:
             fill_last(bit);
             running_ = 1;
-            ptt_->on();
-            HAL_TIM_Base_Start(&htim7);
-            HAL_DAC_Start_DMA(&hdac1, DAC_CHANNEL_1, (uint32_t*) buffer_, DAC_BUFFER_LEN, DAC_ALIGN_12B_R);
+            start_conversion();
             break;
         case 1:
             osMessagePut(dacOutputQueueHandle_, bit, osWaitForever);
@@ -171,12 +188,12 @@ struct AFSKModulator : Modulator
 
     void fill_first(bool bit) override
     {
-        fill(buffer_, bit);
+        fill(buffer_.data(), bit);
     }
 
     void fill_last(bool bit) override
     {
-        fill(buffer_ + BIT_LEN, bit);
+        fill(buffer_.data() + BIT_LEN, bit);
     }
 
     void empty() override
@@ -187,10 +204,12 @@ struct AFSKModulator : Modulator
             break;
         case 0:
             running_ = -1;
-            HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
-            HAL_TIM_Base_Stop(&htim7);
+            stop_conversion();
             ptt_->off();
             pos_ = 0;
+            #ifdef KISS_LOGGING
+                HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+            #endif
             break;
         case -1:
             break;
@@ -200,10 +219,12 @@ struct AFSKModulator : Modulator
     void abort() override
     {
         running_ = -1;
-        HAL_DAC_Stop_DMA(&hdac1, DAC_CHANNEL_1);
-        HAL_TIM_Base_Stop(&htim7);
+        stop_conversion();
         ptt_->off();
         pos_ = 0;
+        #ifdef KISS_LOGGING
+            HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+        #endif
 
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
@@ -213,6 +234,33 @@ struct AFSKModulator : Modulator
    {
        return 1.2f;
    }
+
+private:
+   /**
+    * Configure the DAC for timer-based DMA conversion, start the timer,
+    * and start DMA to DAC.
+    */
+   void start_conversion()
+   {
+       DAC_ChannelConfTypeDef sConfig;
+
+       sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+       sConfig.DAC_Trigger = DAC_TRIGGER_T7_TRGO;
+       sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+       sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+       sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
+       if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+       {
+         CxxErrorHandler();
+       }
+
+       HAL_TIM_Base_Start(&htim7);
+       HAL_DAC_Start_DMA(
+           &hdac1, DAC_CHANNEL_1,
+           reinterpret_cast<uint32_t*>(buffer_.data()), buffer_.size(),
+           DAC_ALIGN_12B_R);
+   }
+
 };
 
 }} // mobilinkd::tnc

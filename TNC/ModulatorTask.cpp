@@ -2,6 +2,8 @@
 // All rights reserved.
 
 #include "ModulatorTask.hpp"
+#include "HDLCEncoder.hpp"
+#include "Modulator.hpp"
 #include "Fsk9600Modulator.hpp"
 #include "AFSKModulator.hpp"
 #include "KissHardware.hpp"
@@ -50,12 +52,12 @@ mobilinkd::tnc::Modulator& getModulator()
     case kiss::Hardware::ModemType::AFSK1200:
         return afsk1200modulator;
     default:
-        _Error_Handler(__FILE__, __LINE__);
+        CxxErrorHandler();
     }
 }
 
 mobilinkd::tnc::hdlc::Encoder& getEncoder() {
-    static mobilinkd::tnc::hdlc::Encoder instance(hdlcOutputQueueHandle, &getModulator());
+    static mobilinkd::tnc::hdlc::Encoder instance(hdlcOutputQueueHandle);
     return instance;
 }
 
@@ -79,6 +81,16 @@ void updatePtt()
         getModulator().set_ptt(&simplexPtt);
     else
         getModulator().set_ptt(&multiplexPtt);
+}
+
+void updateModulator()
+{
+    using namespace mobilinkd::tnc::kiss;
+
+    modulator = &getModulator();
+    modulator->init(settings());
+    updatePtt();
+    encoder->updateModulator();
 }
 
 void startModulatorTask(void const*) {

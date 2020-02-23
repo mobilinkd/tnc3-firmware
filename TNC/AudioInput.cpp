@@ -176,8 +176,6 @@ void demodulatorTask() {
             continue;
         }
 
-        gpio::BAT_DIVIDER::off();
-
         auto block = (adc_pool_type::chunk_type*) evt.value.p;
         auto samples = (int16_t*) block->buffer;
 
@@ -201,7 +199,6 @@ void demodulatorTask() {
                 dcd_off();
             }
         }
-        gpio::BAT_DIVIDER::on();
     }
 
     demodulator->stop();
@@ -411,152 +408,6 @@ void pollInputTwist()
 
     DEBUG("exit pollInputTwist");
 }
-
-#if 0
-void streamAverageInputTwist()
-{
-    DEBUG("enter streamAverageInputTwist");
-
-    constexpr uint32_t channel = AUDIO_IN;
-
-    startADC(channel);
-
-    uint32_t acount = 0;
-    float g700 = 0.0f;
-    float g1200 = 0.0f;
-    float g1700 = 0.0f;
-    float g2200 = 0.0f;
-    float g2700 = 0.0f;
-
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf700(700.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf1200(1200.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf1700(1700.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf2200(2200.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf2700(2700.0);
-
-    while (true) {
-      osEvent peek = osMessagePeek(audioInputQueueHandle, 0);
-      if (peek.status == osEventMessage) break;
-
-      acount++;
-      uint32_t count = 0;
-      while (count < TWIST_SAMPLE_SIZE) {
-
-          osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
-          if (evt.status != osEventMessage) continue;
-
-          count += ADC_BUFFER_SIZE;
-
-          auto block = (adc_pool_type::chunk_type*) evt.value.v;
-          uint16_t* data =  (uint16_t*) block->buffer;
-          gf700(data, ADC_BUFFER_SIZE);
-          gf1200(data, ADC_BUFFER_SIZE);
-          gf1700(data, ADC_BUFFER_SIZE);
-          gf2200(data, ADC_BUFFER_SIZE);
-          gf2700(data, ADC_BUFFER_SIZE);
-
-          adcPool.deallocate(block);
-      }
-
-      g700 += 10.0 * log10(gf700);
-      g1200 += 10.0 * log10(gf1200);
-      g1700 += 10.0 * log10(gf1700);
-      g2200 += 10.0 * log10(gf2200);
-      g2700 += 10.0 * log10(gf2700);
-
-      char* buffer = 0;
-      // @TODO: Make re-entrant printf work (or convert to fixed-point).
-      int len = asiprintf_r(
-        &buffer,
-        "_%f, %f, %f, %f, %f\r\n",
-        g700 / acount,
-        g1200 / acount,
-        g1700 / acount,
-        g2200 / acount,
-        g2700 / acount);
-
-      if (len > 0) {
-        buffer[0] = kiss::hardware::POLL_INPUT_TWIST;
-        ioport->write((uint8_t*)buffer, len - 1, 6, 10);
-        free(buffer);
-      }
-
-      gf700.reset();
-      gf1200.reset();
-      gf1700.reset();
-      gf2200.reset();
-      gf2700.reset();
-    }
-
-    stopADC();
-    DEBUG("exit streamAverageInputTwist");
-}
-
-void streamInstantInputTwist()
-{
-    DEBUG("enter streamInstantInputTwist");
-
-    constexpr uint32_t channel = AUDIO_IN;
-
-    startADC(channel);
-
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf700(700.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf1200(1200.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf1700(1700.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf2200(2200.0);
-    GoertzelFilter<TWIST_SAMPLE_SIZE, 26400> gf2700(2700.0);
-
-    while (true) {
-      osEvent peek = osMessagePeek(audioInputQueueHandle, 0);
-      if (peek.status == osEventMessage) break;
-
-      uint32_t count = 0;
-      while (count < TWIST_SAMPLE_SIZE) {
-
-          osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
-          if (evt.status != osEventMessage) continue;
-
-          count += ADC_BUFFER_SIZE;
-
-          auto block = (adc_pool_type::chunk_type*) evt.value.v;
-          uint16_t* data =  (uint16_t*) block->buffer;
-          gf700(data, ADC_BUFFER_SIZE);
-          gf1200(data, ADC_BUFFER_SIZE);
-          gf1700(data, ADC_BUFFER_SIZE);
-          gf2200(data, ADC_BUFFER_SIZE);
-          gf2700(data, ADC_BUFFER_SIZE);
-
-          adcPool.deallocate(block);
-      }
-
-      char* buffer = 0;
-      // @TODO: Make re-entrant printf work (or convert to fixed-point).
-      int len = asiprintf_r(
-        &buffer,
-        "_%f, %f, %f, %f, %f\r\n",
-        10.0 * log10(gf700),
-        10.0 * log10(gf1200),
-        10.0 * log10(gf1700),
-        10.0 * log10(gf2200),
-        10.0 * log10(gf2700));
-
-      if (len > 0) {
-        buffer[0] = kiss::hardware::POLL_INPUT_TWIST;
-        ioport->write((uint8_t*)buffer, len - 1, 6, 10);
-        free(buffer);
-      }
-
-      gf700.reset();
-      gf1200.reset();
-      gf1700.reset();
-      gf2200.reset();
-      gf2700.reset();
-    }
-
-    stopADC();
-    DEBUG("exit streamInstantInputTwist");
-}
-#endif
 
 void streamAmplifiedInputLevels() {
     DEBUG("enter streamAmplifiedInputLevels");
