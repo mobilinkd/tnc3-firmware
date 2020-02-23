@@ -29,10 +29,8 @@ struct Fsk9600Modulator : Modulator
     static constexpr int8_t BIT_LEN = DAC_BUFFER_LEN / 2;
     static constexpr uint16_t VREF = 4095;
 
-    static constexpr std::array<int16_t, BIT_LEN> cos_table{
-        2047,  2020,  1937,  1801,  1616,  1387,  1120,   822,   502,   169,
-        -169,  -502,  -822, -1120, -1387, -1616, -1801, -1937, -2020, -2048
-    };
+    using cos_table_type = std::array<int16_t, Fsk9600Modulator::BIT_LEN>;
+    static const cos_table_type cos_table;
 
     enum class Level { ZERO, HIGH, LOW };
     enum class State { STOPPED, STARTING, RUNNING, STOPPING };
@@ -51,38 +49,7 @@ struct Fsk9600Modulator : Modulator
 
     ~Fsk9600Modulator() override {}
 
-    void init(const kiss::Hardware& hw) override
-    {
-        for (auto& x : buffer_) x = 2048;
-
-        (void) hw; // unused
-
-        state = State::STOPPED;
-        level = Level::HIGH;
-
-        // Configure 80MHz clock for 192ksps.
-        htim7.Init.Period = 416;
-        if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-        {
-            ERROR("htim7 init failed");
-            CxxErrorHandler();
-        }
-
-        DAC_ChannelConfTypeDef sConfig;
-
-        sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
-        sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
-        sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-        sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
-        sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
-        if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
-        {
-          CxxErrorHandler();
-        }
-
-        if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048) != HAL_OK) CxxErrorHandler();
-        if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) CxxErrorHandler();
-    }
+    void init(const kiss::Hardware& hw) override;
 
     void deinit() override
     {

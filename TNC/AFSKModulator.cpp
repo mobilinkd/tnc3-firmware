@@ -1,32 +1,22 @@
 // Copyright 2020 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#include "Fsk9600Modulator.hpp"
+#include "AFSKModulator.hpp"
 
 namespace mobilinkd { namespace tnc {
 
-const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
-    2047,  2020,  1937,  1801,  1616,  1387,  1120,   822,   502,   169,
-    -169,  -502,  -822, -1120, -1387, -1616, -1801, -1937, -2020, -2048
-};
-
-void Fsk9600Modulator::init(const kiss::Hardware& hw)
+void AFSKModulator::init(const kiss::Hardware& hw)
 {
-    for (auto& x : buffer_) x = 2048;
+    set_twist(hw.tx_twist);
 
-    (void) hw; // unused
-
-    state = State::STOPPED;
-    level = Level::HIGH;
-
-    if (HAL_RCC_GetHCLKFreq() != 80000000)
+    if (HAL_RCC_GetHCLKFreq() != 48000000)
     {
-        ERROR("Clock is not 80MHz");
+        ERROR("Clock is not 48MHz");
         CxxErrorHandler();
     }
 
-    // Configure 80MHz clock for 192ksps.
-    htim7.Init.Period = 416;
+    // Configure 48MHz clock for 26.4ksps.
+    htim7.Init.Period = 1817;
     if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
     {
         ERROR("htim7 init failed");
@@ -48,6 +38,5 @@ void Fsk9600Modulator::init(const kiss::Hardware& hw)
     if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 2048) != HAL_OK) CxxErrorHandler();
     if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_1) != HAL_OK) CxxErrorHandler();
 }
-
 
 }} // mobilinkd::tnc
