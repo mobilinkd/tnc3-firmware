@@ -29,7 +29,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.0.0b2";
+const char FIRMWARE_VERSION[] = "2.0.0b3";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 
