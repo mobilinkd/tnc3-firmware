@@ -421,6 +421,10 @@ int main(void)
   /* USER CODE BEGIN SysInit */
 #ifdef KISS_LOGGING
   printf("start\r\n");
+  if (error_message[0] != 0) {
+      printf(error_message);
+      error_message[0] = 0;
+  }
 #endif
 
   // Note that it is important that all GPIO interrupts are disabled until
@@ -1454,7 +1458,7 @@ void SysClock48()
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
 
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
       _Error_Handler(__FILE__, __LINE__);
     }
@@ -1499,14 +1503,10 @@ void SysClock80()
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
 
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
       _Error_Handler(__FILE__, __LINE__);
     }
-
-    /**Configure the Systick interrupt time
-    */
-    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
     RCC_OscInitStruct.OscillatorType = 0;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
@@ -1630,7 +1630,8 @@ void _Error_Handler(char *file, int line)
 #ifdef KISS_LOGGING
   printf("Error handler called from file %s on line %d\r\n", file, line);
 #endif
-  snprintf(error_message, sizeof(error_message), "Error: %s:%d", file, line);
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, line);
+  error_message[sizeof(error_message) - 1] = 0;
 
   stop_now = 0;
   go_back_to_sleep = 0;
