@@ -430,13 +430,13 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
 
     case hardware::SET_PASSALL:
         DEBUG("SET_PASSALL");
-        if (!*it) {
-          options &= ~KISS_OPTION_PASSALL;
-        } else {
+        if (*it) {
           options |= KISS_OPTION_PASSALL;
+        } else {
+          options &= ~KISS_OPTION_PASSALL;
         }
         update_crc();
-        break;
+        [[fallthrough]];
     case hardware::GET_PASSALL:
         DEBUG("GET_PASSALL");
         reply8(hardware::GET_PASSALL, options & KISS_OPTION_PASSALL ? 1 : 0);
@@ -568,7 +568,6 @@ void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
         }
         osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
             osWaitForever);
-        updateModulator();
         [[fallthrough]];
     case hardware::EXT_GET_MODEM_TYPE[1]:
         DEBUG("EXT_GET_MODEM_TYPE");
