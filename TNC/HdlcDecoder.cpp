@@ -63,24 +63,31 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         if (flag) {
             switch (buffer) {
             case 0x7E:
-                if (packet->size() > 0) {
+                if (packet->size() > 2) {
                     // We have started decoding a packet.
                     packet->parse_fcs();
                     report_bits = bits;
-                    if (packet->ok()) {
-                        // CRC is OK, assume a good packet, even if there are
-                        // extraneous bits decoded.
+                    if (packet->size() < 15) {
+                        // 120 (136) bits per AX.25 section 3.9.
+                        // Note we discard the flags.
+                        result_code = STATUS_FRAME_ERROR;
+                    } else if (packet->ok()) {
+                        // Not compliant with AX.25 section 3.9.
+                        // We ignore byte alignment when FCS is OK.
                         result_code = STATUS_OK;
                     } else if (bits == 8) {
                         // Otherwise, if there is a CRC error but we are on
                         // an even byte boundary, flag a CRC error.  This is
                         // used by the "pass all" rule.
+                        // Must be byte-aligned per AX.25 section 3.9.
                         result_code = STATUS_CRC_ERROR;
                     } else {
                         // Extraneous bits mean we have a framing error.
                         // We should not pass this frame up the stack.
                         result_code = STATUS_FRAME_ERROR;
                     }
+                } else {
+                    packet->clear();
                 }
                 state = State::SYNC;
                 flag = 0;
@@ -129,12 +136,20 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         if (packet->size() > 2)
         {
             packet->parse_fcs();
-            if (packet->ok())
+            if (packet->size() < 15) {
+                // 120 (136) bits per AX.25 section 3.9.
+                // Note we discard the flags.
+                result_code = STATUS_NO_CARRIER;
+            }
+            else if (packet->ok())
             {
+                // Not compliant with AX.25 section 3.9.
+                // We ignore byte alignment when FCS is OK.
                 result_code = STATUS_OK;
             }
             else if (bits == 8)
             {
+                // Must be byte-aligned per AX.25 section 3.9.
                 result_code = STATUS_CRC_ERROR;
             }
             else
