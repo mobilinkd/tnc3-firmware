@@ -13,19 +13,27 @@
 #include "cmsis_os.h"
 
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <atomic>
 
 extern UART_HandleTypeDef huart3;
 extern osMessageQId ioEventQueueHandle;
 
-uint8_t rxBuffer;
-std::atomic<int> uart_error{HAL_UART_ERROR_NONE};
+std::atomic<uint32_t> uart_error{HAL_UART_ERROR_NONE};
 
 std::atomic<bool> txDoneFlag{true};
 
 uint8_t tmpBuffer[mobilinkd::tnc::TX_BUFFER_SIZE];
 uint8_t tmpBuffer2[mobilinkd::tnc::TX_BUFFER_SIZE];
+
+constexpr const int RX_BUFFER_SIZE = 127;
+unsigned char rxBuffer[RX_BUFFER_SIZE * 2];
+
+// 3 chunks of 128 bytes.  The first byte in each chunk is the length.
+typedef mobilinkd::tnc::memory::Pool<
+    3, RX_BUFFER_SIZE + 1> serial_pool_type;
+serial_pool_type serialPool;
 
 void log_frame(mobilinkd::tnc::hdlc::IoFrame* frame)
 {
@@ -41,7 +49,56 @@ void log_frame(mobilinkd::tnc::hdlc::IoFrame* frame)
     DEBUG((char*)tmpBuffer2);
 }
 
-extern "C" void startSerialTask(void const* arg)
+// HAL does not have
+HAL_StatusTypeDef UART_DMAPauseReceive(UART_HandleTypeDef *huart)
+{
+  /* Process Locked */
+  __HAL_LOCK(huart);
+
+  if ((huart->RxState == HAL_UART_STATE_BUSY_RX) &&
+      (HAL_IS_BIT_SET(huart->Instance->CR3, USART_CR3_DMAR)))
+  {
+    /* Disable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    CLEAR_BIT(huart->Instance->CR1, USART_CR1_PEIE);
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+    /* Disable the UART DMA Rx request */
+    CLEAR_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}
+
+HAL_StatusTypeDef UART_DMAResumeReceive(UART_HandleTypeDef *huart)
+{
+  /* Process Locked */
+  __HAL_LOCK(huart);
+
+  if (huart->RxState == HAL_UART_STATE_BUSY_RX)
+  {
+    /* Clear the Overrun flag before resuming the Rx transfer */
+    __HAL_UART_CLEAR_FLAG(huart, UART_CLEAR_OREF);
+
+    /* Reenable PE and ERR (Frame error, noise error, overrun error) interrupts */
+    SET_BIT(huart->Instance->CR1, USART_CR1_PEIE);
+    SET_BIT(huart->Instance->CR3, USART_CR3_EIE);
+
+    /* Enable the UART DMA Rx request */
+    SET_BIT(huart->Instance->CR3, USART_CR3_DMAR);
+  }
+
+  /* Process Unlocked */
+  __HAL_UNLOCK(huart);
+
+  return HAL_OK;
+}
+
+extern "C" void startSerialTask(void const* arg) __attribute__((optimize("-O1")));
+
+void startSerialTask(void const* arg)
 {
     using namespace mobilinkd::tnc;
 
@@ -58,90 +115,116 @@ extern "C" void startSerialTask(void const* arg)
 
     hdlc::IoFrame* frame = hdlc::acquire_wait();
 
-    HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
+    HAL_UART_Receive_DMA(&huart3, rxBuffer, RX_BUFFER_SIZE * 2);
+    __HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);
 
     uint32_t last_sent_time = osKernelSysTick();
     uint32_t current_sent_time = 0;
+    bool paused = false;
 
     while (true) {
         osEvent evt = osMessageGet(serialPort->queue(), osWaitForever);
 
         if (evt.status != osEventMessage) {
-            HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
             continue;
         }
 
-        if (evt.value.v & 0x100) {
+        if (evt.value.v < FLASH_BASE) // Assumes FLASH_BASE < SRAM_BASE.
+        {
+            // Error received.
             hdlc::release(frame);
-            ERROR("UART Error: %08lx", evt.value.v);
+            ERROR("UART Error: %08lx", uart_error.load());
             uart_error.store(HAL_UART_ERROR_NONE);
             frame = hdlc::acquire_wait();
-            HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
+            HAL_UART_Receive_DMA(&huart3, rxBuffer, RX_BUFFER_SIZE * 2);
+            __HAL_UART_ENABLE_IT(&huart3, UART_IT_IDLE);
             continue;
         }
 
-        uint8_t c = evt.value.v;
-        switch (state) {
-        case WAIT_FBEGIN:
-            if (c == FEND) state = WAIT_FRAME_TYPE;
-            break;
-        case WAIT_FRAME_TYPE:
-            if (c == FEND) break;   // Still waiting for FRAME_TYPE.
-            frame->type(c);
-            state = WAIT_FEND;
-            break;
-        case WAIT_FEND:
-            switch (c) {
-            case FESC:
-                state = WAIT_ESCAPED;
+        auto block = (serial_pool_type::chunk_type*) evt.value.p;
+        auto data = static_cast<unsigned char*>(block->buffer);
+
+        uint8_t end = data[0] + 1;
+        for (uint8_t i = 1; i != end; ++i) {
+            uint8_t c = data[i];
+            switch (state) {
+            case WAIT_FBEGIN:
+                if (c == FEND) state = WAIT_FRAME_TYPE;
                 break;
-            case FEND:
-                frame->source(hdlc::IoFrame::SERIAL_DATA);
-                if (osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame), osWaitForever) != osOK)
-                {
-                    hdlc::release(frame);
+            case WAIT_FRAME_TYPE:
+                if (c == FEND) break;   // Still waiting for FRAME_TYPE.
+                if (c < 8 or c == 0xFF) {
+                    frame->type(c);
+                    state = WAIT_FEND;
+                } else {
+                    WARN("Bad frame type");
+                    state = WAIT_FBEGIN;
                 }
-                current_sent_time = osKernelSysTick();
-                if (last_sent_time + 50 > current_sent_time) {
-                    uint32_t delay = (last_sent_time + 50) - current_sent_time;
-                    osDelay(delay);
-                }
-                last_sent_time = current_sent_time;
-                frame = hdlc::acquire_wait();
-                state = WAIT_FBEGIN;
                 break;
-            default:
-                if (not frame->push_back(c)) {
+            case WAIT_FEND:
+                switch (c) {
+                case FESC:
+                    state = WAIT_ESCAPED;
+                    break;
+                case FEND:
+                    frame->source(hdlc::IoFrame::SERIAL_DATA);
+                    if (osMessagePut(
+                        ioEventQueueHandle,
+                        reinterpret_cast<uint32_t>(frame),
+                        osWaitForever) != osOK)
+                    {
+                        WARN("Failed to send serial frame");
+                        hdlc::release(frame);
+                    }
+
+                    if (hdlc::ioFramePool().size() < (hdlc::ioFramePool().capacity() / 4))
+                    {
+                        UART_DMAPauseReceive(&huart3);
+                        WARN("Pausing UART RX");
+                        while (hdlc::ioFramePool().size() < (hdlc::ioFramePool().capacity() / 2))
+                        {
+                            osThreadYield();
+                        }
+                        UART_DMAResumeReceive(&huart3);
+                    }
+
+                    frame = hdlc::acquire_wait();
+                    state = WAIT_FBEGIN;
+                    break;
+                default:
+                    if (not frame->push_back(c)) {
+                        hdlc::release(frame);
+                        state = WAIT_FBEGIN;  // Drop frame;
+                        frame = hdlc::acquire_wait();
+                    }
+                }
+                break;
+            case WAIT_ESCAPED:
+                state = WAIT_FEND;
+                switch (c) {
+                case TFESC:
+                    if (not frame->push_back(FESC)) {
+                        hdlc::release(frame);
+                        state = WAIT_FBEGIN;  // Drop frame;
+                        frame = hdlc::acquire_wait();
+                    }
+                    break;
+                case TFEND:
+                    if (not frame->push_back(FEND)) {
+                        hdlc::release(frame);
+                        state = WAIT_FBEGIN;  // Drop frame;
+                        frame = hdlc::acquire_wait();
+                    }
+                    break;
+                default:
                     hdlc::release(frame);
                     state = WAIT_FBEGIN;  // Drop frame;
                     frame = hdlc::acquire_wait();
                 }
+                break;
             }
-            break;
-        case WAIT_ESCAPED:
-            state = WAIT_FEND;
-            switch (c) {
-            case TFESC:
-                if (not frame->push_back(FESC)) {
-                    hdlc::release(frame);
-                    state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::acquire_wait();
-                }
-                break;
-            case TFEND:
-                if (not frame->push_back(FEND)) {
-                    hdlc::release(frame);
-                    state = WAIT_FBEGIN;  // Drop frame;
-                    frame = hdlc::acquire_wait();
-                }
-                break;
-            default:
-                hdlc::release(frame);
-                state = WAIT_FBEGIN;  // Drop frame;
-                frame = hdlc::acquire_wait();
-            }
-            break;
         }
+        serialPool.deallocate(block);
     }
 }
 
@@ -151,18 +234,73 @@ extern "C" void HAL_UART_TxCpltCallback(UART_HandleTypeDef*)
     txDoneFlag = true;
 }
 
-extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *)
+extern "C" void HAL_UART_RxHalfCpltCallback(UART_HandleTypeDef *huart)
 {
-    osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), (uint32_t) rxBuffer, 0);
+    uint32_t len = (RX_BUFFER_SIZE * 2) - __HAL_DMA_GET_COUNTER(huart->hdmarx);
+    if (len == 0) return;
+    if (len > RX_BUFFER_SIZE) {
+        len = RX_BUFFER_SIZE; // wrapped.
+    }
 
-    HAL_UART_Receive_IT(&huart3, &rxBuffer, 1);
+    auto block = serialPool.allocate();
+    if (!block) return;
+    memmove(block->buffer + 1, rxBuffer, len);
+    block->buffer[0] = len;
+    auto status = osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), (uint32_t) block, 0);
+    if (status != osOK) serialPool.deallocate(block);
 }
 
+extern "C" void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    uint32_t hdmarx = __HAL_DMA_GET_COUNTER(huart->hdmarx);
+    uint32_t len = 0;
+    if (hdmarx > RX_BUFFER_SIZE) {
+        len = RX_BUFFER_SIZE;   // wrapped.
+    } else {
+        len = RX_BUFFER_SIZE - hdmarx;
+    }
+    if (len == 0) return;
+
+    auto block = serialPool.allocate();
+    if (!block) return;
+    memmove(block->buffer + 1, rxBuffer + RX_BUFFER_SIZE, len);
+    block->buffer[0] = len;
+    auto status = osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), (uint32_t) block, 0);
+    if (status != osOK) serialPool.deallocate(block);
+}
+
+extern "C" void idleInterruptCallback(UART_HandleTypeDef* huart)
+{
+    uint32_t len = (RX_BUFFER_SIZE * 2) - __HAL_DMA_GET_COUNTER(huart->hdmarx);
+
+    if (len == 0) return;
+
+    auto block = serialPool.allocate();
+    if (!block) return;
+
+    HAL_UART_AbortReceive(huart);
+
+    if (len > RX_BUFFER_SIZE) {
+        // Second half
+        len = len - RX_BUFFER_SIZE;
+        memmove(block->buffer + 1, rxBuffer + RX_BUFFER_SIZE, len);
+    } else {
+        // First half
+        memmove(block->buffer + 1, rxBuffer, len);
+    }
+
+    block->buffer[0] = len;
+
+    HAL_UART_Receive_DMA(huart, rxBuffer, RX_BUFFER_SIZE * 2);
+
+    auto status = osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), (uint32_t) block, 0);
+    if (status != osOK) serialPool.deallocate(block);
+
+}
 
 extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart)
 {
-    osMessagePut(mobilinkd::tnc::getSerialPort()->queue(),
-        (uint32_t) (huart->gState<<16) | huart->ErrorCode | 0x100, 0);
+    osMessagePut(mobilinkd::tnc::getSerialPort()->queue(), huart->ErrorCode, 0);
     uart_error.store((huart->gState<<16) | huart->ErrorCode);
     huart->ErrorCode = HAL_UART_ERROR_NONE;
     huart->gState = HAL_UART_STATE_READY;
