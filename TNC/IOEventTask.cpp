@@ -375,6 +375,10 @@ void startIOEventTask(void const*)
         case IoFrame::FRAME_RETURN:
             hdlc::release(frame);
             break;
+        default:
+            ERROR("Unknown Frame Type");
+            hdlc::release(frame);
+            break;
         }
     }
 }
