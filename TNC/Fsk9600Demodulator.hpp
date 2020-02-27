@@ -70,7 +70,7 @@ struct Fsk9600Demodulator : IDemodulator
         sConfig.Channel = AUDIO_IN;
         sConfig.Rank = ADC_REGULAR_RANK_1;
         sConfig.SingleDiff = ADC_SINGLE_ENDED;
-        sConfig.SamplingTime = ADC_SAMPLETIME_92CYCLES_5;
+        sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
         sConfig.OffsetNumber = ADC_OFFSET_NONE;
         sConfig.Offset = 0;
         if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)

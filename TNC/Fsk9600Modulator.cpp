@@ -5,9 +5,16 @@
 
 namespace mobilinkd { namespace tnc {
 
+/*
 const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
     2047,  2020,  1937,  1801,  1616,  1387,  1120,   822,   502,   169,
     -169,  -502,  -822, -1120, -1387, -1616, -1801, -1937, -2020, -2048
+};
+*/
+
+const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
+     2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,
+    -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048
 };
 
 void Fsk9600Modulator::init(const kiss::Hardware& hw)
