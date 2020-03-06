@@ -60,6 +60,7 @@
 #include "bm78.h"
 #include "base64.h"
 #include "KissHardware.h"
+#include "Log.h"
 
 /* USER CODE END Includes */
 
@@ -905,6 +906,7 @@ static void MX_DAC1_Init(void)
     */
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
   sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_ENABLE;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -1455,6 +1457,8 @@ void SysClock48()
 
     if (HAL_RCC_GetHCLKFreq() == 48000000) return;
 
+    INFO("Setting 48MHz SysClock.");
+
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
 
@@ -1499,6 +1503,8 @@ void SysClock80()
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
 
     if (HAL_RCC_GetHCLKFreq() == 80000000) return;
+
+    INFO("Setting 80MHz SysClock.");
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
