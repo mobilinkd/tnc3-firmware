@@ -211,8 +211,8 @@ private:
         case Level::LOW:
             if (bit)
             {
-                std::transform(cos_table.rbegin(), cos_table.rend(), buffer,
-                    [this](auto x){return adjust_level(x);});
+                std::transform(cos_table.begin(), cos_table.end(), buffer,
+                    [this](auto x){return adjust_level(-1 - x);});
                 level = Level::HIGH;
             }
             else

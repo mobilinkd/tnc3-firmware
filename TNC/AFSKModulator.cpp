@@ -9,11 +9,7 @@ void AFSKModulator::init(const kiss::Hardware& hw)
 {
     set_twist(hw.tx_twist);
 
-    if (HAL_RCC_GetHCLKFreq() != 48000000)
-    {
-        ERROR("Clock is not 48MHz");
-        CxxErrorHandler();
-    }
+    SysClock48();
 
     // Configure 48MHz clock for 26.4ksps.
     htim7.Init.Period = 1817;

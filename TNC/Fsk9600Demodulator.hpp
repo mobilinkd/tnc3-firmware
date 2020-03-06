@@ -51,7 +51,6 @@ struct Fsk9600Demodulator : IDemodulator
 
     void start() override
     {
-        INFO("Setting 80MHz SysClock.");
         SysClock80();
 
         auto const& bpf_coeffs = bpf_bank[kiss::settings().rx_twist + 3];

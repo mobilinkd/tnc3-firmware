@@ -6,15 +6,25 @@
 namespace mobilinkd { namespace tnc {
 
 /*
+ * Cosine.
 const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
     2047,  2020,  1937,  1801,  1616,  1387,  1120,   822,   502,   169,
     -169,  -502,  -822, -1120, -1387, -1616, -1801, -1937, -2020, -2048
 };
 */
 
+/*
+ * Square wave -- filtered in hardware at 7200Hz
 const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
      2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,  2047,
     -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048, -2048
+};
+*/
+
+// Gaussian
+const Fsk9600Modulator::cos_table_type Fsk9600Modulator::cos_table = {
+    2042,  2027,  1995,  1931,  1815,  1626,  1345,   968,   507,     0,
+    -507,  -968, -1345, -1626, -1815, -1931, -1995, -2027, -2042, -2048
 };
 
 void Fsk9600Modulator::init(const kiss::Hardware& hw)
@@ -26,11 +36,7 @@ void Fsk9600Modulator::init(const kiss::Hardware& hw)
     state = State::STOPPED;
     level = Level::HIGH;
 
-    if (HAL_RCC_GetHCLKFreq() != 80000000)
-    {
-        ERROR("Clock is not 80MHz");
-        CxxErrorHandler();
-    }
+    SysClock80();
 
     // Configure 80MHz clock for 192ksps.
     htim7.Init.Period = 416;
