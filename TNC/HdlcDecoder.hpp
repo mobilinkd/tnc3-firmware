@@ -33,6 +33,7 @@ struct NewDecoder
     uint8_t report_bits{0};
     uint8_t ones{0};
     bool flag{0};
+    bool had_dcd{false};
 
     /**
      * Tell the demodulator to return all "passable" HDLC frames.  These
@@ -40,6 +41,10 @@ struct NewDecoder
      * up to 330 bytes, but which do not have a valid checksum.
      */
     bool passall{false};
+
+    enum class DCD { ON, PARTIAL, OFF };
+
+    DCD dcd{DCD::PARTIAL};
 
     frame_type* packet{nullptr};
 
@@ -57,6 +62,11 @@ struct NewDecoder
     void setPassall(bool enabled)
     {
         passall = enabled;
+    }
+
+    void setDCD(DCD config)
+    {
+        dcd = config;
     }
 };
 

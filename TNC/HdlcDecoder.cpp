@@ -38,7 +38,7 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         if (!packet) osThreadYield();
     }
 
-    if (pll_lock) {
+    if (pll_lock or dcd != DCD::ON) {
         if (ones == 5) {
             if (input) {
                 // flag byte
@@ -50,6 +50,8 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
                 return result_code;
             }
         }
+
+        had_dcd |= pll_lock;
 
         buffer >>= 1;
         buffer |= (input * 128);
@@ -63,14 +65,14 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         if (flag) {
             switch (buffer) {
             case 0x7E:
-                if (packet->size() > 2) {
+                if (packet->size() > 14) {
                     // We have started decoding a packet.
                     packet->parse_fcs();
                     report_bits = bits;
-                    if (packet->size() < 15) {
+                    if (dcd == DCD::PARTIAL and not had_dcd) {
                         // 120 (136) bits per AX.25 section 3.9.
                         // Note we discard the flags.
-                        result_code = STATUS_FRAME_ERROR;
+                        result_code = STATUS_NO_CARRIER;
                     } else if (packet->ok()) {
                         // Not compliant with AX.25 section 3.9.
                         // We ignore byte alignment when FCS is OK.
@@ -92,6 +94,7 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
                 state = State::SYNC;
                 flag = 0;
                 bits = 0;
+                had_dcd = false;
                 break;
             case 0xFE:
                 if (packet->size()) {
@@ -133,15 +136,11 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         // PLL unlocked.
         // Note the rules here are the same as above.
         report_bits = bits;
-        if (packet->size() > 2)
+        had_dcd = false;
+        if (packet->size() > 14)
         {
             packet->parse_fcs();
-            if (packet->size() < 15) {
-                // 120 (136) bits per AX.25 section 3.9.
-                // Note we discard the flags.
-                result_code = STATUS_NO_CARRIER;
-            }
-            else if (packet->ok())
+            if (packet->ok())
             {
                 // Not compliant with AX.25 section 3.9.
                 // We ignore byte alignment when FCS is OK.
@@ -159,7 +158,7 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         }
         else
         {
-            result_code = STATUS_NO_CARRIER;
+            packet->clear();
         }
 
         if (state != State::IDLE) {
