@@ -25,8 +25,9 @@ using namespace mobilinkd::libafsk;
 
 struct Encoder {
 
-    static const uint8_t IDLE = 0x00;
-    static const uint8_t FLAG = 0x7E;
+    // static constexpr uint8_t IDLE = 0x00;
+    static constexpr uint8_t IDLE = 0x7E;
+    static constexpr uint8_t FLAG = 0x7E;
 
     enum class state_type {
         STATE_IDLE,
