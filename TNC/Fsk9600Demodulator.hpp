@@ -10,6 +10,7 @@
 #include "NRZI.hpp"
 #include "HdlcDecoder.hpp"
 #include "KissHardware.hpp"
+#include "StandardDeviation.hpp"
 
 namespace mobilinkd { namespace tnc {
 
@@ -46,6 +47,8 @@ struct Fsk9600Demodulator : IDemodulator
     Descrambler lfsr_;
     libafsk::NRZI nrzi_;
     hdlc::NewDecoder hdlc_decoder_;
+    StandardDeviation snr_;
+    bool decoding_{false};
 
     virtual ~Fsk9600Demodulator() {}
 

@@ -205,6 +205,7 @@ struct Encoder {
 
     void send_delay() {
         const size_t tmp = tx_delay_ * 1.25 * modulator_->bits_per_ms();
+
         INFO("Sending %u IDLE bytes", tmp);
         for (size_t i = 0; i != tmp; i++) {
             send_raw(IDLE);

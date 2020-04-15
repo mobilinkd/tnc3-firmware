@@ -105,6 +105,8 @@ constexpr const uint8_t GET_MAC_ADDRESS = 48;
 constexpr const uint8_t GET_DATETIME = 49;
 constexpr const uint8_t SET_DATETIME = 50;
 constexpr const uint8_t GET_ERROR_MSG = 51;
+constexpr const uint8_t GET_SNR = 52;
+constexpr const uint8_t GET_BER = 53;
 
 constexpr const uint8_t SET_BLUETOOTH_NAME = 65;
 constexpr const uint8_t GET_BLUETOOTH_NAME = 66;
@@ -401,5 +403,7 @@ struct I2C_Storage
 void reply8(uint8_t cmd, uint8_t result) __attribute__((noinline));
 
 void reply16(uint8_t cmd, uint16_t result) __attribute__((noinline));
+
+void reply(uint8_t cmd, const uint8_t* data, uint16_t len) __attribute__((noinline));
 
 }}} // mobilinkd::tnc::kiss

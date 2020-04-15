@@ -112,7 +112,7 @@ void reply16(uint8_t cmd, uint16_t result) {
     ioport->write(data, 3, 6, osWaitForever);
 }
 
-inline void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
+void reply(uint8_t cmd, const uint8_t* data, uint16_t len) {
     uint8_t* buffer = static_cast<uint8_t*>(alloca(len + 1));
     buffer[0] = cmd;
     for (uint16_t i = 0; i != len; i++)

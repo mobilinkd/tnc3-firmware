@@ -5,6 +5,7 @@
 #include "Goertzel.h"
 #include "AudioInput.hpp"
 #include "GPIO.hpp"
+#include "Log.h"
 
 namespace mobilinkd { namespace tnc {
 
@@ -32,8 +33,31 @@ hdlc::IoFrame* Fsk9600Demodulator::operator()(const q15_t* samples)
                 if (tmp) hdlc::release(tmp);
             } else {
                 result = hdlc_decoder_(nrzi_.decode(lfsr_(bit)), locked_);
+#ifdef KISS_LOGGING
+                if (result) {
+                    INFO("samples = %ld, mean = %d, dev = %d",
+                        snr_.samples, int(snr_.mean), int(snr_.stdev()));
+                    INFO("SNR = %dmB", int(snr_.SNR() * 100.0f));
+                    snr_.reset();
+                }
+#endif
             }
+
+#ifdef KISS_LOGGING
+            if (hdlc_decoder_.active())
+            {
+                if (!decoding_)
+                {
+                    snr_.reset();
+                    decoding_ = true;
+                }
+                snr_.capture(float(abs(sample)));
+            } else {
+                decoding_ = false;
+            }
+#endif
         }
+
     }
     return result;
 }

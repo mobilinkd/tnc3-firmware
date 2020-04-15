@@ -68,6 +68,11 @@ struct NewDecoder
     {
         dcd = config;
     }
+
+    bool active() const
+    {
+        return state != State::IDLE;
+    }
 };
 
 }}} // mobilinkd::tnc::hdlc
