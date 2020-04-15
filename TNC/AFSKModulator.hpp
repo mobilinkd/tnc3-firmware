@@ -117,6 +117,7 @@ struct AFSKModulator : Modulator
             #ifdef KISS_LOGGING
                 HAL_RCCEx_DisableLSCO();
             #endif
+
             fill_first(bit);
             running_ = 0;
             break;
@@ -202,7 +203,7 @@ struct AFSKModulator : Modulator
 
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
-    }
+   }
 
    float bits_per_ms() const override
    {
