@@ -151,7 +151,7 @@ void UsbPort::init()
 {
     if (cdcTaskHandle_) return;
 
-    osMessageQDef(cdcQueue, 4, void*);
+    osMessageQDef(cdcQueue, 128, void*);
     queue_ = osMessageCreate(osMessageQ(cdcQueue), 0);
 
     osMutexDef(usbMutex);

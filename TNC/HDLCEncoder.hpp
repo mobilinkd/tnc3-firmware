@@ -196,6 +196,8 @@ struct Encoder {
             }
             send_delay();
             send_delay_ = false;
+        } else {
+            send_raw(FLAG);
         }
 
         for (auto c : *frame) send(c);

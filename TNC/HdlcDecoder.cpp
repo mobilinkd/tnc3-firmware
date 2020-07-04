@@ -65,7 +65,7 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         if (flag) {
             switch (buffer) {
             case 0x7E:
-                if (packet->size() > 14) {
+                if (packet->size() > 2) {
                     // We have started decoding a packet.
                     packet->parse_fcs();
                     report_bits = bits;
@@ -137,7 +137,7 @@ uint8_t NewDecoder::process(bool input, bool pll_lock)
         // Note the rules here are the same as above.
         report_bits = bits;
         had_dcd = false;
-        if (packet->size() > 14)
+        if (packet->size() > 2)
         {
             packet->parse_fcs();
             if (packet->ok())
