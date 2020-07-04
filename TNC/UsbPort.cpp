@@ -13,36 +13,27 @@
 extern "C" void TNC_Error_Handler(int dev, int err);
 
 extern osMessageQId ioEventQueueHandle;
+extern USBD_HandleTypeDef hUsbDeviceFS;
 
 extern "C" void cdc_receive(const uint8_t* buf, uint32_t len)
 {
     using namespace mobilinkd::tnc;
-    if (mobilinkd::tnc::getUsbPort()->queue() != 0)
+
+    // This is running in an interrupt handler.
+
+    UsbCdcRxBuffer_t* usbCdcRxBuffer = (UsbCdcRxBuffer_t*)(buf);
+    usbCdcRxBuffer->size = len;
+
+    if (getUsbPort()->queue() != 0)
     {
-        if (len == 1)
+        // This should always succeed.
+        if (osMessagePut(getUsbPort()->queue(), (uint32_t) buf, 0) == osOK)
         {
-            // Send single byte via queue directly.  Linux seems to do
-            // this for ttyACM ports.
-            osMessagePut(getUsbPort()->queue(), *buf, osWaitForever);
             return;
         }
-
-        auto frame = hdlc::acquire();
-        if (frame)
-        {
-            for (uint32_t i = 0; i != len; ++i)
-            {
-                frame->push_back(*buf++);
-            }
-            frame->source(hdlc::IoFrame::SERIAL_DATA);
-            if (osMessagePut(mobilinkd::tnc::getUsbPort()->queue(),
-                (uint32_t) frame,
-                osWaitForever) != osOK)
-            {
-                mobilinkd::tnc::hdlc::release(frame);
-            }
-        }
     }
+    ERROR("USB packet dropped");
+    USBD_CDC_ReceivePacket(&hUsbDeviceFS); // re-enable receive.
 }
 
 extern "C" void startCDCTask(void const* arg)
@@ -116,7 +107,7 @@ void UsbPort::add_char(uint8_t c)
 
 void UsbPort::run()
 {
-    frame_ = hdlc::acquire();
+    if (frame_ == nullptr) frame_ = hdlc::acquire();
 
     while (true) {
         osEvent evt = osMessageGet(queue(), osWaitForever);
@@ -124,34 +115,31 @@ void UsbPort::run()
             continue;
         }
 
-        uint32_t c = evt.value.v;
+        auto usbCdcRxBuffer = (UsbCdcRxBuffer_t*) evt.value.p;
 
-        if (c < 0x100) // Assume single byte transfer.
-        {
-            add_char(c);
-            continue;
+        // Handle ping-pong buffers.
+        if (usbCdcRxBuffer == usbCdcRxBuffer_1) {
+            USBD_CDC_SetRxBuffer(&hUsbDeviceFS, usbCdcRxBuffer_2->buffer);
+        } else {
+            USBD_CDC_SetRxBuffer(&hUsbDeviceFS, usbCdcRxBuffer_1->buffer);
         }
+        USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-        auto input = static_cast<hdlc::IoFrame*>(evt.value.p);
+        INFO("USB p %lu", usbCdcRxBuffer->size);
 
-        if (!isOpen()) {
-            hdlc::release(input);
-            continue;
+        if (isOpen()) {
+            for (uint32_t i = 0; i != usbCdcRxBuffer->size; ++i) {
+                add_char(usbCdcRxBuffer->buffer[i]);
+            }
         }
-
-        for (uint8_t c : *input) {
-            add_char(c);
-        }
-        hdlc::release(input);
     }
-
 }
 
 void UsbPort::init()
 {
     if (cdcTaskHandle_) return;
 
-    osMessageQDef(cdcQueue, 128, void*);
+    osMessageQDef(cdcQueue, 4, void*);
     queue_ = osMessageCreate(osMessageQ(cdcQueue), 0);
 
     osMutexDef(usbMutex);

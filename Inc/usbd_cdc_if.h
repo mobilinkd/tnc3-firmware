@@ -78,6 +78,9 @@
   */
 /* USER CODE BEGIN EXPORTED_DEFINES */
 
+#define APP_RX_DATA_SIZE  64
+#define APP_TX_DATA_SIZE  64
+
 /* USER CODE END EXPORTED_DEFINES */
 
 /**
@@ -90,6 +93,14 @@
   */
 
 /* USER CODE BEGIN EXPORTED_TYPES */
+
+struct UsbCdcRxBuffer
+{
+    uint8_t buffer[APP_RX_DATA_SIZE];
+    uint32_t size;
+};
+
+typedef struct UsbCdcRxBuffer UsbCdcRxBuffer_t;
 
 /* USER CODE END EXPORTED_TYPES */
 
@@ -119,6 +130,10 @@
 extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 
 /* USER CODE BEGIN EXPORTED_VARIABLES */
+
+// USB CDC receive ping pong buffer.
+extern UsbCdcRxBuffer_t* usbCdcRxBuffer_1;
+extern UsbCdcRxBuffer_t* usbCdcRxBuffer_2;
 
 /* USER CODE END EXPORTED_VARIABLES */
 
