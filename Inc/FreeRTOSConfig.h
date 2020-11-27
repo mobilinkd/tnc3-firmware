@@ -67,7 +67,8 @@
 #define configCHECK_FOR_STACK_OVERFLOW           1
 #define configENABLE_BACKWARD_COMPATIBILITY      0
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION  1
-#define configUSE_TICKLESS_IDLE                  1
+// FIXME: configUSE_TICKLESS_IDLE must be 0 or changing modem type locks up.
+#define configUSE_TICKLESS_IDLE                  0
 
 /* Co-routine definitions. */
 #define configUSE_CO_ROUTINES                    0

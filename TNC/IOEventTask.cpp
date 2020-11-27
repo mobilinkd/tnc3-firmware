@@ -12,6 +12,7 @@
 #include "Kiss.hpp"
 #include "KissHardware.hpp"
 #include "ModulatorTask.hpp"
+#include "Modulator.hpp"
 #include "UsbPort.hpp"
 #include "SerialPort.hpp"
 #include "NullPort.hpp"
@@ -151,6 +152,7 @@ void startIOEventTask(void const*)
                     hpcd_USB_FS.Instance->BCDR = 0;
                     HAL_PCD_MspDeInit(&hpcd_USB_FS);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
+//                    SysClock4();
                     if (ioport != getUsbPort())
                     {
                         break;
@@ -272,6 +274,7 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_CONNECTED:
                 INFO("VBUS Detected");
+//                SysClock48();
                 MX_USB_DEVICE_Init();
                 HAL_PCD_MspInit(&hpcd_USB_FS);
                 hpcd_USB_FS.Instance->BCDR = 0;
@@ -370,6 +373,10 @@ void startIOEventTask(void const*)
             }
             break;
         case IoFrame::FRAME_RETURN:
+            hdlc::release(frame);
+            break;
+        default:
+            ERROR("Unknown Frame Type");
             hdlc::release(frame);
             break;
         }

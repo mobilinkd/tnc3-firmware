@@ -2,13 +2,17 @@
 // All rights reserved.
 
 #include "ModulatorTask.hpp"
+#include "HDLCEncoder.hpp"
+#include "Modulator.hpp"
+#include "Fsk9600Modulator.hpp"
+#include "AFSKModulator.hpp"
 #include "KissHardware.hpp"
 #include "main.h"
 
 mobilinkd::tnc::SimplexPTT simplexPtt;
 mobilinkd::tnc::MultiplexPTT multiplexPtt;
 
-mobilinkd::tnc::AFSKModulator* modulator;
+mobilinkd::tnc::Modulator* modulator;
 mobilinkd::tnc::hdlc::Encoder* encoder;
 
 // DMA Conversion half complete.
@@ -34,13 +38,26 @@ extern "C" void HAL_DAC_DMAUnderrunCallbackCh1(DAC_HandleTypeDef*) {
     modulator->abort();
 }
 
-mobilinkd::tnc::AFSKModulator& getModulator() {
-    static mobilinkd::tnc::AFSKModulator instance(dacOutputQueueHandle, &simplexPtt);
-    return instance;
+mobilinkd::tnc::Modulator& getModulator()
+{
+    using namespace mobilinkd::tnc;
+
+    static AFSKModulator afsk1200modulator(dacOutputQueueHandle, &simplexPtt);
+    static Fsk9600Modulator fsk9600modulator(dacOutputQueueHandle, &simplexPtt);
+
+    switch (kiss::settings().modem_type)
+    {
+    case kiss::Hardware::ModemType::FSK9600:
+        return fsk9600modulator;
+    case kiss::Hardware::ModemType::AFSK1200:
+        return afsk1200modulator;
+    default:
+        CxxErrorHandler();
+    }
 }
 
 mobilinkd::tnc::hdlc::Encoder& getEncoder() {
-    static mobilinkd::tnc::hdlc::Encoder instance(hdlcOutputQueueHandle, &getModulator());
+    static mobilinkd::tnc::hdlc::Encoder instance(hdlcOutputQueueHandle);
     return instance;
 }
 
@@ -61,9 +78,19 @@ void updatePtt()
     using namespace mobilinkd::tnc::kiss;
 
     if (settings().options & KISS_OPTION_PTT_SIMPLEX)
-        modulator->set_ptt(&simplexPtt);
+        getModulator().set_ptt(&simplexPtt);
     else
-        modulator->set_ptt(&multiplexPtt);
+        getModulator().set_ptt(&multiplexPtt);
+}
+
+void updateModulator()
+{
+    using namespace mobilinkd::tnc::kiss;
+
+    modulator = &getModulator();
+    modulator->init(settings());
+    updatePtt();
+    encoder->updateModulator();
 }
 
 void startModulatorTask(void const*) {
@@ -78,7 +105,7 @@ void startModulatorTask(void const*) {
 
     updatePtt();
 
-    modulator->set_twist(settings().tx_twist);
+    getModulator().init(settings());
 
     encoder->tx_delay(settings().txdelay);
     encoder->p_persist(settings().ppersist);

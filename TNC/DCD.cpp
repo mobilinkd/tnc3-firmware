@@ -3,6 +3,7 @@
 
 #include "DCD.h"
 #include "LEDIndicator.h"
+#include "GPIO.hpp"
 
 bool& dcd_status()
 {

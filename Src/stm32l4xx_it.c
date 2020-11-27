@@ -41,6 +41,8 @@
 #include "main.h"
 extern osMessageQId ioEventQueueHandle;
 
+void idleInterruptCallback(UART_HandleTypeDef* huart);
+
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -385,6 +387,12 @@ void TIM2_IRQHandler(void)
 void USART3_IRQHandler(void)
 {
   /* USER CODE BEGIN USART3_IRQn 0 */
+
+    if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE)) {
+        idleInterruptCallback(&huart3);
+        __HAL_UART_CLEAR_FLAG(&huart3, UART_FLAG_IDLE);
+        return;
+    }
 
   /* USER CODE END USART3_IRQn 0 */
   HAL_UART_IRQHandler(&huart3);

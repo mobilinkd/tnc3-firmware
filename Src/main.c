@@ -60,6 +60,7 @@
 #include "bm78.h"
 #include "base64.h"
 #include "KissHardware.h"
+#include "Log.h"
 
 /* USER CODE END Includes */
 
@@ -421,6 +422,10 @@ int main(void)
   /* USER CODE BEGIN SysInit */
 #ifdef KISS_LOGGING
   printf("start\r\n");
+  if (error_message[0] != 0) {
+      printf(error_message);
+      error_message[0] = 0;
+  }
 #endif
 
   // Note that it is important that all GPIO interrupts are disabled until
@@ -456,6 +461,10 @@ int main(void)
   }
 
   encode_serial_number();
+
+  // Manchester encoding mode on SWO.
+  // *((volatile unsigned *)(TPI->SPPR)) = 0x00000001;
+
 
   if (!go_back_to_sleep) {
       // The Bluetooth module is powered on during MX_GPIO_Init().  BT_CMD
@@ -701,11 +710,13 @@ void SystemClock_Config(void)
     /**Initializes the CPU, AHB and APB busses clocks 
     */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
-                              |RCC_OSCILLATORTYPE_MSI;
+                              |RCC_OSCILLATORTYPE_MSI|RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.LSIState = RCC_LSI_OFF;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
-  RCC_OscInitStruct.MSICalibrationValue = 0;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
@@ -719,7 +730,7 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Initializes the CPU, AHB and APB busses clocks 
+    /**Initializes the CPU, AHB and APB busses clocks
     */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
@@ -736,9 +747,9 @@ void SystemClock_Config(void)
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART3
                               |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
                               |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
-  PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_PCLK1;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
-  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+  PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
+  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
   PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
   PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
@@ -756,32 +767,34 @@ void SystemClock_Config(void)
 
 #ifdef KISS_LOGGING
   HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+#else
+  HAL_RCCEx_DisableLSCO();
 #endif
 
-    /**Configure the main internal regulator output voltage 
+    /**Configure the main internal regulator output voltage
     */
   if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
 
-    /**Configure the Systick interrupt time 
+    /**Configure the Systick interrupt time
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
-    /**Configure the Systick 
+    /**Configure the Systick
     */
   HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
 
-    /**Enable MSI Auto calibration 
+    /**Enable MSI Auto calibration
     */
   HAL_RCCEx_EnableMSIPLLMode();
 
-    /**Enable the SYSCFG APB clock 
+    /**Enable the SYSCFG APB clock
     */
   __HAL_RCC_CRS_CLK_ENABLE();
 
-    /**Configures CRS 
+    /**Configures CRS
     */
   RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
   RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
@@ -882,7 +895,7 @@ static void MX_DAC1_Init(void)
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
   sConfig.DAC_Trigger = DAC_TRIGGER_T7_TRGO;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
@@ -891,8 +904,11 @@ static void MX_DAC1_Init(void)
 
     /**DAC channel OUT2 config 
     */
+  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
+  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -905,7 +921,9 @@ static void MX_I2C1_Init(void)
 {
 
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x20000209;
+//  hi2c1.Init.Timing = 0x00300F33;   // 80MHz
+//  hi2c1.Init.Timing = 0x20000209;   // 48MHz
+  hi2c1.Init.Timing = 0x00000107;   // HSI
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -1434,6 +1452,118 @@ void init_rtc_alarm()
 
 }
 
+void SysClock48()
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct;
+    RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+    if (HAL_RCC_GetHCLKFreq() == 48000000) return;
+
+    INFO("Setting 48MHz SysClock.");
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+
+    RCC_OscInitStruct.OscillatorType = 0;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+    RCC_OscInitStruct.PLL.PLLM = 1;
+    RCC_OscInitStruct.PLL.PLLN = 24;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+    RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+    RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+}
+
+void SysClock80()
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct;
+    RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+    if (HAL_RCC_GetHCLKFreq() == 80000000) return;
+
+    INFO("Setting 80MHz SysClock.");
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    RCC_OscInitStruct.OscillatorType = 0;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+    RCC_OscInitStruct.PLL.PLLM = 1;
+    RCC_OscInitStruct.PLL.PLLN = 40;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+    RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+    RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+}
+
+void SysClock4()
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct;
+    RCC_ClkInitTypeDef RCC_ClkInitStruct;
+
+    taskENTER_CRITICAL();
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+
+    taskEXIT_CRITICAL();
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -1461,6 +1591,7 @@ void StartDefaultTask(void const * argument)
 #ifdef KISS_LOGGING
     printf("VBUS not detected\r\n");
 #endif
+//    SysClock4();
   }
 /* Infinite loop */
   for(;;)
@@ -1507,7 +1638,8 @@ void _Error_Handler(char *file, int line)
 #ifdef KISS_LOGGING
   printf("Error handler called from file %s on line %d\r\n", file, line);
 #endif
-  snprintf(error_message, sizeof(error_message), "Error: %s:%d", file, line);
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, line);
+  error_message[sizeof(error_message) - 1] = 0;
 
   stop_now = 0;
   go_back_to_sleep = 0;

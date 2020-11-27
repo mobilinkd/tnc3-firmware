@@ -46,9 +46,7 @@ struct slip_encoder
 
     slip_encoder()
     : packet_(0), size_(0), pos_(0), current_(0), shifting_(false)
-    {
-        set_current();
-    }
+    {}
 
     slip_encoder(const char* packet, size_t len)
     : packet_(packet), size_(len), pos_(0), current_(0), shifting_(false)
@@ -108,23 +106,23 @@ struct slip_encoder
 };
 
 /**
- * This is a forward iterator adapter that SLIP-encodes the data from the
+ * This is a input iterator adapter that SLIP-encodes the data from the
  * underlying frame iterator.  The only requirement is that the underlying
- * iterator meets the requirements of a forward iterator and that its value
+ * iterator meets the requirements of an input iterator and that its value
  * type is convertible to char.
  */
 struct slip_encoder2
 {
-    typedef std::forward_iterator_tag iterator_category;
+    typedef std::input_iterator_tag iterator_category;
     typedef size_t difference_type;
     typedef char value_type;
     typedef char& reference;
     typedef char* pointer;
 
-    static const uint8_t FEND = 0xC0;
-    static const uint8_t FESC = 0xDB;
-    static const uint8_t TFEND = 0xDC;
-    static const uint8_t TFESC = 0xDD;
+    static const char FEND = 0xC0;
+    static const char FESC = 0xDB;
+    static const char TFEND = 0xDC;
+    static const char TFESC = 0xDD;
 
     hdlc::IoFrame::iterator iter_;
     mutable bool shifting_;
@@ -161,7 +159,7 @@ struct slip_encoder2
      * @return the slip-encoded character.
      */
     char operator*() const {
-        uint8_t c = *iter_;
+        char c = *iter_;
 
         if (shifting_) {
             return c == FEND ? TFEND : TFESC;
@@ -171,7 +169,7 @@ struct slip_encoder2
             return FESC;
         }
 
-        return *iter_;
+        return c;
     }
 
     /**
@@ -192,7 +190,7 @@ struct slip_encoder2
      * @return a reference to *this.
      */
     slip_encoder2& operator++() {
-        uint8_t c = *iter_;
+        char c = *iter_;
         if (not shifting_ and ((c == FEND) or (c == FESC))) {
             shifting_ = true;
             return *this;
@@ -238,9 +236,7 @@ struct slip_decoder
 
     slip_decoder()
     : packet_(0), size_(0), pos_(0), current_(0)
-    {
-        set_current();
-    }
+    {}
 
     slip_decoder(const char* packet, size_t len)
     : packet_(packet), size_(len), pos_(0), current_(0)

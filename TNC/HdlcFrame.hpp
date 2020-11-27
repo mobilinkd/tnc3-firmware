@@ -162,6 +162,8 @@ public:
 
     uint16_t size() const {return free_list_.size();}
 
+    static constexpr uint16_t capacity() { return SIZE; }
+
     frame_type* acquire() {
         frame_type* result = nullptr;
         auto x = taskENTER_CRITICAL_FROM_ISR();

@@ -3,6 +3,7 @@
 
 #include "AFSKTestTone.hpp"
 #include "ModulatorTask.hpp"
+#include "Modulator.hpp"
 
 void startAfskToneTask(void const* arg)
 {

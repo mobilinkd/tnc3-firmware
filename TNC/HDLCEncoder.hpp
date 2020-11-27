@@ -1,10 +1,10 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef INC_HDLCENCODER_HPP_
-#define INC_HDLCENCODER_HPP_
+#pragma once
 
-#include "AFSKModulator.hpp"
+#include "Modulator.hpp"
+#include "ModulatorTask.hpp"
 #include "HdlcFrame.hpp"
 #include "NRZI.hpp"
 #include "PTT.hpp"
@@ -25,8 +25,9 @@ using namespace mobilinkd::libafsk;
 
 struct Encoder {
 
-    static const uint8_t IDLE = 0x00;
-    static const uint8_t FLAG = 0x7E;
+    // static constexpr uint8_t IDLE = 0x00;
+    static constexpr uint8_t IDLE = 0x7E;
+    static constexpr uint8_t FLAG = 0x7E;
 
     enum class state_type {
         STATE_IDLE,
@@ -47,16 +48,16 @@ struct Encoder {
     NRZI nrzi_;
     uint16_t crc_;
     osMessageQId input_;
-    AFSKModulator* modulator_;
+    Modulator* modulator_;
     volatile bool running_;
     bool send_delay_;   // Avoid sending the preamble for back-to-back frames.
 
-    Encoder(osMessageQId input, AFSKModulator* output)
+    Encoder(osMessageQId input)
     : tx_delay_(kiss::settings().txdelay), tx_tail_(kiss::settings().txtail)
     , p_persist_(kiss::settings().ppersist), slot_time_(kiss::settings().slot)
     , duplex_(kiss::settings().duplex), state_(state_type::STATE_IDLE)
     , ones_(0), nrzi_(), crc_()
-    , input_(input), modulator_(output)
+    , input_(input), modulator_(&getModulator())
     , running_(false), send_delay_(true)
    {}
 
@@ -67,11 +68,17 @@ struct Encoder {
             state_ = state_type::STATE_IDLE;
             osEvent evt = osMessageGet(input_, osWaitForever);
             if (evt.status == osEventMessage) {
+                tx_delay_ = kiss::settings().txdelay;
+                tx_tail_ = kiss::settings().txtail;
+                p_persist_ = kiss::settings().ppersist;
+                slot_time_ = kiss::settings().slot;
+                duplex_ = kiss::settings().duplex;
                 auto frame = (IoFrame*) evt.value.p;
                 process(frame);
                 // See if we have back-to-back frames.
                 evt = osMessagePeek(input_, 0);
                 if (evt.status != osEventMessage) {
+                    send_raw(IDLE);
                     send_raw(IDLE);
                     send_delay_ = true;
                     if (!duplex_) {
@@ -94,6 +101,11 @@ struct Encoder {
 
     int p_persist() const { return p_persist_; }
     void p_persist(int value) { p_persist_ = value; }
+
+    void updateModulator()
+    {
+        modulator_ = &(getModulator());
+    }
 
     state_type status() const {return state_; }
     void stop() { running_ = false; }
@@ -184,6 +196,8 @@ struct Encoder {
             }
             send_delay();
             send_delay_ = false;
+        } else {
+            send_raw(FLAG);
         }
 
         for (auto c : *frame) send(c);
@@ -192,7 +206,9 @@ struct Encoder {
     }
 
     void send_delay() {
-        const size_t tmp = (tx_delay_ * 3) / 2;
+        const size_t tmp = tx_delay_ * 1.25 * modulator_->bits_per_ms();
+
+        INFO("Sending %u IDLE bytes", tmp);
         for (size_t i = 0; i != tmp; i++) {
             send_raw(IDLE);
         }
@@ -239,5 +255,3 @@ struct Encoder {
 };
 
 }}} // mobilinkd::tnc::hdlc
-
-#endif // INC_HDLCENCODER_HPP_
