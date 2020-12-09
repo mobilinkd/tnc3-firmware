@@ -68,14 +68,14 @@ void UsbPort::add_char(uint8_t c)
             frame_->source(hdlc::IoFrame::SERIAL_DATA);
             osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame_),
                 osWaitForever);
-            frame_ = hdlc::acquire();
+            frame_ = hdlc::acquire_wait();
             state_ = WAIT_FBEGIN;
             break;
         default:
             if (not frame_->push_back(c)) {
                 hdlc::release(frame_);
                 state_ = WAIT_FBEGIN;  // Drop frame;
-                frame_ = hdlc::acquire();
+                frame_ = hdlc::acquire_wait();
             }
         }
         break;
@@ -86,20 +86,20 @@ void UsbPort::add_char(uint8_t c)
             if (not frame_->push_back(FESC)) {
                 hdlc::release(frame_);
                 state_ = WAIT_FBEGIN;  // Drop frame;
-                frame_ = hdlc::acquire();
+                frame_ = hdlc::acquire_wait();
             }
             break;
         case TFEND:
             if (not frame_->push_back(FEND)) {
                 hdlc::release(frame_);
                 state_ = WAIT_FBEGIN;  // Drop frame;
-                frame_ = hdlc::acquire();
+                frame_ = hdlc::acquire_wait();
             }
             break;
         default:
             hdlc::release(frame_);
             state_ = WAIT_FBEGIN;  // Drop frame;
-            frame_ = hdlc::acquire();
+            frame_ = hdlc::acquire_wait();
         }
         break;
     }
@@ -107,7 +107,7 @@ void UsbPort::add_char(uint8_t c)
 
 void UsbPort::run()
 {
-    if (frame_ == nullptr) frame_ = hdlc::acquire();
+    if (frame_ == nullptr) frame_ = hdlc::acquire_wait();
 
     while (true) {
         osEvent evt = osMessageGet(queue(), osWaitForever);
@@ -197,8 +197,13 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t t
 
     // Buffer has room for at least one more byte.
     TxBuffer[pos++] = 0xC0;
-    while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY)
+    while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
+        if (osKernelSysTick() > start + timeout) {
+            osMutexRelease(mutex_);
+            return false;
+        }
         osThreadYield();
+    }
 
     osMutexRelease(mutex_);
 
