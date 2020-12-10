@@ -91,7 +91,7 @@ extern volatile uint32_t adc_block_size;
 extern volatile uint32_t dma_transfer_size;
 extern volatile uint32_t half_buffer_size;
 
-// 1kB
+// 3kB
 typedef memory::Pool<8, ADC_BUFFER_SIZE * 2> adc_pool_type;
 extern adc_pool_type adcPool;
 

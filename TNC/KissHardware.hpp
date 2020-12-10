@@ -180,8 +180,7 @@ constexpr uint8_t MODEM_TYPE_1200 = 1;
 constexpr uint8_t MODEM_TYPE_300 = 2;
 constexpr uint8_t MODEM_TYPE_9600 = 3;
 constexpr uint8_t MODEM_TYPE_PSK31 = 4;
-constexpr uint8_t MODEM_TYPE_OFDM = 5;
-constexpr uint8_t MODEM_TYPE_MFSK16 = 6;
+constexpr uint8_t MODEM_TYPE_M17_AUDIO = 5;
 
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
@@ -225,11 +224,13 @@ const size_t NUMBER_OF_BEACONS = 4;     // 680 bytes
  */
 struct Hardware
 {
-    static constexpr std::array<const char*, 4> modem_type_lookup = {
+    static constexpr std::array<const char*, 6> modem_type_lookup = {
         "NOT SET",
         "AFSK1200",
         "AFSK300",
         "FSK9600",
+        "PSK31",
+        "M17 AUDIO"
     };
 
     // This must match the constants defined above.
@@ -237,12 +238,14 @@ struct Hardware
         AFSK1200 = hardware::MODEM_TYPE_1200,
         AFSK300 = hardware::MODEM_TYPE_300,
         FSK9600 = hardware::MODEM_TYPE_9600,
-        PSK31 = hardware::MODEM_TYPE_PSK31
+        PSK31 = hardware::MODEM_TYPE_PSK31,
+        M17AUDIO = hardware::MODEM_TYPE_M17_AUDIO
     };
 
-    static constexpr std::array<uint8_t, 2> supported_modem_types = {
+    static constexpr std::array<uint8_t, 3> supported_modem_types = {
         hardware::MODEM_TYPE_1200,
-        hardware::MODEM_TYPE_9600
+        hardware::MODEM_TYPE_9600,
+        hardware::MODEM_TYPE_M17_AUDIO
     };
 
     uint8_t txdelay;        ///< How long in 10mS units to wait for TX to settle before starting data

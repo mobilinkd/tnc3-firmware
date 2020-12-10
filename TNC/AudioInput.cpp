@@ -4,6 +4,7 @@
 #include "AudioInput.hpp"
 #include "Afsk1200Demodulator.hpp"
 #include "Fsk9600Demodulator.hpp"
+#include "M17Demodulator.h"
 #include "AudioLevel.hpp"
 #include "Log.h"
 #include "KissHardware.hpp"
@@ -147,6 +148,7 @@ IDemodulator* getDemodulator()
 {
     static Afsk1200Demodulator afsk1200;
     static Fsk9600Demodulator fsk9600;
+    static M17Demodulator m17;
 
     switch (kiss::settings().modem_type)
     {
@@ -154,6 +156,8 @@ IDemodulator* getDemodulator()
         return &afsk1200;
     case kiss::Hardware::ModemType::FSK9600:
         return &fsk9600;
+    case kiss::Hardware::ModemType::M17:
+        return &m17;
     default:
         ERROR("Invalid demodulator");
         CxxErrorHandler();

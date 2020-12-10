@@ -6,6 +6,7 @@
 #include "AudioLevel.hpp"
 #include <arm_math.h>
 #include <complex>
+#include <cmath>
 
 namespace mobilinkd {
 namespace tnc {
@@ -27,7 +28,7 @@ public:
     GoertzelFilter(float filter_freq, const float* window = WINDOW)
         : filterFreq_(filter_freq), bin_(
             0.5f + ((filter_freq * SAMPLES) / SAMPLE_RATE)), coeff_(
-            2.0f * cos((2.0f * M_PI * bin_) / float(SAMPLES))), window_(window)
+            2.0f * cos((2.0f * PI * bin_) / float(SAMPLES))), window_(window)
     {
     }
 

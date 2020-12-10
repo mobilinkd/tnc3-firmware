@@ -118,7 +118,7 @@ osMessageQId serialOutputQueueHandle;
 uint8_t serialOutputQueueBuffer[ 16 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t serialOutputQueueControlBlock;
 osMessageQId audioInputQueueHandle;
-uint8_t audioInputQueueBuffer[ 4 * sizeof( uint8_t ) ];
+uint8_t audioInputQueueBuffer[ 8 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t audioInputQueueControlBlock;
 osMessageQId hdlcInputQueueHandle;
 uint8_t hdlcInputQueueBuffer[ 3 * sizeof( uint32_t ) ];

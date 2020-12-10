@@ -93,12 +93,12 @@ struct FirFilter {
 
 template <size_t BLOCK_SIZE, size_t FILTER_SIZE>
 struct Q15FirFilter {
-    const q15_t* filter_taps{nullptr};
+    const q15_t* filter_taps = nullptr;
     q15_t filter_state[BLOCK_SIZE + FILTER_SIZE - 1];
     q15_t filter_output[BLOCK_SIZE];
-    q15_t vgnd_{0};
-    q15_t i_vgnd_{0};
-    arm_fir_instance_q15 instance{};
+    q15_t vgnd_ = 0;
+    q15_t i_vgnd_ = 0;
+    arm_fir_instance_q15 instance;
 
     Q15FirFilter()
     {}

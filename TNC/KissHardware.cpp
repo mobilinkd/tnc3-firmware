@@ -13,6 +13,7 @@
 #include <memory>
 #include <array>
 #include <cstdio>
+#include <alloca.h>
 
 extern I2C_HandleTypeDef hi2c1;
 extern RTC_HandleTypeDef hrtc;
@@ -29,7 +30,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.0.1";
+const char FIRMWARE_VERSION[] = "2.1.0";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 
@@ -556,7 +557,8 @@ void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
     case hardware::EXT_SET_MODEM_TYPE[1]:
         DEBUG("SET_MODEM_TYPE");
         if ((*it == hardware::MODEM_TYPE_1200)
-            or (*it == hardware::MODEM_TYPE_9600))
+            or (*it == hardware::MODEM_TYPE_9600)
+            or (*it == hardware::MODEM_TYPE_M17_AUDIO))
         {
             modem_type = *it;
             DEBUG(modem_type_lookup[modem_type]);

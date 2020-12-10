@@ -90,6 +90,10 @@ struct Modulator
 
     virtual float bits_per_ms() const = 0;
 
+    virtual void start_loopback() {}
+    virtual void stop_loopback() {}
+    virtual void loopback(const void*) {}
+
 protected:
 
     /**

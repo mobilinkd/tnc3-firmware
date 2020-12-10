@@ -4,6 +4,7 @@
 #include "ModulatorTask.hpp"
 #include "HDLCEncoder.hpp"
 #include "Modulator.hpp"
+#include "M17Modulator.h"
 #include "Fsk9600Modulator.hpp"
 #include "AFSKModulator.hpp"
 #include "KissHardware.hpp"
@@ -44,6 +45,7 @@ mobilinkd::tnc::Modulator& getModulator()
 
     static AFSKModulator afsk1200modulator(dacOutputQueueHandle, &simplexPtt);
     static Fsk9600Modulator fsk9600modulator(dacOutputQueueHandle, &simplexPtt);
+    static M17Modulator m17modulator(dacOutputQueueHandle, &simplexPtt);
 
     switch (kiss::settings().modem_type)
     {
@@ -51,6 +53,8 @@ mobilinkd::tnc::Modulator& getModulator()
         return fsk9600modulator;
     case kiss::Hardware::ModemType::AFSK1200:
         return afsk1200modulator;
+    case kiss::Hardware::ModemType::M17:
+        return m17modulator;
     default:
         CxxErrorHandler();
     }
