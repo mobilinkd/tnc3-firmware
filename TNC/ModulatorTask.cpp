@@ -5,6 +5,7 @@
 #include "HDLCEncoder.hpp"
 #include "Modulator.hpp"
 #include "M17Modulator.h"
+#include "M17Encoder.h"
 #include "Fsk9600Modulator.hpp"
 #include "AFSKModulator.hpp"
 #include "KissHardware.hpp"
@@ -14,7 +15,7 @@ mobilinkd::tnc::SimplexPTT simplexPtt;
 mobilinkd::tnc::MultiplexPTT multiplexPtt;
 
 mobilinkd::tnc::Modulator* modulator;
-mobilinkd::tnc::hdlc::Encoder* encoder;
+mobilinkd::Encoder* encoder;
 
 // DMA Conversion half complete.
 extern "C" void HAL_DAC_ConvHalfCpltCallbackCh1(DAC_HandleTypeDef*) {
@@ -22,7 +23,7 @@ extern "C" void HAL_DAC_ConvHalfCpltCallbackCh1(DAC_HandleTypeDef*) {
     if (evt.status == osEventMessage) {
         modulator->fill_first(evt.value.v);
     } else {
-        modulator->empty();
+        modulator->empty_first();
     }
 }
 
@@ -31,7 +32,7 @@ extern "C" void HAL_DAC_ConvCpltCallbackCh1(DAC_HandleTypeDef*) {
     if (evt.status == osEventMessage) {
         modulator->fill_last(evt.value.v);
     } else {
-        modulator->empty();
+        modulator->empty_last();
     }
 }
 
@@ -60,9 +61,24 @@ mobilinkd::tnc::Modulator& getModulator()
     }
 }
 
-mobilinkd::tnc::hdlc::Encoder& getEncoder() {
-    static mobilinkd::tnc::hdlc::Encoder instance(hdlcOutputQueueHandle);
-    return instance;
+mobilinkd::Encoder& getEncoder()
+{
+    using namespace mobilinkd::tnc;
+
+    static hdlc::Encoder hdlcEncoder(hdlcOutputQueueHandle);
+    static mobilinkd::M17Encoder m17Encoder(hdlcOutputQueueHandle);
+
+    switch (kiss::settings().modem_type)
+    {
+    case kiss::Hardware::ModemType::FSK9600:
+        return hdlcEncoder;
+    case kiss::Hardware::ModemType::AFSK1200:
+        return hdlcEncoder;
+    case kiss::Hardware::ModemType::M17:
+        return m17Encoder;
+    default:
+        CxxErrorHandler();
+    }
 }
 
 void setPtt(PTT ptt)
@@ -92,29 +108,30 @@ void updateModulator()
     using namespace mobilinkd::tnc::kiss;
 
     modulator = &getModulator();
+    encoder = &getEncoder();
     modulator->init(settings());
     updatePtt();
     encoder->updateModulator();
+    encoder->update_settings();
 }
 
-void startModulatorTask(void const*) {
-
+void startModulatorTask(void const*)
+{
     using namespace mobilinkd::tnc::kiss;
 
     // Wait until hardware is initialized before creating modulator.
     osMutexWait(hardwareInitMutexHandle, osWaitForever);
 
-    modulator = &(getModulator());
-    encoder = &(getEncoder());
+    while (true)
+    {
+        modulator = &(getModulator());
+        encoder = &(getEncoder());
 
-    updatePtt();
+        updatePtt();
 
-    getModulator().init(settings());
+        getModulator().init(settings());
 
-    encoder->tx_delay(settings().txdelay);
-    encoder->p_persist(settings().ppersist);
-    encoder->slot_time(settings().slot);
-    encoder->tx_tail(settings().txtail);
-
-    encoder->run();
+        encoder->update_settings();
+        encoder->run();
+    }
 }

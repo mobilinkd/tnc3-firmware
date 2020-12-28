@@ -191,7 +191,7 @@ void demodulatorTask() {
         auto frame = (*demodulator)(normalized);
         if (frame)
         {
-            frame->source(hdlc::IoFrame::RF_DATA);
+            frame->source(frame->source() | hdlc::IoFrame::RF_DATA);
             if (osMessagePut(ioEventQueueHandle, (uint32_t) frame, 1) != osOK)
             {
                 hdlc::release(frame);

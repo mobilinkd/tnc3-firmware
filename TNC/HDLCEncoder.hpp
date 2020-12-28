@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "Encoder.h"
 #include "Modulator.hpp"
 #include "ModulatorTask.hpp"
 #include "HdlcFrame.hpp"
@@ -23,7 +24,8 @@ namespace mobilinkd { namespace tnc { namespace hdlc {
 
 using namespace mobilinkd::libafsk;
 
-struct Encoder {
+struct Encoder : public ::mobilinkd::Encoder
+{
 
     // static constexpr uint8_t IDLE = 0x00;
     static constexpr uint8_t IDLE = 0x7E;
@@ -59,15 +61,17 @@ struct Encoder {
     , ones_(0), nrzi_(), crc_()
     , input_(input), modulator_(&getModulator())
     , running_(false), send_delay_(true)
-   {}
+    {}
 
-    void run() {
+    void run() override
+    {
         running_ = true;
         send_delay_ = true;
         while (running_) {
             state_ = state_type::STATE_IDLE;
             osEvent evt = osMessageGet(input_, osWaitForever);
             if (evt.status == osEventMessage) {
+                if (evt.value.p == nullptr) return;
                 tx_delay_ = kiss::settings().txdelay;
                 tx_tail_ = kiss::settings().txtail;
                 p_persist_ = kiss::settings().ppersist;
@@ -90,6 +94,18 @@ struct Encoder {
         }
     }
 
+    void update_settings() override
+    {
+        using namespace mobilinkd::tnc::kiss;
+
+        tx_delay(settings().txdelay);
+        p_persist(settings().ppersist);
+        slot_time(settings().slot);
+        tx_tail(settings().txtail);
+    }
+
+    EncoderType encoder_type() const override { return EncoderType::HDLC; }
+
     int tx_delay() const { return tx_delay_; }
     void tx_delay(int ms) { tx_delay_ = ms; }
 
@@ -102,13 +118,13 @@ struct Encoder {
     int p_persist() const { return p_persist_; }
     void p_persist(int value) { p_persist_ = value; }
 
-    void updateModulator()
+    void updateModulator() override
     {
         modulator_ = &(getModulator());
     }
 
     state_type status() const {return state_; }
-    void stop() { running_ = false; }
+    void stop() override { running_ = false; }
 
     int rng_() const {return osKernelSysTick() & 0xFF;}
 

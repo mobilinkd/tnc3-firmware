@@ -153,13 +153,8 @@ void startSerialTask(void const* arg)
                 break;
             case WAIT_FRAME_TYPE:
                 if (c == FEND) break;   // Still waiting for FRAME_TYPE.
-                if (c < 8 or c == 0xFF) {
-                    frame->type(c);
-                    state = WAIT_FEND;
-                } else {
-                    WARN("Bad frame type");
-                    state = WAIT_FBEGIN;
-                }
+                frame->type(c);
+                state = WAIT_FEND;
                 break;
             case WAIT_FEND:
                 switch (c) {
@@ -167,7 +162,7 @@ void startSerialTask(void const* arg)
                     state = WAIT_ESCAPED;
                     break;
                 case FEND:
-                    frame->source(hdlc::IoFrame::SERIAL_DATA);
+                    frame->source(frame->source() & 7);
                     if (osMessagePut(
                         ioEventQueueHandle,
                         reinterpret_cast<uint32_t>(frame),
@@ -506,7 +501,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     size_t pos = 0;
 
     tmpBuffer[pos++] = 0xC0;   // FEND
-    tmpBuffer[pos++] = static_cast<int>(frame->type());   // KISS Data Frame
+    tmpBuffer[pos++] = static_cast<int>((frame->source() | frame->type()) & 0x7F);   // KISS Data Frame
 
     while (slip_iter != slip_end)
     {

@@ -154,6 +154,80 @@ size_t depuncture(const std::array<int8_t, IN>& in,
     return bit_count;
 }
 
+
+template <size_t IN, size_t OUT, size_t P>
+size_t puncture(const std::array<uint8_t, IN>& in,
+    std::array<int8_t, OUT>& out, const std::array<int8_t, P>& p)
+{
+    size_t index = 0;
+    size_t pindex = 0;
+    size_t bit_count = 0;
+    for (size_t i = 0; i != IN && index != OUT; ++i)
+    {
+        if (p[pindex++])
+        {
+            out[index++] = in[i];
+            bit_count++;
+        }
+
+        if (pindex == P) pindex = 0;
+    }
+    return bit_count;
+}
+
+template <size_t N>
+constexpr bool get_bit_index(const std::array<uint8_t, N>& input, size_t index)
+{
+    auto byte_index = index >> 3;
+    auto bit_index = index & 7;
+
+    return (input[byte_index] & (1 << bit_index)) >> bit_index;
+}
+
+template <size_t N>
+void set_bit_index(std::array<uint8_t, N>& input, size_t index)
+{
+    auto byte_index = index >> 3;
+    auto bit_index = index & 7;
+    input[byte_index] |= (1 << bit_index);
+}
+
+template <size_t N>
+void reset_bit_index(std::array<uint8_t, N>& input, size_t index)
+{
+    auto byte_index = index >> 3;
+    auto bit_index = index & 7;
+    input[byte_index] &= ~(1 << bit_index);
+}
+
+template <size_t N>
+void assign_bit_index(std::array<uint8_t, N>& input, size_t index, bool value)
+{
+    if (value) set_bit_index(input, index);
+    else reset_bit_index(input, value);
+}
+
+
+template <size_t IN, size_t OUT, size_t P>
+size_t puncture_bytes(const std::array<uint8_t, IN>& in,
+    std::array<uint8_t, OUT>& out, const std::array<int8_t, P>& p)
+{
+    size_t index = 0;
+    size_t pindex = 0;
+    size_t bit_count = 0;
+    for (size_t i = 0; i != IN && index != OUT; ++i)
+    {
+        if (p[pindex++])
+        {
+            assign_bit_index(out, index++, get_bit_index(in, i));
+            bit_count++;
+        }
+
+        if (pindex == P) pindex = 0;
+    }
+    return bit_count;
+}
+
 /**
  * Sign-extend an n-bit value to a specific signed integer type.
  */

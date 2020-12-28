@@ -109,7 +109,7 @@ struct AFSKModulator : Modulator
 
     void set_twist(uint8_t twist) {twist_ = twist;}
 
-    void send(bool bit) override
+    void send(uint8_t bit) override
     {
         switch (running_) {
         case -1:
@@ -161,17 +161,27 @@ struct AFSKModulator : Modulator
         }
     }
 
-    void fill_first(bool bit) override
+    void fill_first(uint8_t bit) override
     {
         fill(buffer_.data(), bit);
     }
 
-    void fill_last(bool bit) override
+    void fill_last(uint8_t bit) override
     {
         fill(buffer_.data() + BIT_LEN, bit);
     }
 
-    void empty() override
+    void empty_first() override
+    {
+        empty();
+    }
+
+    void empty_last() override
+    {
+        empty();
+    }
+
+    void empty()
     {
         switch (running_) {
         case 1:

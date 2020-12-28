@@ -76,7 +76,6 @@ struct Digipeater
 
   hdlc::IoFrame* rewrite_frame(hdlc::IoFrame* frame)
   {
-    frame->source(hdlc::IoFrame::DIGI_DATA);
     return frame;
   }
 };

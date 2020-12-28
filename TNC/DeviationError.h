@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "IirFilter.hpp"
-
 #include <array>
 #include <algorithm>
 #include <numeric>
@@ -90,7 +88,7 @@ struct DeviationError
         }
 
         auto deviation = max_estimate_ - min_estimate_;
-        auto deviation_error = std::min(6.0 / deviation, 5.0);
+        auto deviation_error = std::min(6.0 / deviation, 100.0);
         return deviation_error;
     }
 };

@@ -30,7 +30,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.1.0";
+const char FIRMWARE_VERSION[] = "2.1.1";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 
@@ -153,7 +153,7 @@ void Hardware::get_alias(uint8_t alias) {
     uint8_t result[14];
     if (alias >= NUMBER_OF_ALIASES or not aliases[alias].set) return;
     result[0] = alias;
-    memcpy(result + 1, aliases[alias].call, CALLSIGN_LEN);
+    memcpy(result + 1, aliases[alias].call.data(), CALLSIGN_LEN);
     result[9] = aliases[alias].set;
     result[10] = aliases[alias].use;
     result[11] = aliases[alias].insert_id;
@@ -558,7 +558,7 @@ void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
         DEBUG("SET_MODEM_TYPE");
         if ((*it == hardware::MODEM_TYPE_1200)
             or (*it == hardware::MODEM_TYPE_9600)
-            or (*it == hardware::MODEM_TYPE_M17_AUDIO))
+            or (*it == hardware::MODEM_TYPE_M17))
         {
             modem_type = *it;
             DEBUG(modem_type_lookup[modem_type]);

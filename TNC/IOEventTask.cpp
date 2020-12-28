@@ -335,17 +335,19 @@ void startIOEventTask(void const*)
 
         auto frame = static_cast<IoFrame*>(evt.value.p);
 
-        switch (frame->source()) {
-        case IoFrame::RF_DATA:
+        if (frame->source() & IoFrame::RF_DATA)
+        {
             DEBUG("RF frame");
+            frame->source(frame->source() & 0x70);
             if (!ioport->write(frame, 100))
             {
                 ERROR("Timed out sending frame");
                 // The frame has been passed to the write() call.  It owns it now.
                 // hdlc::release(frame);
             }
-            break;
-        case IoFrame::SERIAL_DATA:
+        }
+        else
+        {
             DEBUG("Serial frame");
             if ((frame->type() & 0x0F) == IoFrame::DATA)
             {
@@ -362,23 +364,6 @@ void startIOEventTask(void const*)
             {
                 kiss::handle_frame(frame->type(), frame);
             }
-            break;
-        case IoFrame::DIGI_DATA:
-            DEBUG("Digi frame");
-            if (osMessagePut(hdlcOutputQueueHandle,
-                reinterpret_cast<uint32_t>(frame),
-                osWaitForever) != osOK)
-            {
-                hdlc::release(frame);
-            }
-            break;
-        case IoFrame::FRAME_RETURN:
-            hdlc::release(frame);
-            break;
-        default:
-            ERROR("Unknown Frame Type");
-            hdlc::release(frame);
-            break;
         }
     }
 }

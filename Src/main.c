@@ -210,8 +210,6 @@ extern PCD_HandleTypeDef hpcd_USB_FS;
 
 void configure_gpio_for_stop()
 {
-    GPIO_InitTypeDef GPIO_InitStruct;
-
     __HAL_RCC_GPIOC_CLK_ENABLE();
     __HAL_RCC_GPIOH_CLK_ENABLE();
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -447,6 +445,8 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM6_Init();
   MX_TIM7_Init();
+  MX_RNG_Init();
+
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
   if (stop_now) stop2();
@@ -519,7 +519,10 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
   /* USER CODE END RTOS_SEMAPHORES */
+
 
   /* Create the timer(s) */
   /* definition and creation of beaconTimer1 */
@@ -605,6 +608,7 @@ int main(void)
   adcInputQueueHandle = osMessageCreate(osMessageQ(adcInputQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
+#pragma GCC diagnostic pop
   /* add queues, ... */
   /* USER CODE BEGIN RTOS_QUEUES */
 
@@ -1544,7 +1548,6 @@ void SysClock80()
 
 void SysClock4()
 {
-    RCC_OscInitTypeDef RCC_OscInitStruct;
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
 
     taskENTER_CRITICAL();

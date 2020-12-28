@@ -5,6 +5,9 @@
 
 #include "Modulator.hpp"
 #include "HdlcFrame.hpp"
+#include "M17.h"
+
+#include <arm_math.h>
 
 #include <array>
 #include <algorithm>
@@ -12,54 +15,52 @@
 
 namespace mobilinkd { namespace tnc {
 
+/**
+ * M17 modulator. Collects 16 symbols of data, upsamples by 10x using
+ * an interpolating FIR filter, which is sent out via the DAC using
+ * DMA.
+ */
 struct M17Modulator : Modulator
 {
-    static constexpr int16_t DAC_BUFFER_LEN = 384;
-    static constexpr int16_t TRANSFER_LEN = DAC_BUFFER_LEN / 2;
+    // Six buffers per M17 frame, or 12 half-buffer interrupts.
+    static constexpr uint8_t UPSAMPLE = 10;
+    static constexpr uint32_t BLOCKSIZE = 4;
+    static constexpr uint32_t STATE_SIZE = (m17::FILTER_TAP_NUM / UPSAMPLE) + BLOCKSIZE - 1;
+    static constexpr int16_t DAC_BUFFER_LEN = 80;               // 8 symbols, 16 bits, 2 bytes.
+    static constexpr int16_t TRANSFER_LEN = DAC_BUFFER_LEN / 2; // 4 symbols, 8 bits, 1 byte.
     static constexpr uint16_t VREF = 4095;
-
     enum class State { STOPPED, STARTING, RUNNING, STOPPING };
 
+    arm_fir_interpolate_instance_q15 fir_interpolator;
+    std::array<q15_t, STATE_SIZE> fir_state;
+    std::array<int16_t, DAC_BUFFER_LEN> buffer_;
+    std::array<int16_t, 4> symbols;
     osMessageQId dacOutputQueueHandle_{0};
     PTT* ptt_{nullptr};
     uint16_t volume_{4096};
-    std::array<uint16_t, DAC_BUFFER_LEN> buffer_;
+    uint8_t symbol_count = 0;
     State state{State::STOPPED};
-    bool loopback_ = false;
-    std::array<int16_t, TRANSFER_LEN> loopback_data_;
 
     M17Modulator(osMessageQId queue, PTT* ptt)
     : dacOutputQueueHandle_(queue), ptt_(ptt)
-    {}
+    {
+        arm_fir_interpolate_init_q15(
+            &fir_interpolator, UPSAMPLE, m17::FILTER_TAP_NUM,
+            (q15_t*) m17::rrc_taps.data(), fir_state.data(), BLOCKSIZE);
+    }
 
     ~M17Modulator() override {}
 
     void start_loopback() override
     {
-        loopback_ = true;
-        buffer_.fill(0);
-#ifdef KISS_LOGGING
-        HAL_RCCEx_DisableLSCO();
-#endif
-        start_conversion();
     }
 
     void stop_loopback() override
     {
-        loopback_ = false;
-        stop_conversion();
-#ifdef KISS_LOGGING
-        HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-#endif
     }
 
     void loopback(const void* input) override
     {
-        auto data = static_cast<const std::array<int16_t, TRANSFER_LEN>*>(input);
-        loopback_ = true;
-        std::copy(data->begin(), data->end(), loopback_data_.begin());
-        for (auto& x : loopback_data_) x = (x >> 2) + 2048;
-        osMessagePut(dacOutputQueueHandle_, 1, osWaitForever);
     }
 
     void init(const kiss::Hardware& hw) override;
@@ -69,7 +70,7 @@ struct M17Modulator : Modulator
         state = State::STOPPED;
         HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
         HAL_TIM_Base_Stop(&htim7);
-//        ptt_->off();
+        ptt_->off();
     }
 
     void set_gain(uint16_t level) override
@@ -87,72 +88,89 @@ struct M17Modulator : Modulator
             CxxErrorHandler();
         }
         ptt_ = ptt;
-//        ptt_->off();
+        ptt_->off();
     }
 
-    void send(bool bit) override
+    void send(uint8_t bits) override
     {
         switch (state)
         {
         case State::STOPPING:
         case State::STOPPED:
-//            ptt_->on();
+            ptt_->on();
             #ifdef KISS_LOGGING
                 HAL_RCCEx_DisableLSCO();
             #endif
-
-//            fill_first(bit);
+            fill_first(bits);
             state = State::STARTING;
             break;
         case State::STARTING:
-//            fill_last(bit);
+            fill_last(bits);
             state = State::RUNNING;
             start_conversion();
             break;
         case State::RUNNING:
-            osMessagePut(dacOutputQueueHandle_, bit, osWaitForever);
+            osMessagePut(dacOutputQueueHandle_, bits, osWaitForever);
             break;
         }
     }
 
     // DAC DMA interrupt functions.
 
-    void fill_first(bool bit) override
+    void fill_first(uint8_t bits) override
     {
-        if (!loopback_) fill(buffer_.data(), bit);
-        else
-        {
-            std::copy(loopback_data_.begin(), loopback_data_.end(), buffer_.begin());
-        }
+        fill(buffer_.data(), bits);
     }
 
-    void fill_last(bool bit) override
+    void fill_last(uint8_t bits) override
     {
-        if (!loopback_) fill(buffer_.data() + TRANSFER_LEN, bit);
-        else
-        {
-            std::copy(loopback_data_.begin(), loopback_data_.end(), buffer_.begin() + TRANSFER_LEN);
-        }
+        fill(buffer_.data() + TRANSFER_LEN, bits);
     }
 
-    void empty() override
+    void empty_first() override
     {
         switch (state)
         {
         case State::STARTING:
             // fall-through
         case State::RUNNING:
+            fill_empty(buffer_.data());
             state = State::STOPPING;
             break;
         case State::STOPPING:
+            fill_empty(buffer_.data());
             state = State::STOPPED;
+            break;
+        case State::STOPPED:
             stop_conversion();
-//            ptt_->off();
+            ptt_->off();
             #ifdef KISS_LOGGING
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
             #endif
             break;
+        }
+    }
+
+    void empty_last() override
+    {
+        switch (state)
+        {
+        case State::STARTING:
+            // fall-through
+        case State::RUNNING:
+            fill_empty(buffer_.data() + TRANSFER_LEN);
+            state = State::STOPPING;
+            break;
+        case State::STOPPING:
+            fill_empty(buffer_.data() + TRANSFER_LEN);
+            state = State::STOPPED;
+            break;
         case State::STOPPED:
+            stop_conversion();
+            ptt_->off();
+            #ifdef KISS_LOGGING
+                HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+            #endif
             break;
         }
     }
@@ -161,7 +179,7 @@ struct M17Modulator : Modulator
     {
         state = State::STOPPED;
         stop_conversion();
-//        ptt_->off();
+        ptt_->off();
         #ifdef KISS_LOGGING
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
         #endif
@@ -209,9 +227,49 @@ private:
         return sample;
     }
 
-    void fill(uint16_t*, bool)
+    constexpr int8_t bits_to_symbol(uint8_t bits)
     {
-         CxxErrorHandler();
+        switch (bits)
+        {
+        case 0: return 1;
+        case 1: return 3;
+        case 2: return -1;
+        case 3: return -3;
+        }
+        return 0;
+    }
+
+    void fill(int16_t* buffer, uint8_t bits)
+    {
+        for (size_t i = 0; i != 4; ++i)
+        {
+            symbols[i] = bits_to_symbol(bits >> 6) << 10;
+            bits <<= 2;
+        }
+
+        arm_fir_interpolate_q15(
+            &fir_interpolator, symbols.data(), buffer, BLOCKSIZE);
+
+        for (size_t i = 0; i != TRANSFER_LEN; ++i)
+        {
+            buffer[i] = adjust_level(buffer[i]);
+        }
+    }
+
+    void fill_empty(int16_t* buffer)
+    {
+        for (size_t i = 0; i != 4; ++i)
+        {
+            symbols[i] = 0;
+        }
+
+        arm_fir_interpolate_q15(
+            &fir_interpolator, symbols.data(), buffer, BLOCKSIZE);
+
+        for (size_t i = 0; i != TRANSFER_LEN; ++i)
+        {
+            buffer[i] = adjust_level(buffer[i]);
+        }
     }
 };
 

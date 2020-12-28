@@ -77,7 +77,7 @@ struct Fsk9600Modulator : Modulator
         ptt_->off();
     }
 
-    void send(bool bit) override
+    void send(uint8_t bit) override
     {
         auto scrambled = lfsr(bit);
 
@@ -106,17 +106,27 @@ struct Fsk9600Modulator : Modulator
 
     // DAC DMA interrupt functions.
 
-    void fill_first(bool bit) override
+    void fill_first(uint8_t bit) override
     {
         fill(buffer_.data(), bit);
     }
 
-    void fill_last(bool bit) override
+    void fill_last(uint8_t bit) override
     {
         fill(buffer_.data() + BIT_LEN, bit);
     }
 
-    void empty() override
+    void empty_first() override
+    {
+        empty();
+    }
+
+    void empty_last() override
+    {
+        empty();
+    }
+
+    void empty()
     {
         switch (state)
         {

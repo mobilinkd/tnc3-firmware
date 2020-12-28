@@ -3,6 +3,8 @@
 #pragma once
 
 #include <cstdint>
+#include <array>
+#include <cstddef>
 
 namespace mobilinkd
 {
@@ -50,7 +52,7 @@ struct CRC16
     uint16_t get()
     {
         auto reg = reg_;
-        for (size_t i = 0; i != 8; ++i)
+        for (size_t i = 0; i != 16; ++i)
         {
             auto msb = reg & MSB;
             reg = ((reg << 1) & MASK);
@@ -62,7 +64,7 @@ struct CRC16
     std::array<uint8_t, 2> get_bytes()
     {
         auto crc = get();
-        std::array<uint8_t, 2> result{(crc>>8) & 0xFF, crc & 0xFF};
+        std::array<uint8_t, 2> result{uint8_t((crc >> 8) & 0xFF), uint8_t(crc & 0xFF)};
         return result;
     }
 };

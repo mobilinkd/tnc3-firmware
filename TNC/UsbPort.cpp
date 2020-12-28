@@ -65,7 +65,7 @@ void UsbPort::add_char(uint8_t c)
             state_ = WAIT_ESCAPED;
             break;
         case FEND:
-            frame_->source(hdlc::IoFrame::SERIAL_DATA);
+            frame_->source(frame_->source() & 7);
             osMessagePut(ioEventQueueHandle, reinterpret_cast<uint32_t>(frame_),
                 osWaitForever);
             frame_ = hdlc::acquire_wait();
@@ -309,7 +309,7 @@ bool UsbPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     size_t pos = 0;
 
     TxBuffer[pos++] = 0xC0;   // FEND
-    TxBuffer[pos++] = static_cast<int>(frame->type());   // KISS Data Frame
+    TxBuffer[pos++] = static_cast<int>((frame->source() | frame->type()) & 0x7F);   // KISS Data Frame
 
     auto result = true;
 

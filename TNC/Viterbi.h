@@ -189,6 +189,8 @@ struct Viterbi
             }
         }
 
+        size_t ber = min_cost / (METRIC >> 1); // Cost is at least equal to # of erasures.
+
         // Do chainback.
         auto oit = std::rbegin(out);
         auto hit = std::rbegin(history);
@@ -201,7 +203,7 @@ struct Viterbi
             next_element = prevState_[next_element][v];
         }
 
-        return min_cost / (2 * ((1 << (LLR_ - 1)) - 1)); // BER estimate.
+        return ber;
     }
 };
 

@@ -20,6 +20,7 @@
 #include "KissHardware.hpp"
 #include "ModulatorTask.hpp"
 #include "Modulator.hpp"
+#include "M17.h"
 
 #include <arm_math.h>
 
@@ -33,7 +34,6 @@ namespace mobilinkd { namespace tnc {
 
 struct M17Demodulator : IDemodulator
 {
-    static constexpr size_t FILTER_TAP_NUM = 80;    // Must be even.
     static constexpr uint32_t ADC_BLOCK_SIZE = 192;
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
 
@@ -43,18 +43,15 @@ struct M17Demodulator : IDemodulator
     static constexpr uint32_t SAMPLE_RATE = 48000;
     static constexpr uint16_t VREF = 4095;
 
-    static const std::array<q15_t, FILTER_TAP_NUM> rrc_taps;
-
-
-    using audio_filter_t = Q15FirFilter<ADC_BLOCK_SIZE, FILTER_TAP_NUM>;
+    using audio_filter_t = Q15FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM>;
     using demod_result_t = std::tuple<float, float, int, float>;
 
-    enum class DemodState { UNLOCKED, SYNC, FR_SYNC, FRAMING};
+    enum class DemodState { UNLOCKED, LSF_SYNC, FRAME_SYNC, FRAME };
 
-    audio_filter_t demod_filter{rrc_taps.data()};
+    audio_filter_t demod_filter{m17::rrc_taps.data()};
     const float sample_rate = 48000.0;
     const float symbol_rate = 4800.0;
-    float gain = 0.005;
+    float gain = 0.01;
     std::array<q15_t, 3> samples;
     std::array<float, 3> f_samples;
     std::array<int8_t, 368> buffer;
@@ -71,11 +68,14 @@ struct M17Demodulator : IDemodulator
     FrequencyError<float, 32> frequency{evm_b, evm_a};
     SymbolEvm<float, std::tuple_size<decltype(evm_b)>::value> symbol_evm{evm_b, evm_a};
     CarrierDetect<float> dcd{evm_b, evm_a, 0.01, 0.75};
-    M17Synchronizer sync1{0x3243, 1};
-    M17Synchronizer sync4{0x3243, 4};
+    M17Synchronizer lsf_sync_1{m17::sync_word(m17::LSF_SYNC), 1};
+    M17Synchronizer stream_sync_1{m17::sync_word(m17::STREAM_SYNC), 1};
+    M17Synchronizer stream_sync_3{m17::sync_word(m17::STREAM_SYNC), 3};
+    M17Synchronizer packet_sync_3{m17::sync_word(m17::PACKET_SYNC), 3};
     M17Framer<368> framer;
     M17FrameDecoder decoder;
     DemodState demodState = DemodState::UNLOCKED;
+    M17FrameDecoder::SyncWordType sync_word_type = M17FrameDecoder::SyncWordType::LSF;
 
     bool locked_ = false;
     bool passall_ = false;
@@ -88,7 +88,7 @@ struct M17Demodulator : IDemodulator
 
     void stop() override
     {
-        getModulator().stop_loopback();
+//        getModulator().stop_loopback();
         stopADC();
         locked_ = false;
     }
@@ -113,7 +113,7 @@ struct M17Demodulator : IDemodulator
         auto [sample, phase, symbol, evm] = demod_result;
         auto [locked, evma] = dcd(evm);
         static size_t count = 0;
-        gain = locked ? 0.002f : 0.01f;
+        gain = locked ? 0.0005f : 0.01f;
 
         switch (demodState)
         {
@@ -122,45 +122,58 @@ struct M17Demodulator : IDemodulator
                 locked_ = false;
                 break;
             }
-            demodState = DemodState::SYNC;
+            demodState = DemodState::LSF_SYNC;
             framer.reset();
             decoder.reset();
-            // Fall-through
-        case DemodState::SYNC:
+            sync_count = 0;
+            [[fallthrough]];
+        case DemodState::LSF_SYNC:
             if (!locked)
             {
                 demodState = DemodState::UNLOCKED;
             }
-            else if (sync1(from_4fsk(symbol)))
+            else if (lsf_sync_1(from_4fsk(symbol)))  // LSF SYNC?
             {
-                demodState = DemodState::FRAMING;
+                INFO("LSF_SYNC/LSF");
+                demodState = DemodState::FRAME;
+                sync_word_type = M17FrameDecoder::SyncWordType::LSF;
             }
-            else
+            else if (stream_sync_1(from_4fsk(symbol)))  // STREAM SYNC for LICH?
             {
-                // pass
+                INFO("LSF_SYNC/STREAM");
+                demodState = DemodState::FRAME;
+                sync_word_type = M17FrameDecoder::SyncWordType::STREAM;
             }
             break;
-        case DemodState::FR_SYNC:
+        case DemodState::FRAME_SYNC:
             if (!locked)
             {
-                INFO("state: %d, dt:, %5d evm: %5d, evma: %5d, dev: %5d, freq: %5d, locked: %d, ber: %d",
+                INFO("state: %d, dt: %5d, evm: %5d, evma: %5d, dev: %5d, freq: %5d, locked: %d, ber: %d",
                     int(demodState), int(dt * 10000), int(evm * 1000),
-                    int(evma * 1000), int(estimated_deviation * 1000),
+                    int(evma * 1000), int((1.0 / estimated_deviation) * 1000),
                     int(estimated_frequency_offset * 1000),
                     locked_, ber);
                 demodState = DemodState::UNLOCKED;
             }
-            else if (sync4(from_4fsk(symbol)))
+            else if (stream_sync_3(from_4fsk(symbol)) && sync_count == 7)
             {
-                demodState = DemodState::FRAMING;
+                INFO("STREAM_SYNC");
+                demodState = DemodState::FRAME;
+                sync_word_type = M17FrameDecoder::SyncWordType::STREAM;
             }
-            else if (++sync_count > 8)
+            else if (packet_sync_3(from_4fsk(symbol)) && sync_count == 7)
+            {
+                INFO("PACKET_SYNC");
+                demodState = DemodState::FRAME;
+                sync_word_type = M17FrameDecoder::SyncWordType::PACKET;
+            }
+            else if (++sync_count == 8)
             {
                 demodState = DemodState::UNLOCKED;
                 locked_ = false;
             }
             break;
-        case DemodState::FRAMING:
+        case DemodState::FRAME:
             {
                 locked_ = true;
                 auto n = llr<float, 4>(sample);
@@ -168,15 +181,16 @@ struct M17Demodulator : IDemodulator
                 auto len = framer(n, &tmp);
                 if (len != 0)
                 {
+                    demodState = DemodState::FRAME_SYNC;
                     sync_count = 0;
-                    demodState = DemodState::FR_SYNC;
                     std::copy(tmp, tmp + len, buffer.begin());
-                    auto valid = decoder(buffer, result, ber);
+                    auto valid = decoder(sync_word_type, buffer, result, ber);
                     if (!valid)
                     {
                         WARN("decode invalid");
                         if (result && !passall_)
                         {
+
                             if (result) hdlc::release(result);
                             result = 0;
                         }
@@ -187,9 +201,9 @@ struct M17Demodulator : IDemodulator
         }
         if ((count++ % 192) == 0)
         {
-            INFO("state: %d, dt:, %5d evm: %5d, evma: %5d, dev: %5d, freq: %5d, locked: %d, ber: %d",
+            INFO("state: %d, dt: %5d, evm: %5d, evma: %5d, dev: %5d, freq: %5d, locked: %d, ber: %d",
                 int(demodState), int(dt * 10000), int(evm * 1000),
-                int(evma * 1000), int(estimated_deviation * 1000),
+                int(evma * 1000), int((1.0 / estimated_deviation) * 1000),
                 int(estimated_frequency_offset * 1000),
                 locked, ber);
         }
@@ -197,9 +211,9 @@ struct M17Demodulator : IDemodulator
 
     demod_result_t demod()
     {
-        f_samples[0] = samples[0] * 20.0f / 32768.0f;
-        f_samples[1] = samples[1] * 20.0f / 32768.0f;
-        f_samples[2] = samples[2] * 20.0f / 32768.0f;
+        f_samples[0] = float(samples[0]) / 8192.0;
+        f_samples[1] = float(samples[1]) / 8192.0;
+        f_samples[2] = float(samples[2]) / 8192.0;
 
         estimated_deviation = deviation(f_samples[1]);
         for (auto& sample : f_samples) sample *= estimated_deviation;
@@ -208,10 +222,10 @@ struct M17Demodulator : IDemodulator
         for (auto& sample : f_samples) sample -= estimated_frequency_offset;
 
         auto phase_estimate = phase(f_samples);
-        if (f_samples[1] < 0) phase_estimate *= -1;
+        if (f_samples[1] < 0.0) phase_estimate *= -1.0;
 
         dt = ideal_dt - (phase_estimate * gain);
-        dt = std::min(std::max(0.095f, dt), 0.105f);
+        // dt = std::min(std::max(0.095f, dt), 0.105f);
         t += dt;
 
         auto [symbol, evm] = symbol_evm(f_samples[1]);

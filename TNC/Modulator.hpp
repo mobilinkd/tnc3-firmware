@@ -57,7 +57,7 @@ struct Modulator
      *
      * @param bit
      */
-    virtual void send(bool bit) = 0;
+    virtual void send(uint8_t symbol) = 0;
 
     /// The next three functions are called by the DAC DMA interrupt handler.
 
@@ -68,7 +68,7 @@ struct Modulator
      *
      * @param bit
      */
-    virtual void fill_first(bool bit) = 0;
+    virtual void fill_first(uint8_t symbol) = 0;
 
     /**
      * Fill the second half of the DAC DMA buffer.
@@ -77,14 +77,15 @@ struct Modulator
      *
      * @param bit
      */
-    virtual void fill_last(bool bit) = 0;
+    virtual void fill_last(uint8_t symbol) = 0;
 
     /**
      * The DAC bit buffer is empty.  There are no more bits to process.
      *
      * @warning This function is called in an interrupt context.
      */
-    virtual void empty() = 0;
+    virtual void empty_first() = 0;
+    virtual void empty_last() = 0;
 
     virtual void abort() = 0;
 

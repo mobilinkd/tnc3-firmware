@@ -4,6 +4,7 @@
 #pragma once
 
 #include "PTT.hpp"
+#include "Encoder.h"
 #include "cmsis_os.h"
 
 #ifdef __cplusplus
@@ -24,7 +25,7 @@ extern mobilinkd::tnc::SimplexPTT simplexPtt;
 extern mobilinkd::tnc::MultiplexPTT multiplexPtt;
 
 mobilinkd::tnc::Modulator& getModulator();
-mobilinkd::tnc::hdlc::Encoder& getEncoder();
+mobilinkd::Encoder& getEncoder();
 
 void startModulatorTask(void const * argument);
 

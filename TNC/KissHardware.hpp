@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstring>
 #include <memory>
+#include <array>
 
 extern "C" void updatePtt(void);
 
@@ -180,7 +181,7 @@ constexpr uint8_t MODEM_TYPE_1200 = 1;
 constexpr uint8_t MODEM_TYPE_300 = 2;
 constexpr uint8_t MODEM_TYPE_9600 = 3;
 constexpr uint8_t MODEM_TYPE_PSK31 = 4;
-constexpr uint8_t MODEM_TYPE_M17_AUDIO = 5;
+constexpr uint8_t MODEM_TYPE_M17 = 5;
 
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
@@ -195,13 +196,14 @@ const char TOCALL[] = "APML30"; // Update for every feature change.
 } // hardware
 
 const size_t CALLSIGN_LEN = 8;
+using call_t = std::array<char, CALLSIGN_LEN>;
 
 struct Alias {
-    uint8_t call[CALLSIGN_LEN];   ///< Callsign.  Pad unused with NUL.
-    bool set;                     ///< Alias is configured.
-    bool use;                     ///< Use this alias.
-    bool insert_id;               ///< Tracing.
-    bool preempt;                 ///< Allow out of order pathing.
+    call_t call;                ///< Callsign.  Pad unused with NUL.
+    bool set;                   ///< Alias is configured.
+    bool use;                   ///< Use this alias.
+    bool insert_id;             ///< Tracing.
+    bool preempt;               ///< Allow out of order pathing.
     uint8_t hops;
 }; // size = 10
 
@@ -209,7 +211,7 @@ const size_t BEACON_PATH_LEN = 30;
 const size_t BEACON_TEXT_LEN = 128;
 
 struct Beacon {
-    uint8_t dest[CALLSIGN_LEN];         ///< callsign.  Pad unused with NUL.
+    call_t dest;                        ///< callsign.  Pad unused with NUL.
     uint8_t path[BEACON_PATH_LEN + 1];  ///< NUL terminated string.
     uint8_t text[BEACON_TEXT_LEN + 1];  ///< NUL terminated string.
     uint16_t seconds;                   ///< Number of seconds between beacons.
@@ -230,7 +232,7 @@ struct Hardware
         "AFSK300",
         "FSK9600",
         "PSK31",
-        "M17 AUDIO"
+        "M17"
     };
 
     // This must match the constants defined above.
@@ -239,13 +241,13 @@ struct Hardware
         AFSK300 = hardware::MODEM_TYPE_300,
         FSK9600 = hardware::MODEM_TYPE_9600,
         PSK31 = hardware::MODEM_TYPE_PSK31,
-        M17AUDIO = hardware::MODEM_TYPE_M17_AUDIO
+        M17 = hardware::MODEM_TYPE_M17
     };
 
     static constexpr std::array<uint8_t, 3> supported_modem_types = {
         hardware::MODEM_TYPE_1200,
         hardware::MODEM_TYPE_9600,
-        hardware::MODEM_TYPE_M17_AUDIO
+        hardware::MODEM_TYPE_M17
     };
 
     uint8_t txdelay;        ///< How long in 10mS units to wait for TX to settle before starting data
@@ -263,7 +265,7 @@ struct Hardware
     uint16_t options;       ///< boolean options
 
     /// Callsign.   Pad unused with NUL.
-    uint8_t mycall[CALLSIGN_LEN];
+    call_t mycall;
 
     uint8_t dedupe_seconds;          ///< number of seconds to dedupe packets.
     Alias aliases[NUMBER_OF_ALIASES];   ///< Digipeater aliases
@@ -313,7 +315,7 @@ struct Hardware
       options = KISS_OPTION_PTT_SIMPLEX;
 
       /// Callsign.   Pad unused with NUL.
-      strcpy((char*)mycall, "NOCALL");
+      strcpy(mycall.data(), "NOCALL");
 
       dedupe_seconds = 30;
       memset(aliases, 0, sizeof(aliases));
@@ -337,12 +339,12 @@ struct Hardware
         DEBUG("RX Twist: %d", (int)rx_twist);
         DEBUG("Log Level: %d", (int)log_level);
         DEBUG("Options: %04hx", options);
-        DEBUG("MYCALL: %s", (char*) mycall);
+        DEBUG("MYCALL: %s", mycall.data());
         DEBUG("Dedupe time (secs): %d", (int)dedupe_seconds);
         DEBUG("Aliases:");
         for (auto& a : aliases) {
             if (!a.set) continue;
-            DEBUG(" call: %s", (char*)a.call);
+            DEBUG(" call: %s", a.call.data());
             DEBUG(" use: %d", (int)a.use);
             DEBUG(" insert: %d", (int)a.insert_id);
             DEBUG(" preempt: %d", (int)a.preempt);
@@ -351,7 +353,7 @@ struct Hardware
         DEBUG("Beacons:");
         for (auto& b : this->beacons) {
             if (b.seconds == 0) continue;
-            DEBUG(" dest: %s", (char*)b.dest);
+            DEBUG(" dest: %s", (char*)b.dest.data());
             DEBUG(" path: %s", (char*)b.path);
             DEBUG(" text: %s", (char*)b.text);
             DEBUG(" frequency (secs): %d", (int)b.seconds);

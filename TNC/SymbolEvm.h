@@ -43,7 +43,7 @@ struct SymbolEvm
         if (sample > 2)
         {
             symbol = 3;
-            evm = (sample - 3) / 3.0f;
+            evm = (sample - 3) * 0.333333f;
         }
         else if (sample > 0)
         {
@@ -58,7 +58,7 @@ struct SymbolEvm
         else
         {
             symbol = -3;
-            evm = (sample + 3) / 3.0f;
+            evm = (sample + 3) * 0.333333f;
         }
         
         evm_ = filter_(evm);
