@@ -35,7 +35,7 @@ namespace hardware {
  * The major version should be updated whenever non-backwards compatible
  * changes to the API are made.
  */
-constexpr const uint16_t KISS_API_VERSION = 0x0201;
+constexpr const uint16_t KISS_API_VERSION = 0x0202;
 
 constexpr const uint16_t CAP_DCD = 0x0100;
 constexpr const uint16_t CAP_SQUELCH = 0x0200;
