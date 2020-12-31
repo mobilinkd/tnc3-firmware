@@ -130,6 +130,10 @@ constexpr const uint8_t GET_PTT_CHANNEL = 80; // multiplex or simplex)
 
 constexpr const uint8_t SET_PASSALL = 81;   // Allow invalid CRC through when
 constexpr const uint8_t GET_PASSALL = 82;   // true (1).
+constexpr const uint8_t SET_RX_REV_POLARITY = 83;   // Reverse RX polarity for
+constexpr const uint8_t GET_RX_REV_POLARITY = 84;   // 4-FSK modes when true (1).
+constexpr const uint8_t SET_TX_REV_POLARITY = 85;   // Reverse TX polarity for
+constexpr const uint8_t GET_TX_REV_POLARITY = 86;   // 4-FSK modes when true (1).
 
 constexpr const uint8_t GET_MIN_OUTPUT_TWIST = 119;  ///< int8_t (may be negative).
 constexpr const uint8_t GET_MAX_OUTPUT_TWIST = 120;  ///< int8_t (may be negative).
@@ -190,6 +194,8 @@ constexpr uint8_t MODEM_TYPE_M17 = 5;
 #define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when unplugged from USB
 #define KISS_OPTION_PTT_SIMPLEX     0x10  // Simplex PTT (the default)
 #define KISS_OPTION_PASSALL         0x20  // Ignore invalid CRC.
+#define KISS_OPTION_RX_REV_POLARITY 0x40  // Reverse Polarity on RX when set.
+#define KISS_OPTION_TX_REV_POLARITY 0x80  // Reverse Polarity on TX when set.
 
 const char TOCALL[] = "APML30"; // Update for every feature change.
 
@@ -376,6 +382,16 @@ struct Hardware
     void get_aliases();
     void get_alias(uint8_t alias);
     void set_alias(const hdlc::IoFrame* frame);
+
+    bool rx_rev_polarity() const
+    {
+        return (options & KISS_OPTION_RX_REV_POLARITY) != 0;
+    }
+
+    bool tx_rev_polarity() const
+    {
+        return (options & KISS_OPTION_TX_REV_POLARITY) != 0;
+    }
 
     void announce_input_settings();
 

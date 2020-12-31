@@ -179,7 +179,7 @@ template <size_t N>
 constexpr bool get_bit_index(const std::array<uint8_t, N>& input, size_t index)
 {
     auto byte_index = index >> 3;
-    auto bit_index = index & 7;
+    auto bit_index = 7 - (index & 7);
 
     return (input[byte_index] & (1 << bit_index)) >> bit_index;
 }
@@ -188,7 +188,7 @@ template <size_t N>
 void set_bit_index(std::array<uint8_t, N>& input, size_t index)
 {
     auto byte_index = index >> 3;
-    auto bit_index = index & 7;
+    auto bit_index = 7 - (index & 7);
     input[byte_index] |= (1 << bit_index);
 }
 
@@ -196,7 +196,7 @@ template <size_t N>
 void reset_bit_index(std::array<uint8_t, N>& input, size_t index)
 {
     auto byte_index = index >> 3;
-    auto bit_index = index & 7;
+    auto bit_index = 7 - (index & 7);
     input[byte_index] &= ~(1 << bit_index);
 }
 
@@ -215,7 +215,7 @@ size_t puncture_bytes(const std::array<uint8_t, IN>& in,
     size_t index = 0;
     size_t pindex = 0;
     size_t bit_count = 0;
-    for (size_t i = 0; i != IN && index != OUT; ++i)
+    for (size_t i = 0; i != IN * 8 && index != OUT * 8; ++i)
     {
         if (p[pindex++])
         {

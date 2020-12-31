@@ -146,8 +146,6 @@ void M17Encoder::process_packet(tnc::hdlc::IoFrame* frame, FrameType type)
             }
 
             send_preamble();
-            send_preamble();
-            send_preamble();
         }
         create_link_setup(frame, type);
         send_link_setup();
@@ -216,8 +214,7 @@ void M17Encoder::send_preamble()
 
 void M17Encoder::send_link_setup()
 {
-    frame_t punctured;
-
+    punctured.fill(0);
     auto frame = tnc::hdlc::acquire_wait();
 
     // Encoder, puncture, interleave & randomize.
@@ -225,7 +222,6 @@ void M17Encoder::send_link_setup()
     puncture_bytes(encoded, punctured, P1);
     interleaver.interleave(punctured);
     randomizer(punctured);
-
     for (auto c : m17::LSF_SYNC) frame->push_back(c);
     for (auto c : punctured) frame->push_back(c);
 

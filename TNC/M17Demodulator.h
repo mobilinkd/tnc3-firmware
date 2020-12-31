@@ -211,6 +211,8 @@ struct M17Demodulator : IDemodulator
 
     demod_result_t demod()
     {
+        int16_t polarity = kiss::settings().rx_rev_polarity() ? -1 : 1;
+
         f_samples[0] = float(samples[0]) / 8192.0;
         f_samples[1] = float(samples[1]) / 8192.0;
         f_samples[2] = float(samples[2]) / 8192.0;
@@ -232,7 +234,7 @@ struct M17Demodulator : IDemodulator
         evm_average = symbol_evm.evm();
         samples[0] = samples[2];
 
-        return std::make_tuple(f_samples[1], phase_estimate, symbol, evm);
+        return std::make_tuple(f_samples[1], phase_estimate, symbol * polarity, evm);
     }
 
     hdlc::IoFrame* operator()(const q15_t* input) override;

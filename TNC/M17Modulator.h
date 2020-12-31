@@ -38,7 +38,7 @@ struct M17Modulator : Modulator
     osMessageQId dacOutputQueueHandle_{0};
     PTT* ptt_{nullptr};
     uint16_t volume_{4096};
-    uint8_t symbol_count = 0;
+    volatile uint16_t delay_count = 0;
     State state{State::STOPPED};
 
     M17Modulator(osMessageQId queue, PTT* ptt)
@@ -93,21 +93,26 @@ struct M17Modulator : Modulator
 
     void send(uint8_t bits) override
     {
+        uint16_t txdelay = 0;
         switch (state)
         {
         case State::STOPPING:
         case State::STOPPED:
-            ptt_->on();
-            #ifdef KISS_LOGGING
-                HAL_RCCEx_DisableLSCO();
-            #endif
-            fill_first(bits);
+        #ifdef KISS_LOGGING
+            HAL_RCCEx_DisableLSCO();
+        #endif
+            delay_count = 0;
+            txdelay = kiss::settings().txdelay * 12 - 5;
+            fill_empty(buffer_.data());
+            fill_empty(buffer_.data() + TRANSFER_LEN);
             state = State::STARTING;
-            break;
+            [[fallthrough]];
         case State::STARTING:
-            fill_last(bits);
-            state = State::RUNNING;
             start_conversion();
+            ptt_->on();
+            while (delay_count < txdelay) osThreadYield();
+            osMessagePut(dacOutputQueueHandle_, bits, osWaitForever);
+            state = State::RUNNING;
             break;
         case State::RUNNING:
             osMessagePut(dacOutputQueueHandle_, bits, osWaitForever);
@@ -127,12 +132,23 @@ struct M17Modulator : Modulator
         fill(buffer_.data() + TRANSFER_LEN, bits);
     }
 
+    /*
+     * DAC queue is empty when STARTING.  It is filled with '0' symbols
+     * for TX delay duration (using delay_count).  It then transitions
+     * to the running state in send() after filling the DAC queue.
+     *
+     * When no more symbols are available, the DAC queue is empty in the
+     * running state.  The FIR filter is flushed of the remaining data
+     * using '0' symbols.
+     */
     void empty_first() override
     {
         switch (state)
         {
         case State::STARTING:
-            // fall-through
+            fill_empty(buffer_.data());
+            delay_count += 1;
+            break;
         case State::RUNNING:
             fill_empty(buffer_.data());
             state = State::STOPPING;
@@ -151,12 +167,23 @@ struct M17Modulator : Modulator
         }
     }
 
+    /*
+     * DAC queue is empty when STARTING.  It is filled with '0' symbols
+     * for TX delay duration (using delay_count).  It then transitions
+     * to the running state in send() after filling the DAC queue.
+     *
+     * When no more symbols are available, the DAC queue is empty in the
+     * running state.  The FIR filter is flushed of the remaining data
+     * using '0' symbols.
+     */
     void empty_last() override
     {
         switch (state)
         {
         case State::STARTING:
-            // fall-through
+            fill_empty(buffer_.data() + TRANSFER_LEN);
+            delay_count += 1;
+            break;
         case State::RUNNING:
             fill_empty(buffer_.data() + TRANSFER_LEN);
             state = State::STOPPING;
@@ -241,9 +268,11 @@ private:
 
     void fill(int16_t* buffer, uint8_t bits)
     {
+        int16_t polarity = kiss::settings().tx_rev_polarity() ? -1 : 1;
+
         for (size_t i = 0; i != 4; ++i)
         {
-            symbols[i] = bits_to_symbol(bits >> 6) << 10;
+            symbols[i] = bits_to_symbol(bits >> 6) << 10 * polarity;
             bits <<= 2;
         }
 
@@ -258,10 +287,7 @@ private:
 
     void fill_empty(int16_t* buffer)
     {
-        for (size_t i = 0; i != 4; ++i)
-        {
-            symbols[i] = 0;
-        }
+        symbols.fill(0);
 
         arm_fir_interpolate_q15(
             &fir_interpolator, symbols.data(), buffer, BLOCKSIZE);

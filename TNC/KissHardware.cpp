@@ -443,6 +443,34 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         reply8(hardware::GET_PASSALL, options & KISS_OPTION_PASSALL ? 1 : 0);
         break;
 
+    case hardware::SET_RX_REV_POLARITY:
+        DEBUG("SET_RX_REV_POLARITY");
+        if (*it) {
+          options |= KISS_OPTION_RX_REV_POLARITY;
+        } else {
+          options &= ~KISS_OPTION_RX_REV_POLARITY;
+        }
+        update_crc();
+        [[fallthrough]];
+    case hardware::GET_RX_REV_POLARITY:
+        DEBUG("GET_RX_REV_POLARITY");
+        reply8(hardware::GET_RX_REV_POLARITY, options & KISS_OPTION_RX_REV_POLARITY ? 1 : 0);
+        break;
+
+    case hardware::SET_TX_REV_POLARITY:
+        DEBUG("SET_TX_REV_POLARITY");
+        if (*it) {
+          options |= KISS_OPTION_TX_REV_POLARITY;
+        } else {
+          options &= ~KISS_OPTION_TX_REV_POLARITY;
+        }
+        update_crc();
+        [[fallthrough]];
+    case hardware::GET_TX_REV_POLARITY:
+        DEBUG("GET_TX_REV_POLARITY");
+        reply8(hardware::GET_TX_REV_POLARITY, options & KISS_OPTION_TX_REV_POLARITY ? 1 : 0);
+        break;
+
     case hardware::SET_USB_POWER_OFF:
         DEBUG("SET_USB_POWER_OFF");
         if (*it) {
@@ -532,6 +560,8 @@ void Hardware::handle_request(hdlc::IoFrame* frame) {
         }
         // GET_DATETIME must always be last.  iOS config app depends on it.
         reply(hardware::GET_DATETIME, get_rtc_datetime(), 7);
+        reply8(hardware::GET_RX_REV_POLARITY, options & KISS_OPTION_RX_REV_POLARITY ? 1 : 0);
+        reply8(hardware::GET_TX_REV_POLARITY, options & KISS_OPTION_TX_REV_POLARITY ? 1 : 0);
         break;
 
     default:

@@ -67,11 +67,7 @@ struct M17ByteRandomizer
     {
         for (size_t i = 0; i != N; ++i)
         {
-            for (size_t j = 8; j != 0; --j)
-            {
-                uint8_t mask = 1 << (j - 1);
-                frame[i] = (frame[i] & ~mask) | ((frame[i] & mask) ^ (detail::DC[i] & mask));
-            }
+            frame[i] ^=  detail::DC[i];
         }
     }
 };

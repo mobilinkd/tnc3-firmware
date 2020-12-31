@@ -120,6 +120,14 @@ private:
      */
     bool do_csma();
 
+    /**
+     * Convolutional encode N bytes of data, returning N*2 + 1 bytes
+     * of encoded data (4 zero flush bits are added).  If total bits
+     * are not an even byte boundary, the
+     * @param data
+     * @param total_bits
+     * @return
+     */
     template <typename T, size_t N>
     static std::array<T, N * 2 + 1> conv_encode(std::array<T, N> data,
         size_t total_bits = N * 8)
@@ -181,6 +189,7 @@ private:
     osThreadId encoderTaskHandle;
     State state = State::INACTIVE;
 
+    frame_t punctured;
     lsf_t current_lsf;
     LinkSetupFrame::encoded_call_t src;
     LinkSetupFrame::encoded_call_t dest;
