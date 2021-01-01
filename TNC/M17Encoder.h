@@ -178,7 +178,7 @@ private:
         // Frame may not end on a byte boundary.
         if (bit_index != 0)
         {
-            while (bit_index++ != 8) tmp <<= 1;
+            tmp <<= (8 - bit_index);
             result[byte_index] = tmp;
         }
 
