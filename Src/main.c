@@ -149,7 +149,7 @@ osMutexId hardwareInitMutexHandle;
 
 int lost_power = 0;
 int reset_requested = 0;
-char serial_number_64[17] = {0};
+char serial_number_64[13] = {0};
 // Make sure it is not overwritten during resets (bss3).
 uint8_t mac_address[6] __attribute__((section(".bss3"))) = {0};
 char error_message[80] __attribute__((section(".bss3"))) = {0};

@@ -157,7 +157,7 @@
 #define CMD_USB_RESUME 26
 
 extern int reset_requested;
-extern char serial_number_64[17];
+extern char serial_number_64[13];
 extern uint8_t mac_address[6];
 extern char error_message[80];
 extern int go_back_to_sleep;
