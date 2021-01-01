@@ -30,7 +30,7 @@ int powerOffViaUSB(void)
 
 namespace mobilinkd { namespace tnc { namespace kiss {
 
-const char FIRMWARE_VERSION[] = "2.1.2";
+const char FIRMWARE_VERSION[] = "2.1.3";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 
 
@@ -598,7 +598,8 @@ void Hardware::handle_ext_request(hdlc::IoFrame* frame) {
         {
             ERROR("Unsupported modem type");
         }
-        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS,
+        osMessagePut(hdlcOutputQueueHandle, 0, osWaitForever);      // Reset encoder/modulator.
+        osMessagePut(audioInputQueueHandle, audio::UPDATE_SETTINGS, // Reset decoder/demodulator.
             osWaitForever);
         [[fallthrough]];
     case hardware::EXT_GET_MODEM_TYPE[1]:
