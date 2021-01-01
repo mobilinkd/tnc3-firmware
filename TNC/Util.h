@@ -204,7 +204,7 @@ template <size_t N>
 void assign_bit_index(std::array<uint8_t, N>& input, size_t index, bool value)
 {
     if (value) set_bit_index(input, index);
-    else reset_bit_index(input, value);
+    else reset_bit_index(input, index);
 }
 
 
