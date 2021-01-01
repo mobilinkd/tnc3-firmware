@@ -195,6 +195,10 @@ struct M17Demodulator : IDemodulator
                             result = 0;
                         }
                     }
+                    else
+                    {
+                        INFO("valid frame for sync word type %d", int(sync_word_type));
+                    }
                 }
             }
             break;
