@@ -38,7 +38,8 @@ struct M17Modulator : Modulator
     osMessageQId dacOutputQueueHandle_{0};
     PTT* ptt_{nullptr};
     uint16_t volume_{4096};
-    volatile uint16_t delay_count = 0;
+    volatile uint16_t delay_count = 0;      // TX Delay
+    volatile uint16_t stop_count = 0;       // Flush the RRC matched filter.
     State state{State::STOPPED};
 
     M17Modulator(osMessageQId queue, PTT* ptt)
@@ -111,6 +112,7 @@ struct M17Modulator : Modulator
             start_conversion();
             ptt_->on();
             while (delay_count < txdelay) osThreadYield();
+            stop_count = 2; // 8 symbols to flush the RRC filter.
             osMessagePut(dacOutputQueueHandle_, bits, osWaitForever);
             state = State::RUNNING;
             break;
@@ -155,7 +157,7 @@ struct M17Modulator : Modulator
             break;
         case State::STOPPING:
             fill_empty(buffer_.data());
-            state = State::STOPPED;
+            if (--stop_count == 0) state = State::STOPPED;
             break;
         case State::STOPPED:
             stop_conversion();
@@ -190,7 +192,7 @@ struct M17Modulator : Modulator
             break;
         case State::STOPPING:
             fill_empty(buffer_.data() + TRANSFER_LEN);
-            state = State::STOPPED;
+            if (--stop_count == 0) state = State::STOPPED;
             break;
         case State::STOPPED:
             stop_conversion();
@@ -272,7 +274,7 @@ private:
 
         for (size_t i = 0; i != 4; ++i)
         {
-            symbols[i] = bits_to_symbol(bits >> 6) << 10 * polarity;
+            symbols[i] = (bits_to_symbol(bits >> 6) << 10) * polarity;
             bits <<= 2;
         }
 
