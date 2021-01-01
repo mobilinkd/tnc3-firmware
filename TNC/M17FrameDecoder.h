@@ -94,6 +94,21 @@ void to_bytes(const std::array<T, M>& in, std::array<uint8_t, N>& out)
 
 } // detail
 
+template <typename C, size_t N>
+void dump(const std::array<C,N>& data, char header = 'D')
+{
+    ITM_SendChar(header);
+    ITM_SendChar('=');
+    for (auto c : data)
+    {
+        const char hex[] = "0123456789ABCDEF";
+        ITM_SendChar(hex[uint8_t(c)>>4]);
+        ITM_SendChar(hex[uint8_t(c)&0xf]);
+    }
+    ITM_SendChar('\r');
+    ITM_SendChar('\n');
+}
+
 /**
  * Decode M17 frames.  The decoder uses the sync word to determine frame
  * type and to update its state machine.
@@ -174,6 +189,7 @@ struct M17FrameDecoder
     uint8_t lich_segments{0};       ///< one bit per received LICH fragment.
     tnc::hdlc::IoFrame* current_packet = nullptr;
     uint8_t packet_frame_counter = 0;
+    bool passall_ = false;
 
 
     M17FrameDecoder(
@@ -189,6 +205,8 @@ struct M17FrameDecoder
 
     void reset() { state_ = State::LSF; }
 
+    void passall(bool enabled) { passall_ = enabled; }
+
     void update_state()
     {
         if (output.lsf[111]) // LSF type bit 0
@@ -202,6 +220,7 @@ struct M17FrameDecoder
 
             if (current_packet)
             {
+                WARN("Incomplete packet found");
                 current_packet->clear();
             }
             else
@@ -265,7 +284,8 @@ struct M17FrameDecoder
                 lsf->source(0x20);
                 return true;
             }
-            return false;
+            lsf = nullptr;
+            return true;
         }
         else
         {
@@ -394,9 +414,15 @@ struct M17FrameDecoder
 
         depuncture(buffer, tmp.packet, P3);
         ber = viterbi_.decode(tmp.packet, output.packet);
+        INFO("Raw BER = %u", ber);
         ber = ber > 26 ? ber - 26 : 0;
         detail::to_bytes(output.packet, packet_segment);
-        if (packet_segment[25] & 0x80) // last packet;
+
+#ifdef KISS_LOGGING
+        dump(packet_segment, 'P');
+#endif
+
+        if (packet_segment[25] & 0x80) // last frame of packet.
         {
             size_t packet_size = (packet_segment[25] & 0x7F) >> 2;
             packet_size = std::min(packet_size, size_t(25));
@@ -408,15 +434,24 @@ struct M17FrameDecoder
             state_ = State::LSF;
             // Check CRC but drop it.
             current_packet->parse_fcs();
-            if (packet->ok())
+            if (current_packet->ok())
             {
                 current_packet->source(0);
                 packet = current_packet;
                 current_packet = nullptr;
                 return true;
             }
-            tnc::hdlc::release(current_packet);
-            current_packet = nullptr;
+            WARN("packet bad fcs = %04x, crc = %04x", current_packet->fcs(), current_packet->crc());
+            if (passall_)
+            {
+                packet = current_packet;
+                current_packet = nullptr;
+            }
+            else
+            {
+                tnc::hdlc::release(current_packet);
+                current_packet = nullptr;
+            }
             return false;
         }
 
@@ -431,7 +466,8 @@ struct M17FrameDecoder
             current_packet->push_back(packet_segment[i]);
         }
 
-        return false;
+        packet = nullptr;
+        return true;
     }
 
     /**
@@ -451,8 +487,14 @@ struct M17FrameDecoder
 
         depuncture(buffer, tmp.packet, P3);
         ber = viterbi_.decode(tmp.packet, output.packet);
+        INFO("Raw BER = %u", ber);
         ber = ber > 26 ? ber - 26 : 0;
         detail::to_bytes(output.packet, packet_segment);
+
+#ifdef KISS_LOGGING
+        dump(packet_segment, 'P');
+#endif
+
         if (packet_segment[25] & 0x80) // last packet;
         {
             size_t packet_size = (packet_segment[25] & 0x7F) >> 2;
@@ -482,7 +524,8 @@ struct M17FrameDecoder
             current_packet->push_back(packet_segment[i]);
         }
 
-        return false;
+        packet = nullptr;
+        return true;
     }
 
     /**

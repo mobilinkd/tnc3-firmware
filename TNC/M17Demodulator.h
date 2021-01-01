@@ -106,6 +106,7 @@ struct M17Demodulator : IDemodulator
     void passall(bool enabled) override
     {
         passall_ = enabled;
+        decoder.passall(enabled);
     }
 
     void frame(demod_result_t demod_result, hdlc::IoFrame*& result)
