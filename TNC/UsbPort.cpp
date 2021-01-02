@@ -185,7 +185,7 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t t
         TxBuffer[pos++] = *slip_iter++;
         if (pos == TX_BUFFER_SIZE) {
             while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
-                if (osKernelSysTick() > start + timeout) {
+                if (osKernelSysTick() - start > timeout) {
                     osMutexRelease(mutex_);
                     return false;
                 }
@@ -198,7 +198,7 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t t
     // Buffer has room for at least one more byte.
     TxBuffer[pos++] = 0xC0;
     while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
-        if (osKernelSysTick() > start + timeout) {
+        if (osKernelSysTick() - start > timeout) {
             osMutexRelease(mutex_);
             return false;
         }
@@ -228,7 +228,7 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
         TxBuffer[pos++] = *first++;
         if (pos == TX_BUFFER_SIZE) {
             while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
-                if (osKernelSysTick() > start + timeout) {
+                if (osKernelSysTick()- start > timeout) {
                     osMutexRelease(mutex_);
                     return false;
                 }
@@ -239,14 +239,14 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
     }
 
     while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
-        if (osKernelSysTick() > start + timeout) {
+        if (osKernelSysTick() - start > timeout) {
             osMutexRelease(mutex_);
             return false;
         }
         osThreadYield();
     }
     while (open_ and CDC_Transmit_FS((uint8_t*)"\r\n", 2) == USBD_BUSY) {
-        if (osKernelSysTick() > start + timeout) {
+        if (osKernelSysTick() - start > timeout) {
             osMutexRelease(mutex_);
             return false;
         }
@@ -262,7 +262,7 @@ bool UsbPort::transmit_buffer(size_t pos, uint32_t start, uint32_t timeout)
 {
   while (open_ and CDC_Transmit_FS(TxBuffer, pos) == USBD_BUSY) {
     if ((timeout != osWaitForever) and
-      (osKernelSysTick() > start + timeout))
+      (osKernelSysTick() - start > timeout))
     {
       if (USBD_LL_IsStallEP(
         static_cast<USBD_HandleTypeDef*>(hUsbDeviceFS.pClassData),
