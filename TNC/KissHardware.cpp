@@ -44,8 +44,8 @@ const uint8_t* get_rtc_datetime()
 {
     static uint8_t buffer[8]; // YYMMDDWWHHMMSS
 
-    RTC_TimeTypeDef sTime;
-    RTC_DateTypeDef sDate;
+    RTC_TimeTypeDef sTime{0};
+    RTC_DateTypeDef sDate{0};
 
     HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
     HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
