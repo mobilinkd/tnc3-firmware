@@ -58,7 +58,6 @@
 #include "PortInterface.h"
 #include "LEDIndicator.h"
 #include "bm78.h"
-#include "base64.h"
 #include "KissHardware.h"
 #include "Log.h"
 
