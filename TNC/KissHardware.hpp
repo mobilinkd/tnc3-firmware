@@ -1,9 +1,8 @@
-// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2021 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
 
-#include "KissHardware.h"
 #include "Log.h"
 #include "HdlcFrame.hpp"
 #include "AFSKTestTone.hpp"
@@ -169,12 +168,11 @@ constexpr std::array<uint8_t, 2> EXT_GET_MODEM_TYPES = {0xC1, 0x83};    ///< Ret
 
 constexpr std::array<uint8_t, 2> EXT_GET_ALIASES = {0xC1, 0x88};        ///< Number of aliases supported
 constexpr std::array<uint8_t, 2> EXT_GET_ALIAS = {0xC1, 0x89};          ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
-constexpr std::array<uint8_t, 2> EXT_SET_ALIAS = {0xC1, 0x0A};          ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
+constexpr std::array<uint8_t, 2> EXT_SET_ALIAS = {0xC1, 0x8A};          ///< Alias number (uint8_t), 8 characters, 5 bytes (set, use, insert_id, preempt, hops)
 
 constexpr std::array<uint8_t, 2> EXT_GET_BEACON_SLOTS = {0xC1, 0x8C};   ///< Number of beacons supported
 constexpr std::array<uint8_t, 2> EXT_GET_BEACON = {0xC1, 0x8D};         ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
 constexpr std::array<uint8_t, 2> EXT_SET_BEACON = {0xC1, 0x8E};         ///< Beacon number (uint8_t), uint16_t interval in seconds, 3 NUL terminated strings (callsign, path, text)
-
 
 /*
  * Modem type values 0x00 - 0x7F are single-byte types.  Modem type values
@@ -190,14 +188,18 @@ constexpr uint8_t MODEM_TYPE_M17 = 5;
 // Boolean options.
 #define KISS_OPTION_CONN_TRACK      0x01
 #define KISS_OPTION_VERBOSE         0x02
-#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged into USB
+#define KISS_OPTION_VIN_POWER_ON    0x04  // Power on when plugged in to USB
 #define KISS_OPTION_VIN_POWER_OFF   0x08  // Power off when unplugged from USB
 #define KISS_OPTION_PTT_SIMPLEX     0x10  // Simplex PTT (the default)
 #define KISS_OPTION_PASSALL         0x20  // Ignore invalid CRC.
 #define KISS_OPTION_RX_REV_POLARITY 0x40  // Reverse Polarity on RX when set.
 #define KISS_OPTION_TX_REV_POLARITY 0x80  // Reverse Polarity on TX when set.
 
+#ifndef NUCLEOTNC
 const char TOCALL[] = "APML30"; // Update for every feature change.
+#else
+const char TOCALL[] = "APML00"; // Update for every feature change.
+#endif
 
 } // hardware
 
@@ -288,13 +290,13 @@ struct Hardware
 
     void update_crc() {
         checksum = crc();
-        INFO("EEPROM checksum = %04x", checksum);
+        INFO("EEPROM checksum = %04hx", checksum);
     }
 
     bool crc_ok() const {
         auto result = (crc() == checksum);
         if (!result) {
-            WARN("CRC mismatch %04x != %04x", checksum, crc());
+            WARN("CRC mismatch %04hx != %04hx", checksum, crc());
         }
         return result;
     }
@@ -332,6 +334,7 @@ struct Hardware
     }
 
     void debug() {
+#ifdef KISS_LOGGING
         DEBUG("Hardware Settings (size=%d):", sizeof(Hardware));
         DEBUG("TX Delay: %d", (int)txdelay);
         DEBUG("P* Persistence: %d", (int)ppersist);
@@ -344,7 +347,7 @@ struct Hardware
         DEBUG("TX Twist: %d", (int)tx_twist);
         DEBUG("RX Twist: %d", (int)rx_twist);
         DEBUG("Log Level: %d", (int)log_level);
-        DEBUG("Options: %04hx", options);
+        DEBUG("Options:  %04hx", options);
         DEBUG("MYCALL: %s", mycall.data());
         DEBUG("Dedupe time (secs): %d", (int)dedupe_seconds);
         DEBUG("Aliases:");
@@ -359,12 +362,13 @@ struct Hardware
         DEBUG("Beacons:");
         for (auto& b : this->beacons) {
             if (b.seconds == 0) continue;
-            DEBUG(" dest: %s", (char*)b.dest.data());
+            DEBUG(" dest: %s", b.dest.data());
             DEBUG(" path: %s", (char*)b.path);
             DEBUG(" text: %s", (char*)b.text);
             DEBUG(" frequency (secs): %d", (int)b.seconds);
         }
         DEBUG("Checksum: %04hx", checksum);
+#endif
     }
 
     bool load();

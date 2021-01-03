@@ -1,8 +1,7 @@
-// Copyright 2017 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__LED_INDICATOR_H_
-#define MOBILINKD__TNC__LED_INDICATOR_H_
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,5 +25,3 @@ void HTIM1_PeriodElapsedCallback(void);
 }
 
 #endif //__cplusplus
-
-#endif // MOBILINKD__TNC__LED_INDICATOR_H_

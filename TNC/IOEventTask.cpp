@@ -1,4 +1,4 @@
-// Copyright 2018 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2018-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "AudioLevel.hpp"
@@ -18,6 +18,7 @@
 #include "NullPort.hpp"
 #include "LEDIndicator.h"
 #include "bm78.h"
+#include "KissHardware.h"
 
 #include "stm32l4xx_hal.h"
 #include "usbd_cdc_if.h"
@@ -365,14 +366,6 @@ void startIOEventTask(void const*)
                 kiss::handle_frame(frame->type(), frame);
             }
         }
-    }
-}
-
-void startLedBlinkerTask(void const*)
-{
-    for (;;)
-    {
-        osDelay(4500);
     }
 }
 

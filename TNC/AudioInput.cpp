@@ -1,4 +1,4 @@
-// Copyright 2018-2019 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2018-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "AudioInput.hpp"
@@ -88,10 +88,12 @@ extern "C" void startAudioInputTask(void const*) {
             DEBUG("POLL_AMPLIFIED_INPUT_LEVEL");
             pollAmplifiedInputLevel();
             break;
+#ifndef NUCLEOTNC
         case POLL_BATTERY_LEVEL:
             DEBUG("POLL_BATTERY_LEVEL");
             pollBatteryLevel();
             break;
+#endif
         case POLL_TWIST_LEVEL:
             DEBUG("POLL_TWIST_LEVEL");
             pollInputTwist();
@@ -142,7 +144,6 @@ void set_adc_block_size(uint32_t block_size)
 }
 
 q15_t normalized[ADC_BUFFER_SIZE];
-
 
 IDemodulator* getDemodulator()
 {
@@ -447,6 +448,7 @@ void pollAmplifiedInputLevel() {
     DEBUG("exit pollAmplifiedInputLevel");
 }
 
+#ifndef NUCLEOTNC
 void pollBatteryLevel()
 {
     auto vbat = getDemodulator()->readBatteryLevel();
@@ -458,11 +460,11 @@ void pollBatteryLevel()
 
     ioport->write(data, 3, 6, 10);
 }
+#endif
 
 #if 0
 void stop() {
     osDelay(100);
-#if 0
     auto restore = SysTick->CTRL;
 
     kiss::settings().input_offset += 6;
@@ -487,7 +489,6 @@ void stop() {
     setAudioInputLevels();
     // adcState = DEMODULATOR;
     DEBUG("Wake");
-#endif
 }
 #endif
 

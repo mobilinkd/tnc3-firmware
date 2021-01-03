@@ -1,8 +1,7 @@
-// Copyright 2016 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2016-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__PORT_INTERFACE_HPP_
-#define MOBILINKD__TNC__PORT_INTERFACE_HPP_
+#pragma once
 
 #include "cmsis_os.h"
 
@@ -37,5 +36,3 @@ extern PortInterface* ioport;
 int write(hdlc::IoFrame* frame, uint32_t timeout = osWaitForever);
 
 }} // mobilinkd::tnc
-
-#endif // MOBILINKD__TNC__PORT_INTERFACE_HPP_

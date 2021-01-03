@@ -1,4 +1,4 @@
-// Copyright 2015-2020 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2021 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -61,7 +61,7 @@ struct BaseDigitalPLL
 	float_type sps_; 			///< Samples per symbol
 	float_type limit_;			///< Samples per symbol / 2
 	libafsk::BaseHysteresis<float_type> lock_;
-    FirFilter<1, pll::loop_coeffs.size()> loop_filter_{pll::loop_coeffs.begin()};
+    FirFilter<1, pll::loop_coeffs.size()> loop_filter_{pll::loop_coeffs.data()};
     IirFilter<5> lock_filter_{pll::lock_b, pll::lock_a};
 
 	bool last_;
@@ -74,8 +74,8 @@ struct BaseDigitalPLL
 	BaseDigitalPLL(float_type sample_rate, float_type symbol_rate)
 	: sample_rate_(sample_rate), symbol_rate_(symbol_rate)
 	, sps_(sample_rate / symbol_rate)
-    , limit_(sps_ / 2.0)
-    , lock_(sps_ * 0.03, sps_ * 0.15, 1, 0)
+	, limit_(sps_ / float_type(2.0))
+    , lock_(sps_ * float_type(0.03), sps_ * float_type(0.15), 1, 0)
 	, last_(false), count_(0), sample_(false)
 	, jitter_(0.0), bits_(1)
 	{}

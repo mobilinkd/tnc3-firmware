@@ -139,6 +139,7 @@ float Afsk1200Demodulator::readTwist()
 
 uint32_t Afsk1200Demodulator::readBatteryLevel()
 {
+#ifndef NUCLEOTNC
     DEBUG("enter Afsk1200Demodulator::readBatteryLevel");
 
     ADC_ChannelConfTypeDef sConfig;
@@ -202,11 +203,14 @@ uint32_t Afsk1200Demodulator::readBatteryLevel()
 
     uint32_t vref = ((vrefint * 3300) + (VREF / 2)) / VREF;
 
-    INFO("Vref = %lumV", vref)
+    INFO("Vref = %lumV", vref);
     INFO("Vbat = %lumV", vbat);
 
     DEBUG("exit Afsk1200Demodulator::readBatteryLevel");
     return vbat;
+#else
+    return 0;
+#endif
 }
 
 const q15_t Afsk1200Demodulator::bpf_coeffs[FILTER_TAP_NUM] = {

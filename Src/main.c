@@ -98,9 +98,6 @@ osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId ioEventTaskHandle;
 uint32_t ioEventTaskBuffer[ 384 ];
 osStaticThreadDef_t ioEventTaskControlBlock;
-osThreadId ledBlinkerHandle;
-uint32_t ledBlinkerBuffer[ 128 ];
-osStaticThreadDef_t ledBlinkerControlBlock;
 osThreadId audioInputTaskHandle;
 uint32_t audioInputTaskBuffer[ 512 ];
 osStaticThreadDef_t audioInputTaskControlBlock;
@@ -557,10 +554,6 @@ int main(void)
   osThreadStaticDef(ioEventTask, startIOEventTask, osPriorityLow, 0, 384, ioEventTaskBuffer, &ioEventTaskControlBlock);
   ioEventTaskHandle = osThreadCreate(osThread(ioEventTask), NULL);
 
-  /* definition and creation of ledBlinker */
-  osThreadStaticDef(ledBlinker, startLedBlinkerTask, osPriorityIdle, 0, 128, ledBlinkerBuffer, &ledBlinkerControlBlock);
-  ledBlinkerHandle = osThreadCreate(osThread(ledBlinker), NULL);
-
   /* definition and creation of audioInputTask */
   osThreadStaticDef(audioInputTask, startAudioInputTask, osPriorityAboveNormal, 0, 512, audioInputTaskBuffer, &audioInputTaskControlBlock);
   audioInputTaskHandle = osThreadCreate(osThread(audioInputTask), NULL);
@@ -587,7 +580,7 @@ int main(void)
   serialOutputQueueHandle = osMessageCreate(osMessageQ(serialOutputQueue), NULL);
 
   /* definition and creation of audioInputQueue */
-  osMessageQStaticDef(audioInputQueue, 4, uint8_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
+  osMessageQStaticDef(audioInputQueue, 8, uint32_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
   audioInputQueueHandle = osMessageCreate(osMessageQ(audioInputQueue), NULL);
 
   /* definition and creation of hdlcInputQueue */
@@ -607,9 +600,8 @@ int main(void)
   adcInputQueueHandle = osMessageCreate(osMessageQ(adcInputQueue), NULL);
 
   /* USER CODE BEGIN RTOS_QUEUES */
-#pragma GCC diagnostic pop
   /* add queues, ... */
-  /* USER CODE BEGIN RTOS_QUEUES */
+#pragma GCC diagnostic pop
 
   // Initialize the DC offset DAC and the PGA op amp.  Calibrate the ADC.
   if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();

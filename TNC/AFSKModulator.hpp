@@ -114,9 +114,9 @@ struct AFSKModulator : Modulator
         switch (running_) {
         case -1:
             ptt_->on();
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_DisableLSCO();
-            #endif
+#endif
 
             fill_first(bit);
             running_ = 0;
@@ -192,9 +192,9 @@ struct AFSKModulator : Modulator
             stop_conversion();
             ptt_->off();
             pos_ = 0;
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-            #endif
+#endif
             break;
         case -1:
             break;
@@ -207,9 +207,9 @@ struct AFSKModulator : Modulator
         stop_conversion();
         ptt_->off();
         pos_ = 0;
-        #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-        #endif
+#endif
 
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);

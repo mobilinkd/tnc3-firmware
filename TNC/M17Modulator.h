@@ -99,9 +99,9 @@ struct M17Modulator : Modulator
         {
         case State::STOPPING:
         case State::STOPPED:
-        #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
             HAL_RCCEx_DisableLSCO();
-        #endif
+#endif
             delay_count = 0;
             txdelay = kiss::settings().txdelay * 12 - 5;
             fill_empty(buffer_.data());
@@ -162,9 +162,9 @@ struct M17Modulator : Modulator
         case State::STOPPED:
             stop_conversion();
             ptt_->off();
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-            #endif
+#endif
             break;
         }
     }
@@ -197,9 +197,9 @@ struct M17Modulator : Modulator
         case State::STOPPED:
             stop_conversion();
             ptt_->off();
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-            #endif
+#endif
             break;
         }
     }
@@ -209,9 +209,9 @@ struct M17Modulator : Modulator
         state = State::STOPPED;
         stop_conversion();
         ptt_->off();
-        #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-        #endif
+#endif
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
     }

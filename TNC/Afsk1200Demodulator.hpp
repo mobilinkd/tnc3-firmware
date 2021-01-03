@@ -1,4 +1,4 @@
-// Copyright 2020 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2020-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -95,8 +95,11 @@ struct Afsk1200Demodulator : IDemodulator
         sConfig.Offset = 0;
         if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
             CxxErrorHandler();
-
+#ifndef NUCLEOTNC
         startADC(1817, ADC_BLOCK_SIZE);
+#else
+        startADC(3029, ADC_BLOCK_SIZE);
+#endif
     }
 
     void stop() override

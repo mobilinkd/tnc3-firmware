@@ -123,6 +123,7 @@ float Fsk9600Demodulator::readTwist()
 
 uint32_t Fsk9600Demodulator::readBatteryLevel()
 {
+#ifndef NUCLEOTNC
     DEBUG("enter Fsk9600Demodulator::readBatteryLevel");
 
     ADC_ChannelConfTypeDef sConfig;
@@ -191,6 +192,9 @@ uint32_t Fsk9600Demodulator::readBatteryLevel()
 
     DEBUG("exit Fsk9600Demodulator::readBatteryLevel");
     return vbat;
+#else
+    return 0;
+#endif
 }
 
 const Fsk9600Demodulator::bpf_bank_type Fsk9600Demodulator::bpf_bank = {{

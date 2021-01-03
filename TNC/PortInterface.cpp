@@ -3,7 +3,9 @@
 
 #include "PortInterface.hpp"
 #include "SerialPort.hpp"
+#ifndef NUCLEOTNC
 #include "UsbPort.hpp"
+#endif
 #include "NullPort.hpp"
 
 #include <algorithm>
@@ -48,19 +50,10 @@ void init_ioport()
     initNull();
 }
 
+#ifndef NUCLEOTNC
 void initCDC()
 {
     mobilinkd::tnc::getUsbPort()->init();
-}
-
-void initSerial()
-{
-    mobilinkd::tnc::getSerialPort()->init();
-}
-
-void initNull()
-{
-    mobilinkd::tnc::getNullPort()->init();
 }
 
 int openCDC()
@@ -76,9 +69,28 @@ int openCDC()
     }
     return mobilinkd::tnc::ioport == tmp;
 }
-int openSerial()
+
+void closeCDC()
 {
     mobilinkd::tnc::getUsbPort()->close();
+}
+
+int writeCDC(const uint8_t* data, uint32_t size, uint32_t timeout)
+{
+    return mobilinkd::tnc::getUsbPort()->write(data, size, timeout);
+}
+#endif
+
+void initSerial()
+{
+    mobilinkd::tnc::getSerialPort()->init();
+}
+
+int openSerial()
+{
+#ifndef NUCLEOTNC
+    mobilinkd::tnc::getUsbPort()->close();
+#endif
     mobilinkd::tnc::PortInterface* tmp = mobilinkd::tnc::getSerialPort();
     tmp->open();
     if (mobilinkd::tnc::ioport != tmp and tmp->isOpen())
@@ -89,6 +101,22 @@ int openSerial()
     }
     return mobilinkd::tnc::ioport == tmp;
 }
+
+void closeSerial()
+{
+    mobilinkd::tnc::getSerialPort()->close();
+}
+
+int writeSerial(const uint8_t* data, uint32_t size, uint32_t timeout)
+{
+    return mobilinkd::tnc::getSerialPort()->write(data, size, timeout);
+}
+
+void initNull()
+{
+    mobilinkd::tnc::getNullPort()->init();
+}
+
 int openNull()
 {
     auto tmp = mobilinkd::tnc::getNullPort();
@@ -100,24 +128,3 @@ int openNull()
     }
     return mobilinkd::tnc::ioport == tmp;
 }
-
-void closeCDC()
-{
-    mobilinkd::tnc::getUsbPort()->close();
-}
-
-void closeSerial()
-{
-    mobilinkd::tnc::getSerialPort()->close();
-}
-
-int writeCDC(const uint8_t* data, uint32_t size, uint32_t timeout)
-{
-    return mobilinkd::tnc::getUsbPort()->write(data, size, timeout);
-}
-
-int writeSerial(const uint8_t* data, uint32_t size, uint32_t timeout)
-{
-    return mobilinkd::tnc::getSerialPort()->write(data, size, timeout);
-}
-

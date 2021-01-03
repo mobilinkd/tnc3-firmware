@@ -1,4 +1,4 @@
-// Copyright 2017 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2021 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "LEDIndicator.h"
@@ -372,10 +372,15 @@ struct Flash
 
     constexpr static const int ramp[10] =
         { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
-
+#ifndef NUCLEOTNC
     constexpr static const uint32_t BLUE_CHANNEL = TIM_CHANNEL_1;
     constexpr static const uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
     constexpr static const uint32_t RED_CHANNEL = TIM_CHANNEL_3;
+#else
+    constexpr static const uint32_t BLUE_CHANNEL = TIM_CHANNEL_3;   // YELLOW...
+    constexpr static const uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
+    constexpr static const uint32_t RED_CHANNEL = TIM_CHANNEL_1;
+#endif
 
     int gr_count { 9 };
     state_type gr_state { STATE::OFF };
@@ -518,9 +523,15 @@ void HTIM1_PeriodElapsedCallback()
     using mobilinkd::tnc::flash;
 
     // CCR registers must match the TIM_CHANNEL used for each LED in Flash.
+#ifndef NUCLEOTNC
     htim1.Instance->CCR1 = flash().blue();
     htim1.Instance->CCR2 = flash().green();
     htim1.Instance->CCR3 = flash().red();
+#else
+    htim1.Instance->CCR1 = flash().red();
+    htim1.Instance->CCR2 = flash().green();
+    htim1.Instance->CCR3 = flash().blue(); // YELLOW
+#endif
 }
 
 void indicate_turning_on(void)

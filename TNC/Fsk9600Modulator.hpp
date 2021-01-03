@@ -86,9 +86,9 @@ struct Fsk9600Modulator : Modulator
         case State::STOPPING:
         case State::STOPPED:
             ptt_->on();
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_DisableLSCO();
-            #endif
+#endif
 
             fill_first(scrambled);
             state = State::STARTING;
@@ -140,9 +140,9 @@ struct Fsk9600Modulator : Modulator
             stop_conversion();
             ptt_->off();
             level = Level::HIGH;
-            #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-            #endif
+#endif
             break;
         case State::STOPPED:
             break;
@@ -155,9 +155,9 @@ struct Fsk9600Modulator : Modulator
         stop_conversion();
         ptt_->off();
         level = Level::HIGH;
-        #ifdef KISS_LOGGING
+#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-        #endif
+#endif
         // Drain the queue.
         while (osMessageGet(dacOutputQueueHandle_, 0).status == osEventMessage);
     }

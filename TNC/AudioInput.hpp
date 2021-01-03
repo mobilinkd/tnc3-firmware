@@ -1,8 +1,7 @@
-// Copyright 2015 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2015-2020 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__AUDIO__INPUT_HPP_
-#define MOBILINKD__TNC__AUDIO__INPUT_HPP_
+#pragma once
 
 #include "memory.hpp"
 
@@ -97,40 +96,6 @@ extern adc_pool_type adcPool;
 
 void set_adc_block_size(uint32_t block_size);
 
-#if 0
-inline void stopADC() {
-    if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
-        CxxErrorHandler();
-    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
-        CxxErrorHandler();
-}
-
-inline void startADC(uint32_t channel) {
-    ADC_ChannelConfTypeDef sConfig;
-
-    sConfig.Channel = channel;
-    sConfig.Rank = ADC_REGULAR_RANK_1;
-    sConfig.SingleDiff = ADC_SINGLE_ENDED;
-    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
-    sConfig.OffsetNumber = ADC_OFFSET_NONE;
-    sConfig.Offset = 0;
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-        CxxErrorHandler();
-
-    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
-        CxxErrorHandler();
-    if (HAL_ADC_Start_DMA(&hadc1, adc_buffer, ADC_BUFFER_SIZE * 2) != HAL_OK)
-        CxxErrorHandler();
-}
-
-inline void restartADC() {
-    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
-        CxxErrorHandler();
-    if (HAL_ADC_Start_DMA(&hadc1, adc_buffer, ADC_BUFFER_SIZE * 2) != HAL_OK)
-        CxxErrorHandler();
-}
-#endif
-
 /// Vpp, Vavg, Vmin, Vmax
 typedef std::tuple<uint16_t, uint16_t, uint16_t, uint16_t> levels_type;
 levels_type readLevels(uint32_t channel);
@@ -150,5 +115,3 @@ void streamInstantInputTwist();
 }}} // mobilinkd::tnc::audio
 
 #endif // __cplusplus
-
-#endif // MOBILINKD__TNC__AUDIO__INPUT_HPP_
