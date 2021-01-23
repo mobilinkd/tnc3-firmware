@@ -120,7 +120,7 @@ osMessageQId hdlcInputQueueHandle;
 uint8_t hdlcInputQueueBuffer[ 3 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t hdlcInputQueueControlBlock;
 osMessageQId hdlcOutputQueueHandle;
-uint8_t hdlcOutputQueueBuffer[ 3 * sizeof( uint32_t ) ];
+uint8_t hdlcOutputQueueBuffer[ 8 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t hdlcOutputQueueControlBlock;
 osMessageQId dacOutputQueueHandle;
 uint8_t dacOutputQueueBuffer[ 128 * sizeof( uint8_t ) ];
@@ -588,7 +588,7 @@ int main(void)
   hdlcInputQueueHandle = osMessageCreate(osMessageQ(hdlcInputQueue), NULL);
 
   /* definition and creation of hdlcOutputQueue */
-  osMessageQStaticDef(hdlcOutputQueue, 3, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
+  osMessageQStaticDef(hdlcOutputQueue, 8, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
   hdlcOutputQueueHandle = osMessageCreate(osMessageQ(hdlcOutputQueue), NULL);
 
   /* definition and creation of dacOutputQueue */
