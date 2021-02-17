@@ -78,7 +78,7 @@ void M17Encoder::run()
     osThreadResume(encoderTaskHandle);
 
     auto start = osKernelSysTick();
-    uint32_t delay_ms = 0;
+    int32_t delay_ms = 0;
 
     state = State::IDLE;
 
@@ -118,14 +118,23 @@ void M17Encoder::run()
             }
 
             evt = osMessagePeek(input_queue, delay_ms);
-            auto msgs = osMessageWaiting(input_queue);
+            // auto num_msgs = osMessageWaiting(input_queue);
             back2back = (evt.status == osEventMessage);
             if (!back2back)
             {
                 if (state != State::IDLE)
                 {
-                    state = State::IDLE;
                     WARN("Timed out waiting for packet (%lums).", delay_ms);
+                    size_t counter = 5;
+                    do {
+                        send_link_setup();
+                        evt = osMessagePeek(input_queue, 40);
+                    } while (evt.status != osEventMessage && --counter != 0);
+
+                    if (evt.status != osEventMessage) {
+                        state = State::IDLE;
+                        WARN("Timed out waiting for packet.");
+                    }
                 }
                 delay_ms = 0;
             }
@@ -253,7 +262,7 @@ void M17Encoder::send_link_setup()
     if (status != osOK)
     {
         tnc::hdlc::release(frame);
-        WARN("M17 failed to send preamble");
+        WARN("M17 failed to send LSF");
     }
 }
 
@@ -346,6 +355,8 @@ void M17Encoder::send_stream(tnc::hdlc::IoFrame* frame, FrameType)
     // Encode &  puncture
     std::array<uint8_t, 20> data;
     std::copy(it, frame->end(), data.begin());
+
+    if (data[0] & 0x80) state = State::IDLE; // EOS
 
     auto encoded = conv_encode(data);
     puncture_bytes(encoded, punctured, P2);
