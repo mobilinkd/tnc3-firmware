@@ -5,9 +5,13 @@
 
 #include "Modulator.hpp"
 
+#include "stm32l4xx_hal.h"
+
 #include <array>
 #include <algorithm>
 #include <cstdint>
+
+extern IWDG_HandleTypeDef hiwdg;
 
 namespace mobilinkd { namespace tnc {
 
@@ -128,6 +132,8 @@ struct Fsk9600Modulator : Modulator
 
     void empty()
     {
+        HAL_IWDG_Refresh(&hiwdg);
+
         switch (state)
         {
         case State::STARTING:
@@ -204,6 +210,7 @@ private:
 
     void fill(uint16_t* buffer, bool bit)
     {
+        HAL_IWDG_Refresh(&hiwdg);
         switch (level)
         {
         case Level::HIGH:

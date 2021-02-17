@@ -399,6 +399,7 @@ int main(void)
   } else {
       reset_button = 0;
   }
+  __HAL_RCC_CLEAR_RESET_FLAGS();
   /* USER CODE END 1 */
 
   /* MCU Configuration----------------------------------------------------------*/
@@ -661,6 +662,8 @@ int main(void)
     HAL_FLASH_OB_Launch();
   }
 #endif
+
+  MX_IWDG_Init();
 
   /* USER CODE END RTOS_QUEUES */
  

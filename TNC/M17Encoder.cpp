@@ -29,6 +29,7 @@ static osMessageQId m17EncoderInputQueueHandle;
 static osMessageQId m17EncoderOutputQueueHandle;
 
 extern RNG_HandleTypeDef hrng;
+extern IWDG_HandleTypeDef hiwdg;
 
 namespace mobilinkd
 {
@@ -522,6 +523,9 @@ void M17Encoder::encoderTask(void const*)
     {
         osEvent evt = osMessageGet(m17EncoderInputQueueHandle, osWaitForever);
         if (evt.status != osEventMessage) continue;
+
+        HAL_IWDG_Refresh(&hiwdg);
+
         auto frame = static_cast<IoFrame*>(evt.value.p);
         if (frame->size() != 48) WARN("Bad frame size %u", frame->size());
 

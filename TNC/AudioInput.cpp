@@ -25,6 +25,7 @@
 #include <atomic>
 
 extern osMessageQId ioEventQueueHandle;
+extern IWDG_HandleTypeDef hiwdg;
 
 extern "C" void SystemClock_Config(void);
 
@@ -182,6 +183,8 @@ void demodulatorTask() {
         if (evt.status != osEventMessage) {
             continue;
         }
+
+        HAL_IWDG_Refresh(&hiwdg);
 
         auto block = (adc_pool_type::chunk_type*) evt.value.p;
         auto samples = (int16_t*) block->buffer;

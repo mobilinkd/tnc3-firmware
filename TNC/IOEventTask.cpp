@@ -29,6 +29,7 @@
 extern osMessageQId hdlcOutputQueueHandle;
 extern PCD_HandleTypeDef hpcd_USB_FS;
 extern osTimerId usbShutdownTimerHandle;
+extern IWDG_HandleTypeDef hiwdg;
 
 extern "C" void stop2(void);
 extern "C" void shutdown(void const * argument);
@@ -121,7 +122,11 @@ void startIOEventTask(void const*)
     /* Infinite loop */
     for (;;)
     {
-        osEvent evt = osMessageGet(ioEventQueueHandle, osWaitForever);
+        osEvent evt = osMessageGet(ioEventQueueHandle, 100);
+        if (hdlc::ioFramePool().size() != 0)
+            HAL_IWDG_Refresh(&hiwdg);
+        else
+            CxxErrorHandler();
         if (evt.status != osEventMessage)
             continue;
 
