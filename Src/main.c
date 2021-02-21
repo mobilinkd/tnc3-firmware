@@ -1663,6 +1663,11 @@ void assert_failed(uint8_t* file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
+void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
+{
+    snprintf(error_message, sizeof(error_message), "stack overflow %s", pcTaskName);
+    while (1);
+}
 /**
   * @}
   */
