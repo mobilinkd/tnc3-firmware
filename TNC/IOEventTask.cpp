@@ -54,7 +54,7 @@ void startIOEventTask(void const*)
 
     auto& hardware = kiss::settings();
 
-    if (! hardware.load() or reset_requested or !hardware.crc_ok())
+    if (reset_requested or !hardware.load() or !hardware.crc_ok())
     {
         if (reset_requested) {
             INFO("Hardware reset requested.");
