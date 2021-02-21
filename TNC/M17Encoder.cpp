@@ -245,16 +245,16 @@ void M17Encoder::send_preamble()
 
 void M17Encoder::send_link_setup()
 {
-    punctured.fill(0);
+    m17_frame.fill(0);
     auto frame = tnc::hdlc::acquire_wait();
 
     // Encoder, puncture, interleave & randomize.
     auto encoded = conv_encode(current_lsf);
-    puncture_bytes(encoded, punctured, P1);
-    interleaver.interleave(punctured);
-    randomizer(punctured);
+    puncture_bytes(encoded, m17_frame, P1);
+    interleaver.interleave(m17_frame);
+    randomizer(m17_frame);
     for (auto c : m17::LSF_SYNC) frame->push_back(c);
-    for (auto c : punctured) frame->push_back(c);
+    for (auto c : m17_frame) frame->push_back(c);
 
     auto status = osMessagePut(
         m17EncoderInputQueueHandle,
@@ -316,18 +316,16 @@ void M17Encoder::send_full_packet(tnc::hdlc::IoFrame* frame)
 
 void M17Encoder::send_packet_frame(const std::array<uint8_t, 26>& packet_frame)
 {
-    frame_t punctured;
-
     // Encoder, puncture, interleave & randomize.
     auto encoded = conv_encode(packet_frame, 206);
-    puncture_bytes(encoded, punctured, P3);
-    interleaver.interleave(punctured);
-    randomizer(punctured);
+    puncture_bytes(encoded, m17_frame, P3);
+    interleaver.interleave(m17_frame);
+    randomizer(m17_frame);
 
     auto frame = tnc::hdlc::acquire_wait();
 
     for (auto c : m17::PACKET_SYNC) frame->push_back(c);
-    for (auto c : punctured) frame->push_back(c);
+    for (auto c : m17_frame) frame->push_back(c);
 
     auto status = osMessagePut(
         m17EncoderInputQueueHandle,
@@ -342,9 +340,6 @@ void M17Encoder::send_packet_frame(const std::array<uint8_t, 26>& packet_frame)
 
 void M17Encoder::send_stream(tnc::hdlc::IoFrame* frame, FrameType)
 {
-    payload_t punctured;        // Punctured audio payload (272 bits, 34 bytes).
-    frame_t m17_frame;
-
     // Construct LICH.
     auto it = frame->begin();
     std::advance(it, 6);
@@ -360,8 +355,8 @@ void M17Encoder::send_stream(tnc::hdlc::IoFrame* frame, FrameType)
     if (data[0] & 0x80) state = State::IDLE; // EOS
 
     auto encoded = conv_encode(data);
-    puncture_bytes(encoded, punctured, P2);
-    std::copy(punctured.begin(), punctured.end(), fit); // Copy after LICH.
+    puncture_bytes(encoded, stream_payload, P2);
+    std::copy(stream_payload.begin(), stream_payload.end(), fit); // Copy after LICH.
 
     interleaver.interleave(m17_frame);  // Interleave entire frame.
     randomizer(m17_frame);              // Randomize entire frame.
@@ -421,6 +416,7 @@ void M17Encoder::create_link_setup(tnc::hdlc::IoFrame* frame, FrameType type)
 /**
  * Encode each LSF segment into a Golay-encoded LICH segment bitstream.
  */
+[[gnu::noinline]]
 M17Encoder::lich_segment_t M17Encoder::make_lich_segment(
     std::array<uint8_t, 6> segment)
 {
