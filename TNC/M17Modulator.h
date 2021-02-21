@@ -42,6 +42,7 @@ struct M17Modulator : Modulator
     volatile uint16_t delay_count = 0;      // TX Delay
     volatile uint16_t stop_count = 0;       // Flush the RRC matched filter.
     State state{State::STOPPED};
+    float tmp[TRANSFER_LEN];
 
     M17Modulator(osMessageQId queue, PTT* ptt)
     : dacOutputQueueHandle_(queue), ptt_(ptt)
@@ -127,12 +128,13 @@ struct M17Modulator : Modulator
     }
 
     // DAC DMA interrupt functions.
-
+    [[gnu::noinline]]
     void fill_first(uint8_t bits) override
     {
         fill(buffer_.data(), bits);
     }
 
+    [[gnu::noinline]]
     void fill_last(uint8_t bits) override
     {
         fill(buffer_.data() + TRANSFER_LEN, bits);
@@ -293,10 +295,9 @@ private:
         }
     }
 
+    [[gnu::noinline]]
     void fill(int16_t* buffer, uint8_t bits)
     {
-        float tmp[TRANSFER_LEN];
-
         int16_t polarity = kiss::settings().tx_rev_polarity() ? -1 : 1;
 
         for (size_t i = 0; i != 4; ++i)
@@ -314,10 +315,9 @@ private:
         }
     }
 
+    [[gnu::noinline]]
     void fill_empty(int16_t* buffer)
     {
-        float tmp[TRANSFER_LEN];
-
         symbols.fill(0);
 
         arm_fir_interpolate_f32(
