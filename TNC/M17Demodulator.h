@@ -109,6 +109,7 @@ struct M17Demodulator : IDemodulator
         decoder.passall(enabled);
     }
 
+    [[gnu::noinline]]
     void frame(demod_result_t demod_result, hdlc::IoFrame*& result)
     {
         auto [sample, phase, symbol, evm] = demod_result;
@@ -186,8 +187,9 @@ struct M17Demodulator : IDemodulator
                     sync_count = 0;
                     std::copy(tmp, tmp + len, buffer.begin());
                     auto valid = decoder(sync_word_type, buffer, result, ber);
-                    if (!valid)
+                    switch (valid)
                     {
+                    case M17FrameDecoder::DecodeResult::FAIL:
                         WARN("decode invalid");
                         if (result && !passall_)
                         {
@@ -195,10 +197,13 @@ struct M17Demodulator : IDemodulator
                             if (result) hdlc::release(result);
                             result = 0;
                         }
-                    }
-                    else
-                    {
+                        break;
+                    case M17FrameDecoder::DecodeResult::EOS:
+                        demodState = DemodState::LSF_SYNC;
+                        break;
+                    case M17FrameDecoder::DecodeResult::OK:
                         INFO("valid frame for sync word type %d", int(sync_word_type));
+                        break;
                     }
                 }
             }
@@ -214,6 +219,7 @@ struct M17Demodulator : IDemodulator
         }
     }
 
+    [[gnu::noinline]]
     demod_result_t demod()
     {
         int16_t polarity = kiss::settings().rx_rev_polarity() ? -1 : 1;
