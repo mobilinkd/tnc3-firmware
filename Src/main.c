@@ -663,7 +663,7 @@ int main(void)
   }
 #endif
 
-  MX_IWDG_Init();
+//  MX_IWDG_Init();
 
   /* USER CODE END RTOS_QUEUES */
  
