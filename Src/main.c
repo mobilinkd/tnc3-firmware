@@ -1662,6 +1662,12 @@ void assert_failed(uint8_t* file, uint32_t line)
 }
 #endif /* USE_FULL_ASSERT */
 
+void vApplicationMallocFailedHook()
+{
+    snprintf(error_message, sizeof(error_message), "malloc failed");
+    while (1);
+}
+
 void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
 {
     snprintf(error_message, sizeof(error_message), "stack overflow %s", pcTaskName);

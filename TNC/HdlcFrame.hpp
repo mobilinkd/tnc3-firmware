@@ -170,12 +170,10 @@ public:
             free_list_.pop_front();
         }
         taskEXIT_CRITICAL_FROM_ISR(x);
-        DEBUG("Acquired frame %p (size after = %d)", result, free_list_.size());
         return result;
     }
 
     void release(frame_type* frame) {
-        DEBUG("Released frame %p (size before = %d)", frame, free_list_.size());
         frame->clear();
         auto x = taskENTER_CRITICAL_FROM_ISR();
         free_list_.push_back(*frame);
