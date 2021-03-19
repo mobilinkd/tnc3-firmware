@@ -69,7 +69,7 @@ struct FirFilter {
     }
 
     // ADC input
-    float* operator()(int16_t* input) // __attribute__((section(".bss2")))
+    float* operator()(const int16_t* input) // __attribute__((section(".bss2")))
     {
         for (size_t i = 0; i != BLOCK_SIZE; i++) {
             filter_input[i] = float(input[i]);

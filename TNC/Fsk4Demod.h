@@ -37,24 +37,24 @@ struct Fsk4Demod
     using result_t = std::optional<std::tuple<float, float, int, float, float, float, float>>;
 
     tnc::Q15FirFilter<320, std::tuple_size<decltype(detail::rrc_taps)>::value> rrc;
-    PhaseEstimator<float> phase = PhaseEstimator<double>(48000, 4800);
+    PhaseEstimator<float> phase = PhaseEstimator<float>(48000, 4800);
     DeviationError<float> deviation;
     FrequencyError<float, 32> frequency;
     SymbolEvm<float,  std::tuple_size<decltype(detail::evm_b)>::value> symbol_evm = makeSymbolEvm(makeIirFilter(detail::evm_b, detail::evm_a));
 
-    double sample_rate = 48000;
-    double symbol_rate = 4800;
-    double gain = 0.04;
-    std::array<double, 3> samples{0};
-    double t = 0;
-    double dt = symbol_rate / sample_rate;
-    double ideal_dt = dt;
+    float sample_rate = 48000;
+    float symbol_rate = 4800;
+    float gain = 0.04;
+    std::array<float, 3> samples{0};
+    float t = 0;
+    float dt = symbol_rate / sample_rate;
+    float ideal_dt = dt;
     bool sample_now = false;
-    double estimated_deviation = 1.0;
-    double estimated_frequency_offset = 0.0;
-    double evm_average = 0.0;
+    float estimated_deviation = 1.0;
+    float estimated_frequency_offset = 0.0;
+    float evm_average = 0.0;
 
-    Fsk4Demod(double sample_rate, double symbol_rate, double gain = 0.04)
+    Fsk4Demod(float sample_rate, float symbol_rate, float gain = 0.04)
     : sample_rate(sample_rate)
     , symbol_rate(symbol_rate)
     , gain(gain * symbol_rate / sample_rate)
@@ -91,7 +91,7 @@ struct Fsk4Demod
      * symbol, the EVM, the deviation error and the frequency error
      * (sample, phase, symbol, evm, ed, ef), otherwise None.
      */
-    result_t operator()(double sample)
+    result_t operator()(float sample)
     {
         auto filtered_sample = rrc(sample);
 
