@@ -43,12 +43,12 @@ struct M17Demodulator : IDemodulator
     static constexpr uint32_t SAMPLE_RATE = 48000;
     static constexpr uint16_t VREF = 4095;
 
-    using audio_filter_t = Q15FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM_9>;
+    using audio_filter_t = Q15FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM_11>;
     using demod_result_t = std::tuple<float, float, int, float>;
 
     enum class DemodState { UNLOCKED, LSF_SYNC, FRAME_SYNC, FRAME };
 
-    audio_filter_t demod_filter{m17::rrc_taps_9.data()};
+    audio_filter_t demod_filter{m17::rrc_taps_11.data()};
     const float sample_rate = 48000.0;
     const float symbol_rate = 4800.0;
     float gain = 0.01;

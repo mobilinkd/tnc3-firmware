@@ -16,7 +16,7 @@ void M17Demodulator::start()
 {
     SysClock80();
 
-    demod_filter.init(m17::rrc_taps_9.data());
+    demod_filter.init(m17::rrc_taps_11.data());
     passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
     hadc1.Init.OversamplingMode = DISABLE;
