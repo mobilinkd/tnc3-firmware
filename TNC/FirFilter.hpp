@@ -27,10 +27,11 @@ struct FirCoefficients {
     {}
 };
 
-constexpr size_t MAX_BLOCK_SIZE = 88;
+constexpr size_t MAX_BLOCK_SIZE = 192;
 
 namespace fir_detail {
 extern float filter_input[MAX_BLOCK_SIZE];
+extern float filter_output[MAX_BLOCK_SIZE];
 } // fir_detail
 
 template <size_t BLOCK_SIZE, size_t FILTER_SIZE>
@@ -38,19 +39,18 @@ struct FirFilter {
     static_assert(BLOCK_SIZE <= MAX_BLOCK_SIZE, "You must increase MAX_BLOCK_SIZE" );
     const float* filter_taps;
     float filter_state[BLOCK_SIZE + FILTER_SIZE - 1];
-    float filter_output[BLOCK_SIZE];
     float vgnd_;
     size_t filter_size;
     arm_fir_instance_f32 instance;
 
     FirFilter()
-    : filter_taps(0), filter_state(), filter_output()
+    : filter_taps(0), filter_state()
     , vgnd_(0.0f)
     , filter_size(FILTER_SIZE), instance()
     {}
 
     FirFilter(const float* taps, size_t len = FILTER_SIZE)
-    : filter_taps(taps), filter_state(), filter_output()
+    : filter_taps(taps), filter_state()
       , filter_size(len), instance()
     {
         init(taps, len);
@@ -75,25 +75,25 @@ struct FirFilter {
     }
 
     // ADC input
-    float* operator()(const int16_t* input) // __attribute__((section(".bss2")))
+    float* operator()(const int16_t* input, float scale = 1.f) // __attribute__((section(".bss2")))
     {
         for (size_t i = 0; i != BLOCK_SIZE; i++) {
-            fir_detail::filter_input[i] = float(input[i]);
+            fir_detail::filter_input[i] = float(input[i]) * scale;
         }
-        arm_fir_f32(&instance, fir_detail::filter_input, filter_output, BLOCK_SIZE);
-        return filter_output;
+        arm_fir_f32(&instance, fir_detail::filter_input, fir_detail::filter_output, BLOCK_SIZE);
+        return fir_detail::filter_output;
     }
 
     float* operator()(float* input) // __attribute__((section(".bss2")))
     {
-        arm_fir_f32(&instance, input, filter_output, BLOCK_SIZE);
-        return filter_output;
+        arm_fir_f32(&instance, input, fir_detail::filter_output, BLOCK_SIZE);
+        return fir_detail::filter_output;
     }
 
     float operator()(float input) // __attribute__((section(".bss2")))
     {
-        arm_fir_f32(&instance, &input, filter_output, 1);
-        return *filter_output;
+        arm_fir_f32(&instance, &input, fir_detail::filter_output, 1);
+        return *fir_detail::filter_output;
     }
 };
 
