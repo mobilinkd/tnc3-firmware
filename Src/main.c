@@ -176,7 +176,6 @@ static void MX_TIM1_Init(void);
 static void MX_OPAMP1_Init(void);
 void StartDefaultTask(void const * argument);
 extern void startIOEventTask(void const * argument);
-extern void startLedBlinkerTask(void const * argument);
 extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 extern void beacon(void const * argument);
@@ -715,14 +714,14 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_8;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 12;
+  RCC_OscInitStruct.PLL.PLLM = 4;
+  RCC_OscInitStruct.PLL.PLLN = 8;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV4;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -747,15 +746,15 @@ void SystemClock_Config(void)
                               |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
   PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
-  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
+  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
   PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
   PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
   PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
   PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
-  PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
-  PeriphClkInit.PLLSAI1.PLLSAI1N = 12;
+  PeriphClkInit.PLLSAI1.PLLSAI1M = 4;
+  PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
   PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
-  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV4;
+  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV6;
   PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
   PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -764,7 +763,7 @@ void SystemClock_Config(void)
   }
 
 #ifdef KISS_LOGGING
-  HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
+  // HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #else
   HAL_RCCEx_DisableLSCO();
 #endif
@@ -1149,6 +1148,7 @@ static void MX_TIM7_Init(void)
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 1817;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim7.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
@@ -1280,6 +1280,15 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+#if 0
+  /*Configure GPIO pins : PA2 -- abuse LSCO for GPIO debugging */
+  GPIO_InitStruct.Pin = GPIO_PIN_2;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+#endif
 
   /*Configure GPIO pin : BAT_DIVIDER_Pin */
   GPIO_InitStruct.Pin = BAT_DIVIDER_Pin;
@@ -1454,6 +1463,7 @@ void SysClock48()
 {
     RCC_OscInitTypeDef RCC_OscInitStruct;
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
+    RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
     if (HAL_RCC_GetHCLKFreq() == 48000000) return;
 
@@ -1471,10 +1481,13 @@ void SysClock48()
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
-    RCC_OscInitStruct.OscillatorType = 0;
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+    RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+    RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-    RCC_OscInitStruct.PLL.PLLM = 1;
+    RCC_OscInitStruct.PLL.PLLM = 3;
     RCC_OscInitStruct.PLL.PLLN = 12;
     RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
     RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
@@ -1485,7 +1498,28 @@ void SysClock48()
     }
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
+
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART3
+                                |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
+                                |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
+    PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
+    PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+    PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
+    PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
+    PeriphClkInit.PLLSAI1.PLLSAI1M = 4;
+    PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
+    PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
+    PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV6;
+    PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
+    PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
     {
@@ -1497,10 +1531,84 @@ void SysClock48()
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 }
 
+void SysClock72()
+{
+    RCC_OscInitTypeDef RCC_OscInitStruct;
+    RCC_ClkInitTypeDef RCC_ClkInitStruct;
+    RCC_PeriphCLKInitTypeDef PeriphClkInit;
+
+    if (HAL_RCC_GetHCLKFreq() == 72000000) return;
+
+    INFO("Setting 72MHz SysClock.");
+
+    HAL_RCCEx_DisableMSIPLLMode();
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+    RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+    RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
+    RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
+    RCC_OscInitStruct.PLL.PLLM = 4;
+    RCC_OscInitStruct.PLL.PLLN = 12;
+    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+    RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+    RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART3
+                                |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
+                                |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
+    PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
+    PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+    PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
+    PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
+    PeriphClkInit.PLLSAI1.PLLSAI1M = 4;
+    PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
+    PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
+    PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV6;
+    PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
+    PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    HAL_RCCEx_EnableMSIPLLMode();
+
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+//    HAL_RCC_MCOConfig(RCC_MCO1, RCC_MCO1SOURCE_PLLCLK, RCC_MCODIV_4);
+}
+
 void SysClock80()
 {
     RCC_OscInitTypeDef RCC_OscInitStruct;
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
+    RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
     if (HAL_RCC_GetHCLKFreq() == 80000000) return;
 
@@ -1517,7 +1625,7 @@ void SysClock80()
     RCC_OscInitStruct.OscillatorType = 0;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-    RCC_OscInitStruct.PLL.PLLM = 1;
+    RCC_OscInitStruct.PLL.PLLM = 3;
     RCC_OscInitStruct.PLL.PLLN = 20;
     RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
     RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
@@ -1531,6 +1639,27 @@ void SysClock80()
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+    {
+      _Error_Handler(__FILE__, __LINE__);
+    }
+
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART3
+                                |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
+                                |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
+    PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
+    PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+    PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
+    PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
+    PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
+    PeriphClkInit.PLLSAI1.PLLSAI1M = 3;
+    PeriphClkInit.PLLSAI1.PLLSAI1N = 18;
+    PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
+    PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV6;
+    PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
+    PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
       _Error_Handler(__FILE__, __LINE__);
     }

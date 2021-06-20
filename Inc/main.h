@@ -116,6 +116,7 @@
 #define SW_BOOT_GPIO_Port GPIOH
 #define SW_BOOT_EXTI_IRQn EXTI3_IRQn
 
+
 /* ########################## Assert Selection ############################## */
 /**
   * @brief Uncomment the line below to expanse the "assert_param" macro in the 
@@ -173,6 +174,7 @@ extern osMutexId hardwareInitMutexHandle;
 #endif
 
 void SysClock48(void);
+void SysClock72(void);
 void SysClock80(void);
 void SysClock4(void);
 
@@ -181,6 +183,11 @@ void SysClock4(void);
 #endif
 
 #define SystemClock_Config_48MHz SystemClock_Config
+
+// Compatibility defines
+#define BATTERY_ADC_HANDLE hadc1
+#define BATTERY_ADC_CHANNEL ADC_CHANNEL_15
+
 
 /* USER CODE END Private defines */
 
