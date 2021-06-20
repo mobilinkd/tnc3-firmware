@@ -135,17 +135,23 @@ void UsbPort::run()
     }
 }
 
+uint32_t cdcTaskBuffer[ 128 ] __attribute__((section(".bss3")));
+osStaticThreadDef_t cdcTaskControlBlock;
+
+uint8_t cdcQueueBuffer[ 4 * sizeof( void* ) ];
+osStaticMessageQDef_t cdcQueueControlBlock;
+
 void UsbPort::init()
 {
     if (cdcTaskHandle_) return;
 
-    osMessageQDef(cdcQueue, 4, void*);
+    osMessageQStaticDef(cdcQueue, 4, void*, cdcQueueBuffer, &cdcQueueControlBlock);
     queue_ = osMessageCreate(osMessageQ(cdcQueue), 0);
 
     osMutexDef(usbMutex);
     mutex_ = osMutexCreate(osMutex(usbMutex));
 
-    osThreadDef(cdcTask, startCDCTask, osPriorityNormal, 0, 128);
+    osThreadStaticDef(cdcTask, startCDCTask, osPriorityNormal, 0, 128, cdcTaskBuffer, &cdcTaskControlBlock);
     cdcTaskHandle_ = osThreadCreate(osThread(cdcTask), this);
 }
 
