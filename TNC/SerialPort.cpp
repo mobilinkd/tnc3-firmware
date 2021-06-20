@@ -307,28 +307,21 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart)
 
 namespace mobilinkd { namespace tnc {
 
-
-uint32_t serialTaskBuffer[ 128 ] __attribute__((section(".bss3")));
-osStaticThreadDef_t serialTaskControlBlock __attribute__((section(".bss3")));
-
-uint8_t serialQueueBuffer[ 32 * sizeof( void* ) ] __attribute__((section(".bss3")));
-osStaticMessageQDef_t serialQueueControlBlock __attribute__((section(".bss3")));
-
-osMutexDef(serialMutex);
-
 void SerialPort::init()
 {
     if (serialTaskHandle_) return;
 
-    osMessageQStaticDef(serialQueue, 32, void*, serialQueueBuffer,
-        &serialQueueControlBlock);
-    queue_ = osMessageCreate(osMessageQ(serialQueue), 0);
+    osMessageQDef(uartQueue, 32, void*);
+    queue_ = osMessageCreate(osMessageQ(uartQueue), 0);
 
-    mutex_ = osMutexCreate(osMutex(serialMutex));
+    osMutexDef(uartMutex);
+    mutex_ = osMutexCreate(osMutex(uartMutex));
 
-    osThreadStaticDef(serialTask, startSerialTask, osPriorityAboveNormal, 0,
-        128, serialTaskBuffer, &serialTaskControlBlock);
+    osThreadDef(serialTask, startSerialTask, osPriorityAboveNormal, 0, 128);
     serialTaskHandle_ = osThreadCreate(osThread(serialTask), this);
+#ifndef NUCLEOTNC
+    DEBUG("serialTaskHandle_ = %p", serialTaskHandle_);
+#endif
 }
 
 bool SerialPort::open()
