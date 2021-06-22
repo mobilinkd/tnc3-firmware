@@ -182,7 +182,9 @@ void startSerialTask(void const* arg)
                     if (hdlc::ioFramePool().size() < (hdlc::ioFramePool().capacity() / 4))
                     {
                         UART_DMAPauseReceive(&huart_serial);
+#ifndef NUCLEOTNC
                         WARN("frame pool low");
+#endif
                         while (hdlc::ioFramePool().size() < (hdlc::ioFramePool().capacity() / 2))
                         {
                             osThreadYield();
