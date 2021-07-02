@@ -101,6 +101,7 @@ public:
     }
 
     uint16_t size() const {return data_.size();}
+    bool resize(uint16_t size) {return data_.resize(size);}
 
     uint16_t crc() const {return crc_;}
     uint16_t fcs() const {return fcs_;}
