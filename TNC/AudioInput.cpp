@@ -62,7 +62,7 @@ extern "C" void HAL_ADC_ErrorCallback(ADC_HandleTypeDef* /* hadc */) {
 extern "C" void startAudioInputTask(void const*) {
 
     using namespace mobilinkd::tnc::audio;
-    DEBUG("startAudioInputTask");
+    TNC_DEBUG("startAudioInputTask");
 
     adcPool.init();
 
@@ -75,7 +75,7 @@ extern "C" void startAudioInputTask(void const*) {
 
         switch (adcState) {
         case STOPPED:
-            DEBUG("STOPPED");
+            TNC_DEBUG("STOPPED");
             // stop();
             break;
         case DEMODULATOR:
@@ -83,41 +83,41 @@ extern "C" void startAudioInputTask(void const*) {
             demodulatorTask();
             break;
         case STREAM_AMPLIFIED_INPUT_LEVEL:
-            DEBUG("STREAM_AMPLIFIED_INPUT_LEVEL");
+            TNC_DEBUG("STREAM_AMPLIFIED_INPUT_LEVEL");
             streamAmplifiedInputLevels();
             break;
         case POLL_AMPLIFIED_INPUT_LEVEL:
-            DEBUG("POLL_AMPLIFIED_INPUT_LEVEL");
+            TNC_DEBUG("POLL_AMPLIFIED_INPUT_LEVEL");
             pollAmplifiedInputLevel();
             break;
 #ifndef NUCLEOTNC
         case POLL_BATTERY_LEVEL:
-            DEBUG("POLL_BATTERY_LEVEL");
+            TNC_DEBUG("POLL_BATTERY_LEVEL");
             pollBatteryLevel();
             break;
 #endif
         case POLL_TWIST_LEVEL:
-            DEBUG("POLL_TWIST_LEVEL");
+            TNC_DEBUG("POLL_TWIST_LEVEL");
             pollInputTwist();
             break;
         case STREAM_AVERAGE_TWIST_LEVEL:
-            DEBUG("STREAM_AVERAGE_TWIST_LEVEL");
+            TNC_DEBUG("STREAM_AVERAGE_TWIST_LEVEL");
             // streamAverageInputTwist();
             break;
         case STREAM_INSTANT_TWIST_LEVEL:
-            DEBUG("STREAM_INSTANT_TWIST_LEVEL");
+            TNC_DEBUG("STREAM_INSTANT_TWIST_LEVEL");
             // streamInstantInputTwist();
             break;
         case AUTO_ADJUST_INPUT_LEVEL:
-            DEBUG("AUTO_ADJUST_INPUT_LEVEL");
+            TNC_DEBUG("AUTO_ADJUST_INPUT_LEVEL");
             autoAudioInputLevel();
             break;
         case CONFIGURE_INPUT_LEVELS:
-            DEBUG("CONFIGURE_INPUT_LEVELS");
+            TNC_DEBUG("CONFIGURE_INPUT_LEVELS");
             setAudioInputLevels();
             break;
         case UPDATE_SETTINGS:
-            DEBUG("UPDATE_SETTINGS");
+            TNC_DEBUG("UPDATE_SETTINGS");
             setAudioInputLevels();
             updateModulator();
             break;
@@ -191,7 +191,7 @@ IDemodulator* getDemodulator()
 
 void demodulatorTask() {
 
-    DEBUG("enter demodulatorTask");
+    TNC_DEBUG("enter demodulatorTask");
 
     bool dcd_status{false};
     auto demodulator = getDemodulator();
@@ -238,7 +238,7 @@ void demodulatorTask() {
     demodulator->stop();
 
     dcd_off();
-    DEBUG("exit demodulatorTask");
+    TNC_DEBUG("exit demodulatorTask");
 }
 
 
@@ -297,13 +297,13 @@ void streamLevels(uint8_t cmd) {
     }
 
     demodulator->stop();
-    DEBUG("exit streamLevels");
+    TNC_DEBUG("exit streamLevels");
 }
 
 levels_type readLevels(uint32_t)
 {
 
-    DEBUG("enter readLevels");
+    TNC_DEBUG("enter readLevels");
 
     // Return Vpp, Vavg, Vmin, Vmax as four 16-bit values, right justified.
 
@@ -385,7 +385,7 @@ float readTwist()
  */
 void pollInputTwist()
 {
-    DEBUG("enter pollInputTwist");
+    TNC_DEBUG("enter pollInputTwist");
 
     float g1200 = 0.0f;
     float g2200 = 0.0f;
@@ -424,7 +424,7 @@ void pollInputTwist()
 
     IDemodulator::stopADC();
 
-    DEBUG("pollInputTwist: MARK=%d, SPACE=%d (x100)",
+    TNC_DEBUG("pollInputTwist: MARK=%d, SPACE=%d (x100)",
       int(g1200 * 100.0 / AVG_SAMPLES), int(g2200 * 100.0 / AVG_SAMPLES));
 
     int16_t g1200i = int16_t(g1200 * 256 / AVG_SAMPLES);
@@ -439,17 +439,17 @@ void pollInputTwist()
 
     ioport->write(buffer, 5, 6, 10);
 
-    DEBUG("exit pollInputTwist");
+    TNC_DEBUG("exit pollInputTwist");
 }
 
 void streamAmplifiedInputLevels() {
-    DEBUG("enter streamAmplifiedInputLevels");
+    TNC_DEBUG("enter streamAmplifiedInputLevels");
     streamLevels(kiss::hardware::POLL_INPUT_LEVEL);
-    DEBUG("exit streamAmplifiedInputLevels");
+    TNC_DEBUG("exit streamAmplifiedInputLevels");
 }
 
 void pollAmplifiedInputLevel() {
-    DEBUG("enter pollAmplifiedInputLevel");
+    TNC_DEBUG("enter pollAmplifiedInputLevel");
 
     uint16_t Vpp, Vavg, Vmin, Vmax;
     std::tie(Vpp, Vavg, Vmin, Vmax) = readLevels(AUDIO_IN);
@@ -471,7 +471,7 @@ void pollAmplifiedInputLevel() {
     data[8] = (Vmax & 0xFF);
 
     ioport->write(data, 9, 6, 10);
-    DEBUG("exit pollAmplifiedInputLevel");
+    TNC_DEBUG("exit pollAmplifiedInputLevel");
 }
 
 #ifndef NUCLEOTNC
@@ -496,7 +496,7 @@ void stop() {
     kiss::settings().input_offset += 6;
     setAudioInputLevels();
     kiss::settings().input_offset -= 6;
-    DEBUG("Stop");
+    TNC_DEBUG("Stop");
     // __disable_irq();
     vTaskSuspendAll();
     SysTick->CTRL = 0;
@@ -514,7 +514,7 @@ void stop() {
     xTaskResumeAll();
     setAudioInputLevels();
     // adcState = DEMODULATOR;
-    DEBUG("Wake");
+    TNC_DEBUG("Wake");
 }
 #endif
 

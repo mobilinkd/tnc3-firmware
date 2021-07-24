@@ -52,11 +52,11 @@ void log_frame(mobilinkd::tnc::hdlc::IoFrame* frame)
         if (isprint(int(c))) pos += sprintf((char*)tmpBuffer2 + pos, " %c ", c);
         else pos += sprintf((char*)tmpBuffer2 + pos, "/%02x", c);
         if (pos > 80) {
-          DEBUG((char*)tmpBuffer2);
+          TNC_DEBUG((char*)tmpBuffer2);
           pos = 0;
         }
     }
-    DEBUG((char*)tmpBuffer2);
+    TNC_DEBUG((char*)tmpBuffer2);
 }
 #endif
 
@@ -569,7 +569,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     osMutexRelease(mutex_);
     hdlc::release(frame);
 
-    DEBUG("SerialPort::write COMPLETE");
+    TNC_DEBUG("SerialPort::write COMPLETE");
 
     return true;
 }

@@ -139,7 +139,7 @@ struct M17Demodulator : IDemodulator
     uint32_t readBatteryLevel() override
     {
 #ifndef NUCLEOTNC
-        DEBUG("enter M17Demodulator::readBatteryLevel");
+        TNC_DEBUG("enter M17Demodulator::readBatteryLevel");
 
         ADC_ChannelConfTypeDef sConfig;
 
@@ -205,7 +205,7 @@ struct M17Demodulator : IDemodulator
         INFO("Vref = %lumV", vref)
         INFO("Vbat = %lumV", vbat);
 
-        DEBUG("exit M17Demodulator::readBatteryLevel");
+        TNC_DEBUG("exit M17Demodulator::readBatteryLevel");
         return vbat;
 #else
         return 0;

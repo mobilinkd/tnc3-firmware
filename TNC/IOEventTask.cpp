@@ -92,7 +92,7 @@ void startIOEventTask(void const*)
         // FIXME: this is probably not right
         if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
         {
-            DEBUG("BT Connected at start");
+            TNC_DEBUG("BT Connected at start");
             openSerial();
             INFO("BT Opened");
             indicate_connected_via_ble();
@@ -103,10 +103,10 @@ void startIOEventTask(void const*)
         }
     } else {
         if (!usb_wake_state) {
-            DEBUG("USB disconnected -- shutdown");
+            TNC_DEBUG("USB disconnected -- shutdown");
             shutdown(0);
         } else {
-            DEBUG("USB connected -- negotiate");
+            TNC_DEBUG("USB connected -- negotiate");
             HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
                 GPIO_PIN_RESET);
             osTimerStart(usbShutdownTimerHandle, 5000);
@@ -193,14 +193,14 @@ void startIOEventTask(void const*)
                     osWaitForever);
                 break;
             case CMD_POWER_BUTTON_UP:
-                DEBUG("Power Up");
+                TNC_DEBUG("Power Up");
                 if (power_button_counter == 0) break; // reset_requested
                 power_button_duration = osKernelSysTick() - power_button_counter;
-                DEBUG("Button pressed for %lums", power_button_duration);
+                TNC_DEBUG("Button pressed for %lums", power_button_duration);
                 shutdown(0); // ***NO RETURN***
                 break;
             case CMD_BOOT_BUTTON_DOWN:
-                DEBUG("BOOT Down");
+                TNC_DEBUG("BOOT Down");
                 // If the TNC has USB power, reboot.  The boot pin is being
                 // held so it will boot into the bootloader.  This is a bit
                 // of a hack, since we really should check if the port is a
@@ -211,7 +211,7 @@ void startIOEventTask(void const*)
                 }
                 break;
             case CMD_BOOT_BUTTON_UP:
-                DEBUG("BOOT Up");
+                TNC_DEBUG("BOOT Up");
                 osMessagePut(audioInputQueueHandle,
                     audio::AUTO_ADJUST_INPUT_LEVEL,
                     osWaitForever);
@@ -227,7 +227,7 @@ void startIOEventTask(void const*)
                 }
                 break;
             case CMD_BT_CONNECT:
-                DEBUG("BT Connect");
+                TNC_DEBUG("BT Connect");
                 if (openSerial())
                 {
                     osMessagePut(audioInputQueueHandle,
@@ -343,7 +343,7 @@ void startIOEventTask(void const*)
 
         if (frame->source() & IoFrame::RF_DATA)
         {
-            DEBUG("RF frame");
+            TNC_DEBUG("RF frame");
             frame->source(frame->source() & 0x70);
             if (!ioport->write(frame, frame->size() + 100))
             {
@@ -354,7 +354,7 @@ void startIOEventTask(void const*)
         }
         else
         {
-            DEBUG("Serial frame");
+            TNC_DEBUG("Serial frame");
             if ((frame->type() & 0x0F) == IoFrame::DATA)
             {
             	kiss::getAFSKTestTone().stop();

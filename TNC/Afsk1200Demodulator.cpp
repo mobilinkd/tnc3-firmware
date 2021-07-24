@@ -85,7 +85,7 @@ hdlc::IoFrame* Afsk1200Demodulator::operator()(const q15_t* samples)
  */
 float Afsk1200Demodulator::readTwist()
 {
-    DEBUG("enter Afsk1200Demodulator::readTwist");
+    TNC_DEBUG("enter Afsk1200Demodulator::readTwist");
 
     float g1200 = 0.0f;
     float g2200 = 0.0f;
@@ -133,14 +133,14 @@ float Afsk1200Demodulator::readTwist()
     INFO("Twist = %d / 100 (%d - %d)", int(result * 100), int(g1200),
         int(g2200));
 
-    DEBUG("exit readTwist");
+    TNC_DEBUG("exit readTwist");
     return result;
 }
 
 uint32_t Afsk1200Demodulator::readBatteryLevel()
 {
 #ifndef NUCLEOTNC
-    DEBUG("enter Afsk1200Demodulator::readBatteryLevel");
+    TNC_DEBUG("enter Afsk1200Demodulator::readBatteryLevel");
 
     ADC_ChannelConfTypeDef sConfig;
 
@@ -206,7 +206,7 @@ uint32_t Afsk1200Demodulator::readBatteryLevel()
     INFO("Vref = %lumV", vref);
     INFO("Vbat = %lumV", vbat);
 
-    DEBUG("exit Afsk1200Demodulator::readBatteryLevel");
+    TNC_DEBUG("exit Afsk1200Demodulator::readBatteryLevel");
     return vbat;
 #else
     return 0;

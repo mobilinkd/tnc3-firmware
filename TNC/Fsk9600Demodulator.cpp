@@ -69,7 +69,7 @@ hdlc::IoFrame* Fsk9600Demodulator::operator()(const q15_t* samples)
  */
 float Fsk9600Demodulator::readTwist()
 {
-    DEBUG("enter Fsk9600Demodulator::readTwist");
+    TNC_DEBUG("enter Fsk9600Demodulator::readTwist");
 
     float g120 = 0.0f;
     float g4800 = 0.0f;
@@ -117,14 +117,14 @@ float Fsk9600Demodulator::readTwist()
     INFO("9600 Twist = %d / 100 (%d - %d)", int(result * 100), int(g120 * 100),
         int(g4800 * 100));
 
-    DEBUG("exit Fsk9600Demodulator::readTwist");
+    TNC_DEBUG("exit Fsk9600Demodulator::readTwist");
     return result;
 }
 
 uint32_t Fsk9600Demodulator::readBatteryLevel()
 {
 #ifndef NUCLEOTNC
-    DEBUG("enter Fsk9600Demodulator::readBatteryLevel");
+    TNC_DEBUG("enter Fsk9600Demodulator::readBatteryLevel");
 
     ADC_ChannelConfTypeDef sConfig;
 
@@ -190,7 +190,7 @@ uint32_t Fsk9600Demodulator::readBatteryLevel()
     INFO("Vref = %lumV", vref)
     INFO("Vbat = %lumV", vbat);
 
-    DEBUG("exit Fsk9600Demodulator::readBatteryLevel");
+    TNC_DEBUG("exit Fsk9600Demodulator::readBatteryLevel");
     return vbat;
 #else
     return 0;

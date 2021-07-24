@@ -224,7 +224,7 @@ bool write_eeprom()
             ERROR("%s transmit data failed", __PRETTY_FUNCTION__);
             return false;
         } else {
-            DEBUG("%s transmit succeeded %d bytes at 0x%02X%02X",
+            TNC_DEBUG("%s transmit succeeded %d bytes at 0x%02X%02X",
                 __FUNCTION__, cmd[6], cmd[4], cmd[5]);
         }
 
@@ -486,7 +486,7 @@ void bm78_wait_until_ready()
         HAL_Delay(100);
         bt_state2 = HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin);
         bt_state1 = HAL_GPIO_ReadPin(BT_STATE1_GPIO_Port, BT_STATE1_Pin);
-        DEBUG("bt_state2=%d, bt_state1=%d", bt_state2, bt_state1);
+        TNC_DEBUG("bt_state2=%d, bt_state1=%d", bt_state2, bt_state1);
     } while (!((bt_state2 == GPIO_PIN_SET) and (bt_state1 == GPIO_PIN_RESET)));
 }
 
