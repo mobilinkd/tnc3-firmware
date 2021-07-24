@@ -133,6 +133,8 @@ struct AFSKModulator : Modulator
         }
     }
 
+    void tone(uint16_t freq) override {}
+
     void fill(uint16_t* buffer, bool bit)
     {
         HAL_IWDG_Refresh(&hiwdg);
@@ -155,7 +157,7 @@ struct AFSKModulator : Modulator
                 }
             }
             if (s < 0 or s > 4095) {
-              DEBUG("DAC inversion (%d)", s);
+              TNC_DEBUG("DAC inversion (%d)", s);
             }
             *buffer = uint16_t(s);
             ++buffer;

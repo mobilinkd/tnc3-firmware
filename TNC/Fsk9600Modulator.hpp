@@ -108,6 +108,8 @@ struct Fsk9600Modulator : Modulator
         }
     }
 
+    void tone(uint16_t freq) override {}
+
     // DAC DMA interrupt functions.
 
     void fill_first(uint8_t bit) override
