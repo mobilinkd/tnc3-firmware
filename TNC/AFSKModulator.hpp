@@ -115,7 +115,7 @@ struct AFSKModulator : Modulator
         switch (running_) {
         case -1:
             ptt_->on();
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
                 HAL_RCCEx_DisableLSCO();
 #endif
 
@@ -199,7 +199,7 @@ struct AFSKModulator : Modulator
             stop_conversion();
             ptt_->off();
             pos_ = 0;
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #endif
             break;
@@ -214,7 +214,7 @@ struct AFSKModulator : Modulator
         stop_conversion();
         ptt_->off();
         pos_ = 0;
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #endif
 

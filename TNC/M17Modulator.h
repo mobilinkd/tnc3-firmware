@@ -103,7 +103,7 @@ struct M17Modulator : Modulator
         {
         case State::STOPPING:
         case State::STOPPED:
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
             HAL_RCCEx_DisableLSCO();
 #endif
             delay_count = 0;
@@ -183,7 +183,7 @@ struct M17Modulator : Modulator
         case State::STOPPED:
             stop_conversion();
             ptt_->off();
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #endif
             osMessagePut(audioInputQueueHandle, tnc::audio::DEMODULATOR,
@@ -221,7 +221,7 @@ struct M17Modulator : Modulator
         case State::STOPPED:
             stop_conversion();
             ptt_->off();
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
                 HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #endif
             osMessagePut(audioInputQueueHandle, tnc::audio::DEMODULATOR,
@@ -236,7 +236,7 @@ struct M17Modulator : Modulator
         send_tone = false;
         stop_conversion();
         ptt_->off();
-#if defined(KISS_LOGGING) && !defined(NUCLEOTNC)
+#if defined(KISS_LOGGING) && defined(HAVE_LSCO)
             HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 #endif
         // Drain the queue.

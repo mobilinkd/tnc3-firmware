@@ -22,7 +22,9 @@ namespace mobilinkd { namespace tnc {
 void M17Demodulator::start()
 {
     SysClock72();
+#if defined(HAVE_LSCO)
     HAL_RCCEx_DisableLSCO();
+#endif
 
     demod_filter.init(m17::rrc_taps_f15);
     passall(kiss::settings().options & KISS_OPTION_PASSALL);

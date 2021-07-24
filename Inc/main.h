@@ -188,7 +188,7 @@ void SysClock4(void);
 #define BATTERY_ADC_HANDLE hadc1
 #define BATTERY_ADC_CHANNEL ADC_CHANNEL_15
 #define LED_PWM_TIMER_HANDLE htim1
-
+#define HAVE_LSCO
 
 /* USER CODE END Private defines */
 
