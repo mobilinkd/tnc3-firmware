@@ -187,6 +187,7 @@ void SysClock4(void);
 // Compatibility defines
 #define BATTERY_ADC_HANDLE hadc1
 #define BATTERY_ADC_CHANNEL ADC_CHANNEL_15
+#define LED_PWM_TIMER_HANDLE htim1
 
 
 /* USER CODE END Private defines */
