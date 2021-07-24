@@ -518,7 +518,7 @@ Flash& flash()
 }
 } // mobilinkd::tnc
 
-void HTIM1_PeriodElapsedCallback()
+void LED_TIMER_PeriodElapsedCallback()
 {
     using mobilinkd::tnc::flash;
 
