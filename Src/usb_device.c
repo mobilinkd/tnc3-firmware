@@ -147,18 +147,18 @@ void HAL_PCDEx_BCD_Callback(PCD_HandleTypeDef *hpcd, PCD_BCD_MsgTypeDef msg)
 
       case PCD_BCD_STD_DOWNSTREAM_PORT:
           // Only charge after negotiation
-          DEBUG("Detected standard downstream USB port");
+          TNC_DEBUG("Detected standard downstream USB port");
           downstream_port = 1;
           break;
 
       case PCD_BCD_CHARGING_DOWNSTREAM_PORT:
-          DEBUG("Detected charging downstream USB port");
+          TNC_DEBUG("Detected charging downstream USB port");
           osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
           downstream_port = 1;
           break;
 
       case PCD_BCD_DEDICATED_CHARGING_PORT:
-          DEBUG("Detected dedicated charging port");
+          TNC_DEBUG("Detected dedicated charging port");
           osMessagePut(ioEventQueueHandle, CMD_USB_CHARGE_ENABLE, 0);
           downstream_port = 0;
           break;
