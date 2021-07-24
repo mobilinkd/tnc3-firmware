@@ -1,9 +1,7 @@
-// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2021 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-
-#ifndef MOBILINKD__HDLC_FRAME_HPP_
-#define MOBILINKD__HDLC_FRAME_HPP_
+#pragma once
 
 #ifndef EXCLUDE_CRC
 #include "stm32l4xx_hal.h"
@@ -207,5 +205,3 @@ IoFrame* acquire(void);
 IoFrame* acquire_wait(void);
 
 }}} // mobilinkd::tnc::hdlc
-
-#endif // MOBILINKD__HDLC_FRAME_HPP_
