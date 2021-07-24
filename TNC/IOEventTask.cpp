@@ -27,7 +27,15 @@
 #include "cmsis_os.h"
 
 extern osMessageQId hdlcOutputQueueHandle;
+
+#ifdef STM32L4P5xx
+extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
+#define HPDC hpcd_USB_OTG_FS
+#else
 extern PCD_HandleTypeDef hpcd_USB_FS;
+#define HPCD hpcd_USB_FS
+#endif
+
 extern osTimerId usbShutdownTimerHandle;
 extern IWDG_HandleTypeDef hiwdg;
 
@@ -83,11 +91,16 @@ void startIOEventTask(void const*)
         HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
         HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
 
-        HAL_NVIC_SetPriority(EXTI4_IRQn, 6, 0);
-        HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+        HAL_NVIC_SetPriority(BT_STATE1_EXTI_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(BT_STATE1_EXTI_IRQn);
 
-        HAL_NVIC_SetPriority(EXTI9_5_IRQn, 6, 0);
-        HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+        HAL_NVIC_SetPriority(BT_STATE2_EXTI_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(BT_STATE2_EXTI_IRQn);
+
+#ifdef OVP_ERROR_EXTI_IRQn
+        HAL_NVIC_SetPriority(OVP_ERROR_EXTI_IRQn, 6, 0);
+        HAL_NVIC_EnableIRQ(OVP_ERROR_EXTI_IRQn);
+#endif
 
         // FIXME: this is probably not right
         if (HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin) == GPIO_PIN_RESET)
@@ -139,8 +152,8 @@ void startIOEventTask(void const*)
                 {
                     cdc_connected = true;
                     // Disable Bluetooth Module
-                    HAL_NVIC_DisableIRQ(EXTI4_IRQn);
-                    HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
+                    HAL_NVIC_DisableIRQ(BT_STATE1_EXTI_IRQn);
+                    HAL_NVIC_DisableIRQ(BT_STATE2_EXTI_IRQn);
                     HAL_GPIO_WritePin(BT_SLEEP_GPIO_Port, BT_SLEEP_Pin,
                         GPIO_PIN_RESET);
                     INFO("CDC Opened");
@@ -155,8 +168,8 @@ void startIOEventTask(void const*)
                 if (powerOffViaUSB()) {
                     shutdown(0); // ***NO RETURN***
                 } else {
-                    hpcd_USB_FS.Instance->BCDR = 0;
-                    HAL_PCD_MspDeInit(&hpcd_USB_FS);
+                    HPCD.Instance->BCDR = 0;
+                    HAL_PCD_MspDeInit(&HPCD);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
 //                    SysClock4();
                     if (ioport != getUsbPort())
@@ -179,8 +192,8 @@ void startIOEventTask(void const*)
                         GPIO_PIN_SET);
                     bm78_wait_until_ready();
 
-                    HAL_NVIC_EnableIRQ(EXTI4_IRQn);
-                    HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+                    HAL_NVIC_EnableIRQ(BT_STATE1_EXTI_IRQn);
+                    HAL_NVIC_EnableIRQ(BT_STATE2_EXTI_IRQn);
 
                     indicate_waiting_to_connect();
                 }
@@ -234,14 +247,14 @@ void startIOEventTask(void const*)
                         audio::DEMODULATOR, osWaitForever);
                     INFO("BT Opened");
                     indicate_connected_via_ble();
-                    HAL_PCD_EP_SetStall(&hpcd_USB_FS, CDC_CMD_EP);
+                    HAL_PCD_EP_SetStall(&HPCD, CDC_CMD_EP);
                 }
                 break;
             case CMD_BT_DISCONNECT:
                 INFO("BT Disconnect");
                 closeSerial();
                 indicate_waiting_to_connect();
-                HAL_PCD_EP_ClrStall(&hpcd_USB_FS, CDC_CMD_EP);
+                HAL_PCD_EP_ClrStall(&HPCD, CDC_CMD_EP);
                 osMessagePut(audioInputQueueHandle, audio::IDLE,
                     osWaitForever);
                 kiss::getAFSKTestTone().stop();
@@ -262,11 +275,11 @@ void startIOEventTask(void const*)
                 audio::setAudioInputLevels();
                 bm78_wait_until_ready();
 
-                HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+                HAL_NVIC_SetPriority(BT_STATE1_EXTI_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(BT_STATE1_EXTI_IRQn);
 
-                HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
-                HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+                HAL_NVIC_SetPriority(BT_STATE2_EXTI_IRQn, 5, 0);
+                HAL_NVIC_EnableIRQ(BT_STATE2_EXTI_IRQn);
 
                 HAL_NVIC_SetPriority(SW_BOOT_EXTI_IRQn, 6, 0);
                 HAL_NVIC_EnableIRQ(SW_BOOT_EXTI_IRQn);
@@ -282,10 +295,12 @@ void startIOEventTask(void const*)
                 INFO("VBUS Detected");
 //                SysClock48();
                 MX_USB_DEVICE_Init();
-                HAL_PCD_MspInit(&hpcd_USB_FS);
-                hpcd_USB_FS.Instance->BCDR = 0;
-                HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
-                HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
+                HAL_PCD_MspInit(&HPCD);
+#ifdef STM32L433xx
+                HPCD.Instance->BCDR = 0;
+#endif
+                HAL_PCDEx_ActivateBCD(&HPCD);
+                HAL_PCDEx_BCD_VBUSDetect(&HPCD);
                 break;
             case CMD_USB_CHARGE_ENABLE:
                 INFO("USB charging enabled");
@@ -302,7 +317,7 @@ void startIOEventTask(void const*)
             case CMD_USB_DISCOVERY_ERROR:
                 // This happens when powering VBUS from a bench supply.
                 osTimerStop(usbShutdownTimerHandle);
-                HAL_PCDEx_DeActivateBCD(&hpcd_USB_FS);
+                HAL_PCDEx_DeActivateBCD(&HPCD);
                 if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
                 {
                     INFO("Not a recognized USB charging device");
