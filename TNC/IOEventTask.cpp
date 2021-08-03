@@ -30,7 +30,7 @@ extern osMessageQId hdlcOutputQueueHandle;
 
 #ifdef STM32L4P5xx
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
-#define HPDC hpcd_USB_OTG_FS
+#define HPCD hpcd_USB_OTG_FS
 #else
 extern PCD_HandleTypeDef hpcd_USB_FS;
 #define HPCD hpcd_USB_FS
@@ -168,7 +168,9 @@ void startIOEventTask(void const*)
                 if (powerOffViaUSB()) {
                     shutdown(0); // ***NO RETURN***
                 } else {
+#ifdef STM32L433xx
                     HPCD.Instance->BCDR = 0;
+#endif
                     HAL_PCD_MspDeInit(&HPCD);
                     HAL_GPIO_WritePin(USB_CE_GPIO_Port, USB_CE_Pin, GPIO_PIN_SET);
 //                    SysClock4();

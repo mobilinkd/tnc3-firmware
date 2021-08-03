@@ -6,6 +6,7 @@
 #include "Log.h"
 #include "HdlcFrame.hpp"
 #include "AFSKTestTone.hpp"
+#include "main.h"
 
 #include <cstdint>
 #include <cstring>

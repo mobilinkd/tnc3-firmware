@@ -49,7 +49,7 @@ struct M17Demodulator : IDemodulator
     using audio_filter_t = FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM_15>;
     using sync_word_t = m17::SyncWord<m17::Correlator>;
 
-    enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, FRAME };
+    enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, BERT_SYNC, FRAME };
 
     audio_filter_t demod_filter;
     std::array<float, ADC_BLOCK_SIZE> demod_buffer;
@@ -59,7 +59,7 @@ struct M17Demodulator : IDemodulator
     m17::Correlator correlator;
     sync_word_t preamble_sync{{+3,-3,+3,-3,+3,-3,+3,-3}, 29.f};
     sync_word_t lsf_sync{{+3,+3,+3,+3,-3,-3,+3,-3}, 31.f, -31.f};
-    sync_word_t packet_sync{{3,-3,3,3,-3,-3,-3,-3}, 32.f};
+    sync_word_t packet_sync{{3,-3,3,3,-3,-3,-3,-3}, 31.f, -31.f};
 
     m17::FreqDevEstimator<float> dev;
 
@@ -97,6 +97,7 @@ struct M17Demodulator : IDemodulator
     void do_lsf_sync();
     void do_packet_sync();
     void do_stream_sync();
+    void do_bert_sync();
     void do_frame(float filtered_sample, hdlc::IoFrame*& frame_result);
 
     void stop() override
