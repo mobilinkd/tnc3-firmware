@@ -37,7 +37,7 @@ public:
         DATA = 0, TX_DELAY, P_PERSIST, SLOT_TIME, TX_TAIL, DUPLEX, HARDWARE,
         TEXT, LOG};
 
-    enum Source { RF_DATA = 0x80 };
+    enum Source { RF_DATA = 0x80, BERT = 0x30, STREAM = 0x20, PACKET = 0x10 };
 
 private:
     data_type data_;

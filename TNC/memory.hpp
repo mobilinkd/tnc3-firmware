@@ -65,6 +65,8 @@ struct Pool {
         free_list.push_back(*item);
         taskEXIT_CRITICAL_FROM_ISR(x);
     }
+
+    size_t free() const { return free_list.size(); }
 };
 
 
