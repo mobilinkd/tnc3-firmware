@@ -1,7 +1,7 @@
 #MicroXplorer Configuration settings - do not modify
 VP_RCC_LSE.Signal=RCC_LSE
 PCC.Series=STM32L4
-FREERTOS.Queues01=ioEventQueue,16,uint32_t,0,Static,ioEventQueueBuffer,ioEventQueueControlBlock;serialInputQueue,16,uint32_t,0,Static,serialInputQueueBuffer,serialInputQueueControlBlock;serialOutputQueue,16,uint32_t,0,Static,serialOutputQueueBuffer,serialOutputQueueControlBlock;audioInputQueue,4,uint8_t,0,Static,audioInputQueueBuffer,audioInputQueueControlBlock;hdlcInputQueue,3,uint32_t,0,Static,hdlcInputQueueBuffer,hdlcInputQueueControlBlock;hdlcOutputQueue,3,uint32_t,0,Static,hdlcOutputQueueBuffer,hdlcOutputQueueControlBlock;dacOutputQueue,128,uint8_t,0,Static,dacOutputQueueBuffer,dacOutputQueueControlBlock;adcInputQueue,3,uint32_t,0,Static,adcInputQueueBuffer,adcInputQueueControlBlock
+FREERTOS.Queues01=ioEventQueue,16,uint32_t,0,Static,ioEventQueueBuffer,ioEventQueueControlBlock;serialInputQueue,16,uint32_t,0,Static,serialInputQueueBuffer,serialInputQueueControlBlock;serialOutputQueue,16,uint32_t,0,Static,serialOutputQueueBuffer,serialOutputQueueControlBlock;audioInputQueue,4,uint8_t,0,Static,audioInputQueueBuffer,audioInputQueueControlBlock;hdlcInputQueue,3,uint32_t,0,Static,hdlcInputQueueBuffer,hdlcInputQueueControlBlock;hdlcOutputQueue,3,uint32_t,0,Static,hdlcOutputQueueBuffer,hdlcOutputQueueControlBlock;dacOutputQueue,128,uint8_t,0,Static,dacOutputQueueBuffer,dacOutputQueueControlBlock;adcInputQueue,8,uint32_t,0,Static,adcInputQueueBuffer,adcInputQueueControlBlock
 RTC.Alarm_B-Alarm\ B=RTC_ALARM_B
 PB13.GPIOParameters=PinState,GPIO_Label,GPIO_ModeDefaultOutputPP
 VP_RCC_LSE.Mode=CRS SYNC Source LSE
