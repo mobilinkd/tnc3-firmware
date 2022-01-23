@@ -9,6 +9,19 @@ build the firmware using the same compiler and linker options.  As
 with most firmware projects, there is a linker script with defines
 the memory layout for for the Flash and SRAM.
 
+## Blaze Dependency
+
+There is a new dependency as of 2.4.3 with the addition of the Kalman
+filter.  The firmware has a dependency on the Blaze C++ math library.
+
+    mkdir blaze
+    ln -s /usr/include/blaze blaze/
+
+This also requires (for now) that the firmware be built with exceptions
+enabled.
+
+## Example GCC Command-line
+
 Below are example compilation and linking lines for reference:
 
     arm-none-eabi-gcc -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16 -O2 -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-inline-functions -fsingle-precision-constant -fstack-usage -fstrict-aliasing -ffast-math -Wall -Wextra -Wlogical-op -Wfloat-equal -g3 -D__FPU_PRESENT=1 -DUSE_HAL_DRIVER -DARM_MATH_CM4 -D__weak=__attribute__((weak)) -DSTM32L433xx -I/usr/arm-none-eabi/include -I../Inc -I../Drivers/STM32L4xx_HAL_Driver/Inc -I../Drivers/CMSIS/Include -I../Drivers/CMSIS/Device/ST/STM32L4xx/Include -I../Middlewares/Third_Party/FreeRTOS/Source/include -I../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I../TNC -I../Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/ -I../Middlewares/ST/STM32_USB_Device_Library/Core/Inc -std=gnu11 -Wmissing-prototypes -Wstrict-prototypes -Wbad-function-cast -c -o Src/stm32l4xx_it.o ../Src/stm32l4xx_it.c 
