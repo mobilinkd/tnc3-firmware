@@ -19,8 +19,6 @@ namespace mobilinkd { namespace m17 {
 template <typename FloatType = float, size_t SamplesPerSymbol = 10>
 struct ClockRecovery
 {
-    static constexpr FloatType MAX_CLOCK_OFFSET = 0.0005; // 500ppm
-
     KalmanFilter<FloatType, SamplesPerSymbol> kf_;
     size_t count_ = 0;
     int8_t sample_index_ = 0;
@@ -39,11 +37,6 @@ struct ClockRecovery
     void operator()(FloatType)
     {
         ++count_;
-    }
-
-    static FloatType clock_limiter(FloatType offset)
-    {
-        return std::min(MAX_CLOCK_OFFSET, std::max(-MAX_CLOCK_OFFSET, offset));
     }
 
     bool update(uint8_t sw)
@@ -78,7 +71,7 @@ struct ClockRecovery
     bool update()
     {
         INFO("CR Update");
-        auto csw = std::fmod((sample_estimate_ + (1.0 + clock_estimate_) * count_), SamplesPerSymbol);
+        auto csw = std::fmod((sample_estimate_ + clock_estimate_ * count_), SamplesPerSymbol);
         if (csw < 0.) csw += SamplesPerSymbol;
         else if (csw >= SamplesPerSymbol) csw -= SamplesPerSymbol;
 
