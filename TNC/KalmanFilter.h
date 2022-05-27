@@ -63,10 +63,10 @@ struct KalmanFilter
         auto K = P * blaze::trans(H) * (1.0 / S(0, 0));
 
         // Normalize incoming index
-        if (z - x[0] < (SamplesPerSymbol / -2.0))
+        if (z - x[0] < (SamplesPerSymbol / -2.0)) // wrapped forwards 9 -> 0
             z += SamplesPerSymbol;
-        else if (z - x[0] > (SamplesPerSymbol / 2.0))
-            z-= SamplesPerSymbol;
+        else if (z - x[0] > (SamplesPerSymbol / 2.0)) // wrapped 0 -> 9
+            z -= SamplesPerSymbol;
 
         auto y = z - H * x;
 
