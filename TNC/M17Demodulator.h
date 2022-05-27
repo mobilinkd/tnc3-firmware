@@ -45,13 +45,14 @@ struct M17Demodulator : IDemodulator
     static constexpr float symbol_rate = SYMBOL_RATE;
 
     static constexpr uint8_t MAX_MISSING_SYNC = 10;
-    static constexpr uint8_t MIN_SYNC_INDEX = 79;
-    static constexpr uint8_t MAX_SYNC_INDEX = 88;
+    static constexpr uint8_t MIN_SYNC_COUNT = 78;
+    static constexpr uint8_t MAX_SYNC_COUNT = 87;
+    static constexpr float EOT_TRIGGER_LEVEL = 0.1;
 
     using audio_filter_t = FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM>;
     using sync_word_t = m17::SyncWord<m17::Correlator>;
 
-    enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, BERT_SYNC, FRAME };
+    enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, BERT_SYNC, SYNC_WAIT, FRAME };
 
     audio_filter_t demod_filter;
     std::array<float, ADC_BLOCK_SIZE> demod_buffer;
@@ -100,6 +101,7 @@ struct M17Demodulator : IDemodulator
     void do_packet_sync();
     void do_stream_sync();
     void do_bert_sync();
+    void do_sync_wait();
     void do_frame(float filtered_sample, hdlc::IoFrame*& frame_result);
 
     void stop() override
