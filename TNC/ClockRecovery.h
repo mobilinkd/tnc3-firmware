@@ -1,4 +1,4 @@
-// Copyright 2021 Mobilinkd LLC.
+// Copyright 2021-2022 Mobilinkd LLC.
 
 #pragma once
 
@@ -41,10 +41,8 @@ struct ClockRecovery
 
     bool update(uint8_t sw)
     {
-        INFO("CR Update %d", int(sw));
-        if (count_ < 480)
+        if (count_ < 8)
         {
-            sample_index_ = sw;
             return false;
         }
 
@@ -70,7 +68,6 @@ struct ClockRecovery
      */
     bool update()
     {
-        INFO("CR Update");
         auto csw = std::fmod((sample_estimate_ + clock_estimate_ * count_), SamplesPerSymbol);
         if (csw < 0.) csw += SamplesPerSymbol;
         else if (csw >= SamplesPerSymbol) csw -= SamplesPerSymbol;

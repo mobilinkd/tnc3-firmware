@@ -80,4 +80,46 @@ struct KalmanFilter
     }
 };
 
+template <typename FloatType>
+struct SymbolKalmanFilter
+{
+    blaze::StaticVector<FloatType, 2> x;
+    blaze::StaticMatrix<FloatType, 2, 2> P;
+    blaze::StaticMatrix<FloatType, 2, 2> F;
+    blaze::StaticMatrix<FloatType, 1, 2> H = {{1., 0.}};
+    blaze::StaticMatrix<FloatType, 1, 1> R = {{0.5}};
+    blaze::StaticMatrix<FloatType, 2, 2> Q = {{6.25e-4, 1.25e-3},{1.25e-3, 2.50e-3}};
+
+    SymbolKalmanFilter()
+    {
+        reset(0.);
+    }
+
+    void reset(FloatType z)
+    {
+        x = {z, 0.};
+        P = {{4., 0.}, {0., 0.00000025}};
+        F = {{1., 1.}, {0., 1.}};
+    }
+
+    [[gnu::noinline]]
+    auto update(FloatType z, size_t dt)
+    {
+        F(0,1) = FloatType(dt);
+
+        x = F * x;
+        P = F * P * blaze::trans(F) + Q;
+        auto S = H * P * blaze::trans(H) + R;
+        auto K = P * blaze::trans(H) * (1.0 / S(0, 0));
+
+        auto y = z - H * x;
+
+        x += K * y;
+
+        // Normalize the filtered sample point
+        P = P - K * H * P;
+        return x;
+    }
+};
+
 }} // mobilinkd::m17

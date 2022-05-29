@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2020-2022 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -44,6 +44,8 @@ struct M17Demodulator : IDemodulator
     static constexpr float sample_rate = SAMPLE_RATE;
     static constexpr float symbol_rate = SYMBOL_RATE;
 
+    static constexpr int STREAM_COST_LIMIT = 80;
+    static constexpr int PACKET_COST_LIMIT = 60;
     static constexpr uint8_t MAX_MISSING_SYNC = 10;
     static constexpr uint8_t MIN_SYNC_COUNT = 78;
     static constexpr uint8_t MAX_SYNC_COUNT = 87;
@@ -74,7 +76,6 @@ struct M17Demodulator : IDemodulator
     DemodState demodState = DemodState::UNLOCKED;
     M17FrameDecoder::SyncWordType sync_word_type = M17FrameDecoder::SyncWordType::LSF;
     uint8_t sample_index = 0;
-    float idev;
 
     bool dcd_ = false;
 	bool need_clock_reset_ = false;
