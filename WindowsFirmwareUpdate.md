@@ -37,7 +37,7 @@ You will be performing the following steps:
 ## Download the Software
 
 The firmware update tool is available from here:
-https://s3.amazonaws.com/mobilinkd/en.stm32cubeprog-1.4.0.zip
+https://www.st.com/en/development-tools/stm32cubeprog.html
 
 ### Download the File
 
