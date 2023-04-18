@@ -240,7 +240,7 @@ Find the shortcut and click it.  The firmware update software will start.
 
 ### Connect to TNC
 
-In the upper left, there is a blue and a yellow button.  Press the blue
+In the upper right, there is a blue and a yellow button.  Press the blue
 button to access the drop-down menu and select "USB".
 
 ![Select USB](https://s3.amazonaws.com/mobilinkd/TNC3/FirmwareUpdateGuide/programmer_select_usb.png)
