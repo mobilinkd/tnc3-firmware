@@ -48,3 +48,9 @@ com.atollic*
 *.bak
 *.patch
 *.works
+*.diff
+
+Middlewares/
+Drivers/
+.ipynb_checkpoints/
+
