@@ -1,57 +1,27 @@
-
+/* USER CODE BEGIN Header */
 /**
   ******************************************************************************
   * @file           : main.c
   * @brief          : Main program body
   ******************************************************************************
-  * This notice applies to any and all portions of this file
-  * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether 
-  * inserted by the user or by software development tools
-  * are owned by their respective copyright owners.
+  * @attention
   *
-  * Copyright (c) 2018 STMicroelectronics International N.V. 
+  * Copyright (c) 2024 STMicroelectronics.
   * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without 
-  * modification, are permitted, provided that the following conditions are met:
-  *
-  * 1. Redistribution of source code must retain the above copyright notice, 
-  *    this list of conditions and the following disclaimer.
-  * 2. Redistributions in binary form must reproduce the above copyright notice,
-  *    this list of conditions and the following disclaimer in the documentation
-  *    and/or other materials provided with the distribution.
-  * 3. Neither the name of STMicroelectronics nor the names of other 
-  *    contributors to this software may be used to endorse or promote products 
-  *    derived from this software without specific written permission.
-  * 4. This software, including modifications and/or derivative works of this 
-  *    software, must execute solely and exclusively on microcontroller or
-  *    microprocessor devices manufactured by or for STMicroelectronics.
-  * 5. Redistribution and use of this software other than as permitted under 
-  *    this license is void and will automatically terminate your rights under 
-  *    this license. 
-  *
-  * THIS SOFTWARE IS PROVIDED BY STMICROELECTRONICS AND CONTRIBUTORS "AS IS" 
-  * AND ANY EXPRESS, IMPLIED OR STATUTORY WARRANTIES, INCLUDING, BUT NOT 
-  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
-  * PARTICULAR PURPOSE AND NON-INFRINGEMENT OF THIRD PARTY INTELLECTUAL PROPERTY
-  * RIGHTS ARE DISCLAIMED TO THE FULLEST EXTENT PERMITTED BY LAW. IN NO EVENT 
-  * SHALL STMICROELECTRONICS OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-  * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
-  * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, 
-  * OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF 
-  * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING 
-  * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
-  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
+/* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
 #include "usb_device.h"
 
+/* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_core.h"
 #include "IOEventTask.h"
@@ -63,8 +33,22 @@
 
 /* USER CODE END Includes */
 
+/* Private typedef -----------------------------------------------------------*/
+/* USER CODE BEGIN PTD */
+
+/* USER CODE END PTD */
+
+/* Private define ------------------------------------------------------------*/
+/* USER CODE BEGIN PD */
+/* USER CODE END PD */
+
+/* Private macro -------------------------------------------------------------*/
+/* USER CODE BEGIN PM */
+
+/* USER CODE END PM */
+
 /* Private variables ---------------------------------------------------------*/
-ADC_HandleTypeDef hadc1;
+ ADC_HandleTypeDef hadc1;
 DMA_HandleTypeDef hdma_adc1;
 
 CRC_HandleTypeDef hcrc;
@@ -98,6 +82,9 @@ osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId ioEventTaskHandle;
 uint32_t ioEventTaskBuffer[ 384 ];
 osStaticThreadDef_t ioEventTaskControlBlock;
+osThreadId ledBlinkerHandle;
+uint32_t ledBlinkerBuffer[ 128 ];
+osStaticThreadDef_t ledBlinkerControlBlock;
 osThreadId audioInputTaskHandle;
 uint32_t audioInputTaskBuffer[ 512 ];
 osStaticThreadDef_t audioInputTaskControlBlock;
@@ -114,13 +101,13 @@ osMessageQId serialOutputQueueHandle;
 uint8_t serialOutputQueueBuffer[ 16 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t serialOutputQueueControlBlock;
 osMessageQId audioInputQueueHandle;
-uint8_t audioInputQueueBuffer[ 8 * sizeof( uint32_t ) ];
+uint8_t audioInputQueueBuffer[ 4 * sizeof( uint8_t ) ];
 osStaticMessageQDef_t audioInputQueueControlBlock;
 osMessageQId hdlcInputQueueHandle;
 uint8_t hdlcInputQueueBuffer[ 3 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t hdlcInputQueueControlBlock;
 osMessageQId hdlcOutputQueueHandle;
-uint8_t hdlcOutputQueueBuffer[ 8 * sizeof( uint32_t ) ];
+uint8_t hdlcOutputQueueBuffer[ 3 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t hdlcOutputQueueControlBlock;
 osMessageQId dacOutputQueueHandle;
 uint8_t dacOutputQueueBuffer[ 128 * sizeof( uint8_t ) ];
@@ -136,9 +123,6 @@ osTimerId beaconTimer3Handle;
 osStaticTimerDef_t beaconTimer3ControlBlock;
 osTimerId beaconTimer4Handle;
 osStaticTimerDef_t beaconTimer4ControlBlock;
-osTimerId usbShutdownTimerHandle;
-osStaticTimerDef_t usbShutdownTimerControlBlock;
-
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
 osMutexId hardwareInitMutexHandle;
@@ -160,6 +144,7 @@ int reset_button = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_RTC_Init(void);
@@ -176,14 +161,10 @@ static void MX_TIM1_Init(void);
 static void MX_OPAMP1_Init(void);
 void StartDefaultTask(void const * argument);
 extern void startIOEventTask(void const * argument);
+extern void startLedBlinkerTask(void const * argument);
 extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 extern void beacon(void const * argument);
-extern void shutdown(void const * argument);
-void encode_serial_number(void);
-
-void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
-                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -198,6 +179,7 @@ void init_rtc_alarm(void);
 
 /* USER CODE END PFP */
 
+/* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
 extern PCD_HandleTypeDef hpcd_USB_FS;
@@ -379,8 +361,7 @@ void encode_serial_number()
 
 /**
   * @brief  The application entry point.
-  *
-  * @retval None
+  * @retval int
   */
 int main(void)
 {
@@ -401,7 +382,7 @@ int main(void)
   __HAL_RCC_CLEAR_RESET_FLAGS();
   /* USER CODE END 1 */
 
-  /* MCU Configuration----------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
@@ -412,6 +393,9 @@ int main(void)
 
   /* Configure the system clock */
   SystemClock_Config();
+
+/* Configure the peripherals common clocks */
+  PeriphCommonClock_Config();
 
   /* USER CODE BEGIN SysInit */
 #ifdef KISS_LOGGING
@@ -441,8 +425,6 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM6_Init();
   MX_TIM7_Init();
-  MX_RNG_Init();
-
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
   if (stop_now) stop2();
@@ -519,7 +501,6 @@ int main(void)
 #pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
   /* USER CODE END RTOS_SEMAPHORES */
 
-
   /* Create the timer(s) */
   /* definition and creation of beaconTimer1 */
   osTimerStaticDef(beaconTimer1, beacon, &beaconTimer1ControlBlock);
@@ -537,34 +518,9 @@ int main(void)
   osTimerStaticDef(beaconTimer4, beacon, &beaconTimer4ControlBlock);
   beaconTimer4Handle = osTimerCreate(osTimer(beaconTimer4), osTimerPeriodic, NULL);
 
-  /* definition and creation of usbShutdownTimer */
-  osTimerStaticDef(usbShutdownTimer, shutdown, &usbShutdownTimerControlBlock);
-  usbShutdownTimerHandle = osTimerCreate(osTimer(usbShutdownTimer), osTimerOnce, NULL);
-
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
-
-  /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 256, defaultTaskBuffer, &defaultTaskControlBlock);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
-  /* definition and creation of ioEventTask */
-  osThreadStaticDef(ioEventTask, startIOEventTask, osPriorityLow, 0, 384, ioEventTaskBuffer, &ioEventTaskControlBlock);
-  ioEventTaskHandle = osThreadCreate(osThread(ioEventTask), NULL);
-
-  /* definition and creation of audioInputTask */
-  osThreadStaticDef(audioInputTask, startAudioInputTask, osPriorityAboveNormal, 0, 512, audioInputTaskBuffer, &audioInputTaskControlBlock);
-  audioInputTaskHandle = osThreadCreate(osThread(audioInputTask), NULL);
-
-  /* definition and creation of modulatorTask */
-  osThreadStaticDef(modulatorTask, startModulatorTask, osPriorityAboveNormal, 0, 384, modulatorTaskBuffer, &modulatorTaskControlBlock);
-  modulatorTaskHandle = osThreadCreate(osThread(modulatorTask), NULL);
-
-  /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
 
   /* Create the queue(s) */
   /* definition and creation of ioEventQueue */
@@ -580,7 +536,7 @@ int main(void)
   serialOutputQueueHandle = osMessageCreate(osMessageQ(serialOutputQueue), NULL);
 
   /* definition and creation of audioInputQueue */
-  osMessageQStaticDef(audioInputQueue, 8, uint32_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
+  osMessageQStaticDef(audioInputQueue, 4, uint8_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
   audioInputQueueHandle = osMessageCreate(osMessageQ(audioInputQueue), NULL);
 
   /* definition and creation of hdlcInputQueue */
@@ -588,7 +544,7 @@ int main(void)
   hdlcInputQueueHandle = osMessageCreate(osMessageQ(hdlcInputQueue), NULL);
 
   /* definition and creation of hdlcOutputQueue */
-  osMessageQStaticDef(hdlcOutputQueue, 8, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
+  osMessageQStaticDef(hdlcOutputQueue, 3, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
   hdlcOutputQueueHandle = osMessageCreate(osMessageQ(hdlcOutputQueue), NULL);
 
   /* definition and creation of dacOutputQueue */
@@ -665,25 +621,47 @@ int main(void)
 //  MX_IWDG_Init();
 
   /* USER CODE END RTOS_QUEUES */
- 
+
+  /* Create the thread(s) */
+  /* definition and creation of defaultTask */
+  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 256, defaultTaskBuffer, &defaultTaskControlBlock);
+  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
+
+  /* definition and creation of ioEventTask */
+  osThreadStaticDef(ioEventTask, startIOEventTask, osPriorityLow, 0, 384, ioEventTaskBuffer, &ioEventTaskControlBlock);
+  ioEventTaskHandle = osThreadCreate(osThread(ioEventTask), NULL);
+
+  /* definition and creation of ledBlinker */
+  osThreadStaticDef(ledBlinker, startLedBlinkerTask, osPriorityIdle, 0, 128, ledBlinkerBuffer, &ledBlinkerControlBlock);
+  ledBlinkerHandle = osThreadCreate(osThread(ledBlinker), NULL);
+
+  /* definition and creation of audioInputTask */
+  osThreadStaticDef(audioInputTask, startAudioInputTask, osPriorityAboveNormal, 0, 512, audioInputTaskBuffer, &audioInputTaskControlBlock);
+  audioInputTaskHandle = osThreadCreate(osThread(audioInputTask), NULL);
+
+  /* definition and creation of modulatorTask */
+  osThreadStaticDef(modulatorTask, startModulatorTask, osPriorityAboveNormal, 0, 384, modulatorTaskBuffer, &modulatorTaskControlBlock);
+  modulatorTaskHandle = osThreadCreate(osThread(modulatorTask), NULL);
+
+  /* USER CODE BEGIN RTOS_THREADS */
+  /* add threads, ... */
+  /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
   osKernelStart();
-  
-  /* We should never get here as control is now taken by the scheduler */
 
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
 
-  /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-  /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 
   }
   /* USER CODE END 3 */
-
 }
 
 /**
@@ -692,45 +670,48 @@ int main(void)
   */
 void SystemClock_Config(void)
 {
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_CRSInitTypeDef RCC_CRSInitStruct = {0};
 
-  RCC_OscInitTypeDef RCC_OscInitStruct;
-  RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_PeriphCLKInitTypeDef PeriphClkInit;
-  RCC_CRSInitTypeDef RCC_CRSInitStruct;
+  /** Configure the main internal regulator output voltage
+  */
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
-    /**Configure LSE Drive Capability 
-    */
+  /** Configure LSE Drive Capability
+  */
   HAL_PWR_EnableBkUpAccess();
-
   __HAL_RCC_LSEDRIVE_CONFIG(RCC_LSEDRIVE_MEDIUMLOW);
 
-    /**Initializes the CPU, AHB and APB busses clocks 
-    */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
-                              |RCC_OSCILLATORTYPE_MSI|RCC_OSCILLATORTYPE_HSI
-                              |RCC_OSCILLATORTYPE_HSI48;
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI
+                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_OFF;
-  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
+  RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+  RCC_OscInitStruct.MSICalibrationValue = 0;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 4;
-  RCC_OscInitStruct.PLL.PLLN = 8;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 24;
   RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
   RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
   RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**Initializes the CPU, AHB and APB busses clocks
-    */
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
@@ -740,61 +721,20 @@ void SystemClock_Config(void)
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
 
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC|RCC_PERIPHCLK_USART3
-                              |RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_USB
-                              |RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_ADC;
-  PeriphClkInit.Usart3ClockSelection = RCC_USART3CLKSOURCE_HSI;
-  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
-  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_HSI48;
-  PeriphClkInit.RngClockSelection = RCC_USBCLKSOURCE_HSI48;
-  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
-  PeriphClkInit.PLLSAI1.PLLSAI1M = 4;
-  PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
-  PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
-  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV6;
-  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV4;
-  PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_ADC1CLK;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-#ifdef KISS_LOGGING
-  // HAL_RCCEx_EnableLSCO(RCC_LSCOSOURCE_LSE);
-#else
-  HAL_RCCEx_DisableLSCO();
-#endif
-
-    /**Configure the main internal regulator output voltage
-    */
-  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
-    /**Configure the Systick interrupt time
-    */
-  HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-
-    /**Configure the Systick
-    */
-  HAL_SYSTICK_CLKSourceConfig(SYSTICK_CLKSOURCE_HCLK);
-
-    /**Enable MSI Auto calibration
-    */
+  /** Enable MSI Auto calibration
+  */
   HAL_RCCEx_EnableMSIPLLMode();
 
-    /**Enable the SYSCFG APB clock
-    */
+  /** Enable the SYSCFG APB clock
+  */
   __HAL_RCC_CRS_CLK_ENABLE();
 
-    /**Configures CRS
-    */
+  /** Configures CRS
+  */
   RCC_CRSInitStruct.Prescaler = RCC_CRS_SYNC_DIV1;
   RCC_CRSInitStruct.Source = RCC_CRS_SYNC_SOURCE_LSE;
   RCC_CRSInitStruct.Polarity = RCC_CRS_SYNC_POLARITY_RISING;
@@ -803,19 +743,56 @@ void SystemClock_Config(void)
   RCC_CRSInitStruct.HSI48CalibrationValue = 32;
 
   HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
-
-  /* SysTick_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(SysTick_IRQn, 15, 0);
 }
 
-/* ADC1 init function */
+/**
+  * @brief Peripherals Common Clock Configuration
+  * @retval None
+  */
+void PeriphCommonClock_Config(void)
+{
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
+
+  /** Initializes the peripherals clock
+  */
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_RNG
+                              |RCC_PERIPHCLK_ADC;
+  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
+  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
+  PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
+  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
+  PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
+  PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
+  PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
+  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV2;
+  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV2;
+  PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_ADC1_Init(void)
 {
 
-  ADC_ChannelConfTypeDef sConfig;
+  /* USER CODE BEGIN ADC1_Init 0 */
 
-    /**Common config 
-    */
+  /* USER CODE END ADC1_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC1_Init 1 */
+
+  /* USER CODE END ADC1_Init 1 */
+
+  /** Common config
+  */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
@@ -837,28 +814,42 @@ static void MX_ADC1_Init(void)
   hadc1.Init.Oversampling.OversamplingStopReset = ADC_REGOVERSAMPLING_CONTINUED_MODE;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**Configure Regular Channel 
-    */
+  /** Configure Regular Channel
+  */
   sConfig.Channel = ADC_CHANNEL_8;
   sConfig.Rank = ADC_REGULAR_RANK_1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_24CYCLES_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
   sConfig.SingleDiff = ADC_SINGLE_ENDED;
   sConfig.OffsetNumber = ADC_OFFSET_NONE;
   sConfig.Offset = 0;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN ADC1_Init 2 */
+
+  /* USER CODE END ADC1_Init 2 */
 
 }
 
-/* CRC init function */
+/**
+  * @brief CRC Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_CRC_Init(void)
 {
 
+  /* USER CODE BEGIN CRC_Init 0 */
+
+  /* USER CODE END CRC_Init 0 */
+
+  /* USER CODE BEGIN CRC_Init 1 */
+
+  /* USER CODE END CRC_Init 1 */
   hcrc.Instance = CRC;
   hcrc.Init.DefaultPolynomialUse = DEFAULT_POLYNOMIAL_DISABLE;
   hcrc.Init.DefaultInitValueUse = DEFAULT_INIT_VALUE_DISABLE;
@@ -870,59 +861,82 @@ static void MX_CRC_Init(void)
   hcrc.InputDataFormat = CRC_INPUTDATA_FORMAT_BYTES;
   if (HAL_CRC_Init(&hcrc) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN CRC_Init 2 */
+
+  /* USER CODE END CRC_Init 2 */
 
 }
 
-/* DAC1 init function */
+/**
+  * @brief DAC1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_DAC1_Init(void)
 {
 
-  DAC_ChannelConfTypeDef sConfig;
+  /* USER CODE BEGIN DAC1_Init 0 */
 
-    /**DAC Initialization 
-    */
+  /* USER CODE END DAC1_Init 0 */
+
+  DAC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN DAC1_Init 1 */
+
+  /* USER CODE END DAC1_Init 1 */
+
+  /** DAC Initialization
+  */
   hdac1.Instance = DAC1;
   if (HAL_DAC_Init(&hdac1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**DAC channel OUT1 config 
-    */
+  /** DAC channel OUT1 config
+  */
   sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
   sConfig.DAC_Trigger = DAC_TRIGGER_T7_TRGO;
   sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
+  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_ENABLE;
   sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**DAC channel OUT2 config 
-    */
-  sConfig.DAC_SampleAndHold = DAC_SAMPLEANDHOLD_DISABLE;
+  /** DAC channel OUT2 config
+  */
   sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  sConfig.DAC_ConnectOnChipPeripheral = DAC_CHIPCONNECT_DISABLE;
-  sConfig.DAC_UserTrimming = DAC_TRIMMING_FACTORY;
   if (HAL_DAC_ConfigChannel(&hdac1, &sConfig, DAC_CHANNEL_2) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN DAC1_Init 2 */
+
+  /* USER CODE END DAC1_Init 2 */
 
 }
 
-/* I2C1 init function */
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_I2C1_Init(void)
 {
 
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-//  hi2c1.Init.Timing = 0x00300F33;   // 80MHz
-//  hi2c1.Init.Timing = 0x20000209;   // 48MHz
-  hi2c1.Init.Timing = 0x00000107;   // HSI
+  hi2c1.Init.Timing = 0x00000107;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -932,76 +946,125 @@ static void MX_I2C1_Init(void)
   hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
   if (HAL_I2C_Init(&hi2c1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**Configure Analogue filter 
-    */
+  /** Configure Analogue filter
+  */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**Configure Digital filter 
-    */
+  /** Configure Digital filter
+  */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-    /**I2C Fast mode Plus enable 
-    */
+  /** I2C Fast mode Plus enable
+  */
   HAL_I2CEx_EnableFastModePlus(I2C_FASTMODEPLUS_I2C1);
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
-/* IWDG init function */
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_IWDG_Init(void)
 {
 
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_16;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_4;
   hiwdg.Init.Window = 4095;
   hiwdg.Init.Reload = 4095;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
-/* OPAMP1 init function */
+/**
+  * @brief OPAMP1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_OPAMP1_Init(void)
 {
 
+  /* USER CODE BEGIN OPAMP1_Init 0 */
+
+  /* USER CODE END OPAMP1_Init 0 */
+
+  /* USER CODE BEGIN OPAMP1_Init 1 */
+
+  /* USER CODE END OPAMP1_Init 1 */
   hopamp1.Instance = OPAMP1;
   hopamp1.Init.PowerSupplyRange = OPAMP_POWERSUPPLY_HIGH;
   hopamp1.Init.Mode = OPAMP_PGA_MODE;
   hopamp1.Init.NonInvertingInput = OPAMP_NONINVERTINGINPUT_IO0;
   hopamp1.Init.InvertingInput = OPAMP_INVERTINGINPUT_CONNECT_NO;
   hopamp1.Init.PgaGain = OPAMP_PGA_GAIN_2;
-  hopamp1.Init.PowerMode = OPAMP_POWERMODE_NORMAL;
+  hopamp1.Init.PowerMode = OPAMP_POWERMODE_NORMALPOWER;
   hopamp1.Init.UserTrimming = OPAMP_TRIMMING_FACTORY;
   if (HAL_OPAMP_Init(&hopamp1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN OPAMP1_Init 2 */
+
+  /* USER CODE END OPAMP1_Init 2 */
 
 }
 
-/* RNG init function */
+/**
+  * @brief RNG Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_RNG_Init(void)
 {
 
+  /* USER CODE BEGIN RNG_Init 0 */
+
+  /* USER CODE END RNG_Init 0 */
+
+  /* USER CODE BEGIN RNG_Init 1 */
+
+  /* USER CODE END RNG_Init 1 */
   hrng.Instance = RNG;
   if (HAL_RNG_Init(&hrng) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN RNG_Init 2 */
+
+  /* USER CODE END RNG_Init 2 */
 
 }
 
-/* RTC init function */
+/**
+  * @brief RTC Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_RTC_Init(void)
 {
 
@@ -1009,13 +1072,16 @@ static void MX_RTC_Init(void)
 
   /* USER CODE END RTC_Init 0 */
 
+  RTC_TimeTypeDef sTime = {0};
+  RTC_DateTypeDef sDate = {0};
+  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
   /* USER CODE END RTC_Init 1 */
 
-    /**Initialize RTC Only 
-    */
+  /** Initialize RTC Only
+  */
   hrtc.Instance = RTC;
   hrtc.Init.HourFormat = RTC_HOURFORMAT_24;
   hrtc.Init.AsynchPrediv = 127;
@@ -1026,21 +1092,81 @@ static void MX_RTC_Init(void)
   hrtc.Init.OutPutType = RTC_OUTPUT_TYPE_OPENDRAIN;
   if (HAL_RTC_Init(&hrtc) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
 
-  init_rtc_date_time();
+  /* USER CODE BEGIN Check_RTC_BKUP */
+
+  /* USER CODE END Check_RTC_BKUP */
+
+  /** Initialize RTC and set the Time and Date
+  */
+  sTime.Hours = 0x0;
+  sTime.Minutes = 0x0;
+  sTime.Seconds = 0x0;
+  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sDate.WeekDay = RTC_WEEKDAY_MONDAY;
+  sDate.Month = RTC_MONTH_JANUARY;
+  sDate.Date = 0x1;
+  sDate.Year = 0x0;
+
+  if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the Alarm A
+  */
+  sAlarm.AlarmTime.Hours = 0x0;
+  sAlarm.AlarmTime.Minutes = 0x0;
+  sAlarm.AlarmTime.Seconds = 0x0;
+  sAlarm.AlarmTime.SubSeconds = 0x0;
+  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
+  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
+  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
+  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
+  sAlarm.AlarmDateWeekDay = 0x1;
+  sAlarm.Alarm = RTC_ALARM_A;
+  if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Enable the Alarm B
+  */
+  sAlarm.Alarm = RTC_ALARM_B;
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
+
 }
 
-/* TIM1 init function */
+/**
+  * @brief TIM1 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM1_Init(void)
 {
 
-  TIM_ClockConfigTypeDef sClockSourceConfig;
-  TIM_MasterConfigTypeDef sMasterConfig;
-  TIM_OC_InitTypeDef sConfigOC;
-  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig;
+  /* USER CODE BEGIN TIM1_Init 0 */
 
+  /* USER CODE END TIM1_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+  TIM_BreakDeadTimeConfigTypeDef sBreakDeadTimeConfig = {0};
+
+  /* USER CODE BEGIN TIM1_Init 1 */
+
+  /* USER CODE END TIM1_Init 1 */
   htim1.Instance = TIM1;
   htim1.Init.Prescaler = 48;
   htim1.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -1050,28 +1176,24 @@ static void MX_TIM1_Init(void)
   htim1.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
   if (HAL_TIM_ConfigClockSource(&htim1, &sClockSourceConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   if (HAL_TIM_PWM_Init(&htim1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
   sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim1, &sMasterConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
   sConfigOC.Pulse = 0;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
@@ -1081,19 +1203,16 @@ static void MX_TIM1_Init(void)
   sConfigOC.OCNIdleState = TIM_OCNIDLESTATE_RESET;
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   if (HAL_TIM_PWM_ConfigChannel(&htim1, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sBreakDeadTimeConfig.OffStateRunMode = TIM_OSSR_DISABLE;
   sBreakDeadTimeConfig.OffStateIDLEMode = TIM_OSSI_DISABLE;
   sBreakDeadTimeConfig.LockLevel = TIM_LOCKLEVEL_OFF;
@@ -1107,19 +1226,32 @@ static void MX_TIM1_Init(void)
   sBreakDeadTimeConfig.AutomaticOutput = TIM_AUTOMATICOUTPUT_DISABLE;
   if (HAL_TIMEx_ConfigBreakDeadTime(&htim1, &sBreakDeadTimeConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN TIM1_Init 2 */
 
+  /* USER CODE END TIM1_Init 2 */
   HAL_TIM_MspPostInit(&htim1);
 
 }
 
-/* TIM6 init function */
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM6_Init(void)
 {
 
-  TIM_MasterConfigTypeDef sMasterConfig;
+  /* USER CODE BEGIN TIM6_Init 0 */
 
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
   htim6.Instance = TIM6;
   htim6.Init.Prescaler = 0;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
@@ -1127,48 +1259,73 @@ static void MX_TIM6_Init(void)
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
 
 }
 
-/* TIM7 init function */
+/**
+  * @brief TIM7 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_TIM7_Init(void)
 {
 
-  TIM_MasterConfigTypeDef sMasterConfig;
+  /* USER CODE BEGIN TIM7_Init 0 */
 
+  /* USER CODE END TIM7_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM7_Init 1 */
+
+  /* USER CODE END TIM7_Init 1 */
   htim7.Instance = TIM7;
   htim7.Init.Prescaler = 0;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 1817;
   htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  htim7.Init.RepetitionCounter = 0;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
-
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_UPDATE;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim7, &sMasterConfig) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN TIM7_Init 2 */
+
+  /* USER CODE END TIM7_Init 2 */
 
 }
 
-/* USART3 init function */
+/**
+  * @brief USART3 Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_USART3_UART_Init(void)
 {
 
+  /* USER CODE BEGIN USART3_Init 0 */
+
+  /* USER CODE END USART3_Init 0 */
+
+  /* USER CODE BEGIN USART3_Init 1 */
+
+  /* USER CODE END USART3_Init 1 */
   huart3.Instance = USART3;
   huart3.Init.BaudRate = 115200;
   huart3.Init.WordLength = UART_WORDLENGTH_8B;
@@ -1181,35 +1338,39 @@ static void MX_USART3_UART_Init(void)
   huart3.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
   if (HAL_UART_Init(&huart3) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    Error_Handler();
   }
+  /* USER CODE BEGIN USART3_Init 2 */
+
+  /* USER CODE END USART3_Init 2 */
 
 }
 
-/** 
+/**
   * Enable DMA controller clock
   */
-static void MX_DMA_Init(void) 
+static void MX_DMA_Init(void)
 {
+
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
   __HAL_RCC_DMA2_CLK_ENABLE();
 
   /* DMA interrupt init */
   /* DMA1_Channel1_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 1);
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
   /* DMA1_Channel2_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 7, 1);
+  HAL_NVIC_SetPriority(DMA1_Channel2_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel2_IRQn);
   /* DMA1_Channel3_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 6, 1);
+  HAL_NVIC_SetPriority(DMA1_Channel3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel3_IRQn);
   /* DMA1_Channel6_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 7, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel6_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel6_IRQn);
   /* DMA1_Channel7_IRQn interrupt configuration */
-  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 6, 0);
+  HAL_NVIC_SetPriority(DMA1_Channel7_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel7_IRQn);
   /* DMA2_Channel4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Channel4_IRQn, 5, 0);
@@ -1217,20 +1378,14 @@ static void MX_DMA_Init(void)
 
 }
 
-/** Configure pins as 
-        * Analog 
-        * Input 
-        * Output
-        * EVENT_OUT
-        * EXTI
-        * Free pins are configured automatically as Analog (this feature is enabled through 
-        * the Code Generation settings)
-     PA2   ------> RCC_LSCO
-*/
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
 static void MX_GPIO_Init(void)
 {
-
-  GPIO_InitTypeDef GPIO_InitStruct;
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
@@ -1245,7 +1400,7 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, BT_SLEEP_Pin|BAT_DIVIDER_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, AUDIO_ATTEN_Pin|VDD_EN_Pin|USB_CE_Pin|BT_CMD_Pin 
+  HAL_GPIO_WritePin(GPIOB, AUDIO_ATTEN_Pin|VDD_EN_Pin|USB_CE_Pin|BT_CMD_Pin
                           |BT_RESET_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
@@ -1258,16 +1413,16 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BT_WAKE_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : USB_POWER_Pin */
+  GPIO_InitStruct.Pin = USB_POWER_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  HAL_GPIO_Init(USB_POWER_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pins : SW_POWER_Pin SW_BOOT_Pin */
   GPIO_InitStruct.Pin = SW_POWER_Pin|SW_BOOT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-
-  /*Configure GPIO pins : USB_POWER_Pin */
-  GPIO_InitStruct.Pin = USB_POWER_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
   HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
 
   /*Configure GPIO pin : BT_SLEEP_Pin */
@@ -1283,15 +1438,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-#if 0
-  /*Configure GPIO pins : PA2 -- abuse LSCO for GPIO debugging */
-  GPIO_InitStruct.Pin = GPIO_PIN_2;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-#endif
-
   /*Configure GPIO pin : BAT_DIVIDER_Pin */
   GPIO_InitStruct.Pin = BAT_DIVIDER_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
@@ -1299,8 +1445,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(BAT_DIVIDER_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : AUDIO_ATTEN_Pin BT_CMD_Pin BT_RESET_Pin USB_CE_Pin*/
-  GPIO_InitStruct.Pin = AUDIO_ATTEN_Pin|BT_CMD_Pin|BT_RESET_Pin|USB_CE_Pin;
+  /*Configure GPIO pins : AUDIO_ATTEN_Pin USB_CE_Pin BT_CMD_Pin BT_RESET_Pin */
+  GPIO_InitStruct.Pin = AUDIO_ATTEN_Pin|USB_CE_Pin|BT_CMD_Pin|BT_RESET_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1318,6 +1464,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI1_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI1_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI4_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI4_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
 }
 
 /* USER CODE BEGIN 4 */
@@ -1684,6 +1847,8 @@ void SysClock4()
 /* USER CODE END Header_StartDefaultTask */
 void StartDefaultTask(void const * argument)
 {
+  /* init code for USB_DEVICE */
+  MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
   UNUSED(argument);
 
@@ -1707,7 +1872,7 @@ void StartDefaultTask(void const * argument)
   {
     osDelay(osWaitForever);
   }
-  /* USER CODE END 5 */ 
+  /* USER CODE END 5 */
 }
 
 /**
@@ -1736,11 +1901,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
 /**
   * @brief  This function is executed in case of error occurrence.
-  * @param  file: The file name as string.
-  * @param  line: The line in file as a number.
   * @retval None
   */
-void _Error_Handler(char *file, int line)
+void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
@@ -1764,8 +1927,8 @@ void _Error_Handler(char *file, int line)
   * @param  line: assert_param error line source number
   * @retval None
   */
-void assert_failed(uint8_t* file, uint32_t line)
-{ 
+void assert_failed(uint8_t *file, uint32_t line)
+{
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
@@ -1773,24 +1936,3 @@ void assert_failed(uint8_t* file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-void vApplicationMallocFailedHook()
-{
-    snprintf(error_message, sizeof(error_message), "malloc failed");
-    while (1);
-}
-
-void vApplicationStackOverflowHook(TaskHandle_t xTask, signed char *pcTaskName)
-{
-    snprintf(error_message, sizeof(error_message), "stack overflow %s", pcTaskName);
-    while (1);
-}
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
