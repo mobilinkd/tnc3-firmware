@@ -115,6 +115,7 @@ void Error_Handler(void);
 #define SW_BOOT_Pin GPIO_PIN_3
 #define SW_BOOT_GPIO_Port GPIOH
 #define SW_BOOT_EXTI_IRQn EXTI3_IRQn
+
 /* USER CODE BEGIN Private defines */
 #define CMD_USB_CDC_CONNECT  1
 #define CMD_USB_CDC_DISCONNECT 2

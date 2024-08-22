@@ -1,3 +1,4 @@
+
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
@@ -75,6 +76,7 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
   */
 void HAL_MspInit(void)
 {
+
   /* USER CODE BEGIN MspInit 0 */
 
   /* USER CODE END MspInit 0 */
@@ -148,6 +150,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 
   /* USER CODE BEGIN ADC1_MspInit 1 */
   /* USER CODE END ADC1_MspInit 1 */
+
   }
 
 }
@@ -200,6 +203,7 @@ void HAL_CRC_MspInit(CRC_HandleTypeDef* hcrc)
   /* USER CODE BEGIN CRC_MspInit 1 */
 
   /* USER CODE END CRC_MspInit 1 */
+
   }
 
 }
@@ -274,6 +278,7 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* hdac)
   /* USER CODE BEGIN DAC1_MspInit 1 */
 
   /* USER CODE END DAC1_MspInit 1 */
+
   }
 
 }
@@ -387,6 +392,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
   /* USER CODE BEGIN I2C1_MspInit 1 */
 
   /* USER CODE END I2C1_MspInit 1 */
+
   }
 
 }
@@ -455,6 +461,7 @@ void HAL_OPAMP_MspInit(OPAMP_HandleTypeDef* hopamp)
   /* USER CODE BEGIN OPAMP1_MspInit 1 */
 
   /* USER CODE END OPAMP1_MspInit 1 */
+
   }
 
 }
@@ -506,6 +513,7 @@ void HAL_RNG_MspInit(RNG_HandleTypeDef* hrng)
   /* USER CODE BEGIN RNG_MspInit 1 */
 
   /* USER CODE END RNG_MspInit 1 */
+
   }
 
 }
@@ -561,6 +569,7 @@ void HAL_RTC_MspInit(RTC_HandleTypeDef* hrtc)
   /* USER CODE BEGIN RTC_MspInit 1 */
 
   /* USER CODE END RTC_MspInit 1 */
+
   }
 
 }
@@ -800,6 +809,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef* huart)
   /* USER CODE BEGIN USART3_MspInit 1 */
 
   /* USER CODE END USART3_MspInit 1 */
+
   }
 
 }

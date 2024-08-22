@@ -38,6 +38,7 @@
 firmware.elf.launch
 *.s
 _FLASH.ld
+STM32L433CCUx_FLASH.ld
 TrueSTUDIO/
 ARM_Debug/
 com.atollic*
