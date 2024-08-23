@@ -32,6 +32,89 @@
             //"serverArgs": ["--extload", "path/to/ext/loader.stldr"],
         },
         {
+            "name": "Build & Debug Microcontroller - OpenOCD",
+            "cwd": "${workspaceFolder}",
+            "type": "cortex-debug",
+            "executable": "${command:cmake.launchTargetPath}",
+            // Let CMake extension decide executable: "${command:cmake.launchTargetPath}"
+            // Or fixed file path: "${workspaceFolder}/path/to/filename.elf"
+            "request": "launch",
+            "servertype": "openocd",
+            "configFiles": [
+                "${workspaceFolder}/stlink-tnc3.cfg"
+            ],
+            "device": "STM32L433CCUx", //MCU used
+            "interface": "swd",
+            "serialNumber": "",        //Set ST-Link ID if you use multiple at the same time
+            "runToEntryPoint": "main",
+            "svdFile": "${config:STM32VSCodeExtension.cubeCLT.path}/STMicroelectronics_CMSIS_SVD/STM32L4P5.svd",
+            "v1": false,               //Change it depending on ST Link version
+            "serverpath": "/usr/bin/openocd",
+            "stm32cubeprogrammer":"${config:STM32VSCodeExtension.cubeCLT.path}/STM32CubeProgrammer/bin",
+            "stlinkPath": "${config:STM32VSCodeExtension.cubeCLT.path}/STLink-gdb-server/bin/ST-LINK_gdbserver",   
+            "armToolchainPath": "${config:STM32VSCodeExtension.cubeCLT.path}/GNU-tools-for-STM32/bin",
+            "gdbPath":"${config:STM32VSCodeExtension.cubeCLT.path}/GNU-tools-for-STM32/bin/arm-none-eabi-gdb",            
+            "swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 16000000,
+                "swoFrequency":  2000000,
+                "source": "probe",
+                "decoders": [
+                    { 
+                        "type": "console",
+                        "label": "ITM",
+                        "showOnStartup": true,
+                        "port": 0,
+                        "encoding": "ascii"
+                    }
+                ]
+            },
+            "preLaunchTask": "Build project"
+            /* If you use external loader, add additional arguments */
+            //"serverArgs": ["--extload", "path/to/ext/loader.stldr"],
+        },
+        {
+            "name": "Attach to MCU OpenOCD",
+            "cwd": "${workspaceFolder}",
+            "type": "cortex-debug",
+            "executable": "${command:cmake.launchTargetPath}",
+            // Let CMake extension decide executable: "${command:cmake.launchTargetPath}"
+            // Or fixed file path: "${workspaceFolder}/path/to/filename.elf"
+            "request": "attach",
+            "servertype": "openocd",
+            "configFiles": [
+                "${workspaceFolder}/stlink-tnc4.cfg"
+            ],
+            "device": "STM32L4P5RETx", //MCU used
+            "interface": "swd",
+            "serialNumber": "",        //Set ST-Link ID if you use multiple at the same time
+            "runToEntryPoint": "main",
+            "svdFile": "${config:STM32VSCodeExtension.cubeCLT.path}/STMicroelectronics_CMSIS_SVD/STM32L4P5.svd",
+            "v1": false,               //Change it depending on ST Link version
+            "serverpath": "/usr/bin/openocd",
+            "stm32cubeprogrammer":"${config:STM32VSCodeExtension.cubeCLT.path}/STM32CubeProgrammer/bin",
+            "stlinkPath": "${config:STM32VSCodeExtension.cubeCLT.path}/STLink-gdb-server/bin/ST-LINK_gdbserver",   
+            "armToolchainPath": "${config:STM32VSCodeExtension.cubeCLT.path}/GNU-tools-for-STM32/bin",
+            "gdbPath":"${config:STM32VSCodeExtension.cubeCLT.path}/GNU-tools-for-STM32/bin/arm-none-eabi-gdb",            
+            "swoConfig": {
+                "enabled": true,
+                "cpuFrequency": 16000000,
+                "swoFrequency":  2000000,
+                "source": "probe",
+                "decoders": [
+                    { 
+                        "type": "console",
+                        "label": "ITM",
+                        "showOnStartup": true,
+                        "port": 0,
+                        "encoding": "ascii"
+                    }
+                ]
+            }
+           /* If you use external loader, add additional arguments */
+            //"serverArgs": ["--extload", "path/to/ext/loader.stldr"],
+        },
+        {
             "name": "Attach to Microcontroller - ST-Link",
             "cwd": "${workspaceFolder}",
             "type": "cortex-debug",
