@@ -269,10 +269,10 @@ size_t puncture_bytes(const std::array<uint8_t, IN>& in,
 template <typename T, size_t n>
 constexpr T to_int(uint8_t v)
 {
-    constexpr auto MAX_INPUT = (1 << (n - 1));
-    constexpr auto NEGATIVE_OFFSET = std::numeric_limits<typename std::make_unsigned<T>::type>::max() - (MAX_INPUT - 1);
+    constexpr auto LOCAL_MAX_INPUT = (1 << (n - 1));
+    constexpr auto NEGATIVE_OFFSET = std::numeric_limits<typename std::make_unsigned<T>::type>::max() - (LOCAL_MAX_INPUT - 1);
     T r = v & (1 << (n - 1)) ? NEGATIVE_OFFSET : 0;
-    return r + (v & (MAX_INPUT - 1));
+    return r + (v & (LOCAL_MAX_INPUT - 1));
 }
 
 template <typename T, size_t N>

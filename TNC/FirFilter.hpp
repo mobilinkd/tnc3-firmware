@@ -5,6 +5,7 @@
 
 #include <AudioLevel.hpp>
 
+#include "stm32l4xx_hal.h"
 #include "arm_math.h"
 
 #include <array>

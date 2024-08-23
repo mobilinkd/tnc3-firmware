@@ -19,7 +19,7 @@ PowerMode previous_mode{PowerMode::RUN};        // Always start in RUN mode.
  *
  * @param ulExpectedIdleTime
  */
-extern "C" void PreSleepProcessing(uint32_t *ulExpectedIdleTime)
+extern "C" void PreSleepProcessing(uint32_t ulExpectedIdleTime)
 {
     UNUSED(ulExpectedIdleTime);
     switch (power_mode)
@@ -35,7 +35,7 @@ extern "C" void PreSleepProcessing(uint32_t *ulExpectedIdleTime)
     }
 }
 
-extern "C" void PostSleepProcessing(uint32_t *ulExpectedIdleTime)
+extern "C" void PostSleepProcessing(uint32_t ulExpectedIdleTime)
 {
     UNUSED(ulExpectedIdleTime);
     switch (power_mode)

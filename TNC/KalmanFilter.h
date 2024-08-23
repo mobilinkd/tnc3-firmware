@@ -8,6 +8,9 @@
   ERROR(#EXCEPTION); \
   abort()
 
+#define try if(true)
+#define catch(x) if(false)
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wfloat-equal"
 
@@ -25,6 +28,9 @@
 #include <blaze/Math.h>
 #endif
 #pragma GCC diagnostic pop
+
+#undef catch
+#undef try
 
 #include <cmath>
 

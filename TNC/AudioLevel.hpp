@@ -3,9 +3,9 @@
 
 #pragma once
 
+#include "stm32l4xx_hal.h"
 #include "arm_math.h"
 #include "cmsis_os.h"
-#include "stm32l4xx_hal.h"
 
 #ifdef __cplusplus
 extern "C" {

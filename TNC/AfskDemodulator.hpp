@@ -4,7 +4,6 @@
 #ifndef MOBILINKD__AFSK_DEMODULATOR_HPP_
 #define MOBILINKD__AFSK_DEMODULATOR_HPP_
 
-#include <arm_math.h>
 #include "DelayLine.hpp"
 #include "AudioInput.hpp"
 #include "DigitalPLL.hpp"
@@ -12,6 +11,9 @@
 #include "Hysteresis.hpp"
 #include "FirFilter.hpp"
 #include "NRZI.hpp"
+
+#include <stm32l4xx_hal.h>
+#include <arm_math.h>
 
 #include <algorithm>
 #include <functional>

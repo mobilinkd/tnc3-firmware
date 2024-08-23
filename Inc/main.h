@@ -48,6 +48,13 @@ extern "C" {
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
+// Work around VS Code Intellisense bug
+#ifdef __INTELLISENSE__
+#define __FILE_NAME__ __FILE__
+#endif
+
+#define DELAY(x) do { if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) osDelay(x); else HAL_Delay(x); } while (0);
+
 /* USER CODE END EM */
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
@@ -56,6 +63,15 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+
+void _Error_Handler(char *file, int line) __attribute__ ((noreturn));
+void _Error_Handler2(char *file, int line, HAL_StatusTypeDef status) __attribute__ ((noreturn));
+void error_code(int8_t a, int8_t b) __attribute__ ((noreturn));
+void SystemClock_Config(void);
+void SysClock48(void);
+void SysClock72(void);
+void SysClock80(void);
+void SysClock4(void);
 
 /* USER CODE END EFP */
 
@@ -159,20 +175,7 @@ extern int charging_enabled;
 extern int reset_button;
 extern osMutexId hardwareInitMutexHandle;
 
-#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
-
-#ifdef __cplusplus
- extern "C" {
-#endif
-
-void SysClock48(void);
-void SysClock72(void);
-void SysClock80(void);
-void SysClock4(void);
-
-#ifdef __cplusplus
-}
-#endif
+#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE_NAME__), __LINE__)
 
 #define SystemClock_Config_48MHz SystemClock_Config
 
@@ -190,6 +193,16 @@ void SysClock4(void);
 // #define TNC_HAS_MCO
 #define TNC_HAS_BT
 
+#define MORSE_0 0x00
+#define MORSE_1 0x10
+#define MORSE_2 0x18
+#define MORSE_3 0x1C
+#define MORSE_4 0x1E
+#define MORSE_5 0x1F
+#define MORSE_6 0x0F
+#define MORSE_7 0x07
+#define MORSE_8 0x03
+#define MORSE_9 0x01
 
 /* USER CODE END Private defines */
 

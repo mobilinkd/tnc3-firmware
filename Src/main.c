@@ -1544,15 +1544,15 @@ void stop2()
 }
 
 #if 1
-long _write_r(struct _reent *r, int fd, const char *ptr, int len);
+_ssize_t _write_r(struct _reent *r, int fd, const void *ptr, size_t len);
 
-long _write_r(struct _reent *r, int fd, const char *ptr, int len)
+_ssize_t _write_r(struct _reent *r, int fd, const void *ptr, size_t len)
 {
   UNUSED(r);
   UNUSED(fd);
 #ifdef KISS_LOGGING
-    for (int i = 0; i != len; ++i)
-      ITM_SendChar(ptr[i]);
+    for (size_t i = 0; i != len; ++i)
+      ITM_SendChar(((char*) ptr)[i]);
 #endif
   return len;
 }
@@ -1587,7 +1587,7 @@ void init_rtc_date_time()
   sTime.TimeFormat = RTC_HOURFORMAT_24;
   if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    _Error_Handler(__FILE_NAME__, __LINE__);
   }
 
   sDate.WeekDay = RTC_WEEKDAY_MONDAY;
@@ -1597,7 +1597,7 @@ void init_rtc_date_time()
 
   if (HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    _Error_Handler(__FILE_NAME__, __LINE__);
   }
 }
 
@@ -1620,7 +1620,7 @@ void init_rtc_alarm()
   sAlarm.Alarm = RTC_ALARM_A;
   if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
   {
-    _Error_Handler(__FILE__, __LINE__);
+    _Error_Handler(__FILE_NAME__, __LINE__);
   }
 
     /**Enable the Alarm B
@@ -1647,7 +1647,7 @@ void SysClock48()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     /**Configure the Systick interrupt time
@@ -1667,7 +1667,7 @@ void SysClock48()
     RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
@@ -1684,12 +1684,12 @@ void SysClock48()
     PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_ADC1CLK;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     /**Configure the Systick interrupt time
@@ -1717,7 +1717,7 @@ void SysClock72()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
@@ -1733,7 +1733,7 @@ void SysClock72()
     RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
@@ -1741,7 +1741,7 @@ void SysClock72()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
@@ -1755,7 +1755,7 @@ void SysClock72()
     PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_ADC1CLK;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     HAL_RCCEx_EnableMSIPLLMode();
@@ -1784,7 +1784,7 @@ void SysClock80()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_OscInitStruct.OscillatorType = 0;
@@ -1797,7 +1797,7 @@ void SysClock80()
     RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV4;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
@@ -1805,14 +1805,14 @@ void SysClock80()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
     if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     /**Configure the Systick interrupt time
@@ -1832,7 +1832,7 @@ void SysClock4()
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
-      _Error_Handler(__FILE__, __LINE__);
+      _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     /**Configure the Systick interrupt time
@@ -1840,6 +1840,41 @@ void SysClock4()
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
 
     taskEXIT_CRITICAL();
+}
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @param  file: The file name as string.
+  * @param  line: The line in file as a number.
+  * @retval None
+  */
+void _Error_Handler(char *file, int line)
+{
+#ifdef KISS_LOGGING
+  printf("Error handler called from file %s on line %d\r\n", file, line);
+#endif
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, line);
+  error_message[sizeof(error_message) - 1] = 0;
+
+  go_back_to_sleep = 0;
+
+  vTaskSuspendAll(); // Will eventually cause IWDG reset.
+
+  error_code(MORSE_1, MORSE_1);
+}
+
+void _Error_Handler2(char *file, int line, HAL_StatusTypeDef status)
+{
+#ifdef KISS_LOGGING
+  printf("Error handler called from file %s on line %d\r\n", file, line);
+#endif
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d, status = %d\r\n", file, line, status);
+  error_message[sizeof(error_message) - 1] = 0;
+
+  go_back_to_sleep = 0;
+
+  vTaskSuspendAll(); // Will eventually cause IWDG reset.
+
+  error_code(MORSE_1, MORSE_1);
 }
 
 /* USER CODE END 4 */
@@ -1913,13 +1948,6 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-#ifdef KISS_LOGGING
-  printf("Error handler called from file %s on line %d\r\n", file, line);
-#endif
-  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, line);
-  error_message[sizeof(error_message) - 1] = 0;
-
-  stop_now = 0;
   go_back_to_sleep = 0;
   NVIC_SystemReset();
   /* USER CODE END Error_Handler_Debug */
@@ -1938,7 +1966,8 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE BEGIN 6 */
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-    ERROR("Wrong parameters value: file %s on line %ul", file, line);
+    snprintf(error_message, sizeof(error_message), "Wrong parameters value: file %s on line %lu", file, line);
+    ERROR("Wrong parameters value: file %s on line %lu", file, line);
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */

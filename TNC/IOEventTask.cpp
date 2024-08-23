@@ -33,6 +33,7 @@ extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
 #define HPCD hpcd_USB_OTG_FS
 #else
 extern PCD_HandleTypeDef hpcd_USB_FS;
+extern USBD_HandleTypeDef hUsbDeviceFS;
 #define HPCD hpcd_USB_FS
 #endif
 

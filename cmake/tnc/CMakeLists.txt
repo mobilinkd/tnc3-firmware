@@ -5,6 +5,7 @@ add_library(tnc OBJECT)
 
 # Enable CMake support for ASM and C languages
 enable_language(CXX ASM)
+
 set(BOOST_INCLUDEDIR ../../TNC)
 find_package(Boost REQUIRED)
 
