@@ -76,15 +76,9 @@ UART_HandleTypeDef huart3;
 DMA_HandleTypeDef hdma_usart3_tx;
 DMA_HandleTypeDef hdma_usart3_rx;
 
-osThreadId defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 256 ];
-osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId ioEventTaskHandle;
 uint32_t ioEventTaskBuffer[ 384 ];
 osStaticThreadDef_t ioEventTaskControlBlock;
-osThreadId ledBlinkerHandle;
-uint32_t ledBlinkerBuffer[ 128 ];
-osStaticThreadDef_t ledBlinkerControlBlock;
 osThreadId audioInputTaskHandle;
 uint32_t audioInputTaskBuffer[ 512 ];
 osStaticThreadDef_t audioInputTaskControlBlock;
@@ -115,17 +109,10 @@ osStaticMessageQDef_t dacOutputQueueControlBlock;
 osMessageQId adcInputQueueHandle;
 uint8_t adcInputQueueBuffer[ 8 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t adcInputQueueControlBlock;
-osTimerId beaconTimer1Handle;
-osStaticTimerDef_t beaconTimer1ControlBlock;
-osTimerId beaconTimer2Handle;
-osStaticTimerDef_t beaconTimer2ControlBlock;
-osTimerId beaconTimer3Handle;
-osStaticTimerDef_t beaconTimer3ControlBlock;
-osTimerId beaconTimer4Handle;
-osStaticTimerDef_t beaconTimer4ControlBlock;
+osTimerId usbShutdownTimerHandle;
+osStaticTimerDef_t usbShutdownTimerControlBlock;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-osMutexId hardwareInitMutexHandle;
 
 int lost_power = 0;
 int reset_requested = 0;
@@ -144,7 +131,6 @@ int reset_button = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_RTC_Init(void);
@@ -159,12 +145,10 @@ static void MX_RNG_Init(void);
 static void MX_IWDG_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_OPAMP1_Init(void);
-void StartDefaultTask(void const * argument);
-extern void startIOEventTask(void const * argument);
-extern void startLedBlinkerTask(void const * argument);
+void startIOEventTask(void const * argument);
 extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
-extern void beacon(void const * argument);
+extern void shutdown(void const * argument);
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
@@ -395,10 +379,10 @@ int main(void)
   /* Configure the system clock */
   SystemClock_Config();
 
-  /* Configure the peripherals common clocks */
-  PeriphCommonClock_Config();
-
   /* USER CODE BEGIN SysInit */
+  // SysClock starts at 16MHz and we want a 2MHz SWO.
+  TPI->ACPR = 7;
+
 #ifdef KISS_LOGGING
   printf("start\r\n");
   if (error_message[0] != 0) {
@@ -426,11 +410,17 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM6_Init();
   MX_TIM7_Init();
+  MX_RNG_Init();
+  MX_TIM1_Init();
   MX_OPAMP1_Init();
   /* USER CODE BEGIN 2 */
   if (stop_now) stop2();
 
-  MX_TIM1_Init();           // Initialize the LED PWM timer and GPIOs.
+  HAL_NVIC_DisableIRQ(BT_STATE1_EXTI_IRQn);
+  HAL_NVIC_DisableIRQ(BT_STATE2_EXTI_IRQn);
+  HAL_NVIC_DisableIRQ(SW_BOOT_EXTI_IRQn);
+  HAL_NVIC_DisableIRQ(SW_POWER_EXTI_IRQn);
+
   SCB->SHCSR |= 0x70000;    // Enable fault handlers;
   if (!go_back_to_sleep) {
       indicate_turning_on();    // LEDs on during boot.
@@ -485,80 +475,6 @@ int main(void)
       GPIO_InitStructure.Pull = GPIO_PULLUP;
       HAL_GPIO_Init(BT_CMD_GPIO_Port, &GPIO_InitStructure);
   }
-
-  /* USER CODE END 2 */
-
-  /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
-  osMutexDef(hardwareInitMutex);
-  hardwareInitMutexHandle = osMutexCreate(osMutex(hardwareInitMutex));
-  osMutexWait(hardwareInitMutexHandle, osWaitForever);
-
-  /* USER CODE END RTOS_MUTEX */
-
-  /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
-  /* USER CODE END RTOS_SEMAPHORES */
-
-  /* Create the timer(s) */
-  /* definition and creation of beaconTimer1 */
-  osTimerStaticDef(beaconTimer1, beacon, &beaconTimer1ControlBlock);
-  beaconTimer1Handle = osTimerCreate(osTimer(beaconTimer1), osTimerPeriodic, NULL);
-
-  /* definition and creation of beaconTimer2 */
-  osTimerStaticDef(beaconTimer2, beacon, &beaconTimer2ControlBlock);
-  beaconTimer2Handle = osTimerCreate(osTimer(beaconTimer2), osTimerPeriodic, NULL);
-
-  /* definition and creation of beaconTimer3 */
-  osTimerStaticDef(beaconTimer3, beacon, &beaconTimer3ControlBlock);
-  beaconTimer3Handle = osTimerCreate(osTimer(beaconTimer3), osTimerPeriodic, NULL);
-
-  /* definition and creation of beaconTimer4 */
-  osTimerStaticDef(beaconTimer4, beacon, &beaconTimer4ControlBlock);
-  beaconTimer4Handle = osTimerCreate(osTimer(beaconTimer4), osTimerPeriodic, NULL);
-
-  /* USER CODE BEGIN RTOS_TIMERS */
-  /* start timers, add new ones, ... */
-  /* USER CODE END RTOS_TIMERS */
-
-  /* Create the queue(s) */
-  /* definition and creation of ioEventQueue */
-  osMessageQStaticDef(ioEventQueue, 16, uint32_t, ioEventQueueBuffer, &ioEventQueueControlBlock);
-  ioEventQueueHandle = osMessageCreate(osMessageQ(ioEventQueue), NULL);
-
-  /* definition and creation of serialInputQueue */
-  osMessageQStaticDef(serialInputQueue, 16, uint32_t, serialInputQueueBuffer, &serialInputQueueControlBlock);
-  serialInputQueueHandle = osMessageCreate(osMessageQ(serialInputQueue), NULL);
-
-  /* definition and creation of serialOutputQueue */
-  osMessageQStaticDef(serialOutputQueue, 16, uint32_t, serialOutputQueueBuffer, &serialOutputQueueControlBlock);
-  serialOutputQueueHandle = osMessageCreate(osMessageQ(serialOutputQueue), NULL);
-
-  /* definition and creation of audioInputQueue */
-  osMessageQStaticDef(audioInputQueue, 4, uint8_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
-  audioInputQueueHandle = osMessageCreate(osMessageQ(audioInputQueue), NULL);
-
-  /* definition and creation of hdlcInputQueue */
-  osMessageQStaticDef(hdlcInputQueue, 3, uint32_t, hdlcInputQueueBuffer, &hdlcInputQueueControlBlock);
-  hdlcInputQueueHandle = osMessageCreate(osMessageQ(hdlcInputQueue), NULL);
-
-  /* definition and creation of hdlcOutputQueue */
-  osMessageQStaticDef(hdlcOutputQueue, 3, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
-  hdlcOutputQueueHandle = osMessageCreate(osMessageQ(hdlcOutputQueue), NULL);
-
-  /* definition and creation of dacOutputQueue */
-  osMessageQStaticDef(dacOutputQueue, 128, uint8_t, dacOutputQueueBuffer, &dacOutputQueueControlBlock);
-  dacOutputQueueHandle = osMessageCreate(osMessageQ(dacOutputQueue), NULL);
-
-  /* definition and creation of adcInputQueue */
-  osMessageQStaticDef(adcInputQueue, 8, uint32_t, adcInputQueueBuffer, &adcInputQueueControlBlock);
-  adcInputQueueHandle = osMessageCreate(osMessageQ(adcInputQueue), NULL);
-
-  /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
-#pragma GCC diagnostic pop
 
   // Initialize the DC offset DAC and the PGA op amp.  Calibrate the ADC.
   if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
@@ -619,22 +535,72 @@ int main(void)
   }
 #endif
 
+  /* USER CODE END 2 */
+
+  /* USER CODE BEGIN RTOS_MUTEX */
+  /* add mutexes, ... */
+
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* add semaphores, ... */
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* Create the timer(s) */
+  /* definition and creation of usbShutdownTimer */
+  osTimerStaticDef(usbShutdownTimer, shutdown, &usbShutdownTimerControlBlock);
+  usbShutdownTimerHandle = osTimerCreate(osTimer(usbShutdownTimer), osTimerPeriodic, NULL);
+
+  /* USER CODE BEGIN RTOS_TIMERS */
+  /* start timers, add new ones, ... */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* definition and creation of ioEventQueue */
+  osMessageQStaticDef(ioEventQueue, 16, uint32_t, ioEventQueueBuffer, &ioEventQueueControlBlock);
+  ioEventQueueHandle = osMessageCreate(osMessageQ(ioEventQueue), NULL);
+
+  /* definition and creation of serialInputQueue */
+  osMessageQStaticDef(serialInputQueue, 16, uint32_t, serialInputQueueBuffer, &serialInputQueueControlBlock);
+  serialInputQueueHandle = osMessageCreate(osMessageQ(serialInputQueue), NULL);
+
+  /* definition and creation of serialOutputQueue */
+  osMessageQStaticDef(serialOutputQueue, 16, uint32_t, serialOutputQueueBuffer, &serialOutputQueueControlBlock);
+  serialOutputQueueHandle = osMessageCreate(osMessageQ(serialOutputQueue), NULL);
+
+  /* definition and creation of audioInputQueue */
+  osMessageQStaticDef(audioInputQueue, 4, uint8_t, audioInputQueueBuffer, &audioInputQueueControlBlock);
+  audioInputQueueHandle = osMessageCreate(osMessageQ(audioInputQueue), NULL);
+
+  /* definition and creation of hdlcInputQueue */
+  osMessageQStaticDef(hdlcInputQueue, 3, uint32_t, hdlcInputQueueBuffer, &hdlcInputQueueControlBlock);
+  hdlcInputQueueHandle = osMessageCreate(osMessageQ(hdlcInputQueue), NULL);
+
+  /* definition and creation of hdlcOutputQueue */
+  osMessageQStaticDef(hdlcOutputQueue, 3, uint32_t, hdlcOutputQueueBuffer, &hdlcOutputQueueControlBlock);
+  hdlcOutputQueueHandle = osMessageCreate(osMessageQ(hdlcOutputQueue), NULL);
+
+  /* definition and creation of dacOutputQueue */
+  osMessageQStaticDef(dacOutputQueue, 128, uint8_t, dacOutputQueueBuffer, &dacOutputQueueControlBlock);
+  dacOutputQueueHandle = osMessageCreate(osMessageQ(dacOutputQueue), NULL);
+
+  /* definition and creation of adcInputQueue */
+  osMessageQStaticDef(adcInputQueue, 8, uint32_t, adcInputQueueBuffer, &adcInputQueueControlBlock);
+  adcInputQueueHandle = osMessageCreate(osMessageQ(adcInputQueue), NULL);
+
+  /* USER CODE BEGIN RTOS_QUEUES */
+  /* add queues, ... */
+
 //  MX_IWDG_Init();
 
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadStaticDef(defaultTask, StartDefaultTask, osPriorityIdle, 0, 256, defaultTaskBuffer, &defaultTaskControlBlock);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
   /* definition and creation of ioEventTask */
   osThreadStaticDef(ioEventTask, startIOEventTask, osPriorityLow, 0, 384, ioEventTaskBuffer, &ioEventTaskControlBlock);
   ioEventTaskHandle = osThreadCreate(osThread(ioEventTask), NULL);
-
-  /* definition and creation of ledBlinker */
-  osThreadStaticDef(ledBlinker, startLedBlinkerTask, osPriorityIdle, 0, 128, ledBlinkerBuffer, &ledBlinkerControlBlock);
-  ledBlinkerHandle = osThreadCreate(osThread(ledBlinker), NULL);
 
   /* definition and creation of audioInputTask */
   osThreadStaticDef(audioInputTask, startAudioInputTask, osPriorityAboveNormal, 0, 512, audioInputTaskBuffer, &audioInputTaskControlBlock);
@@ -646,6 +612,11 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+#pragma GCC diagnostic pop
+
+  osThreadSuspend(audioInputTaskHandle);
+  osThreadSuspend(modulatorTaskHandle);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -691,22 +662,18 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_LSI
-                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
+                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
+                              |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
-  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_6;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-  RCC_OscInitStruct.PLL.PLLM = 1;
-  RCC_OscInitStruct.PLL.PLLN = 24;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
-  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -716,12 +683,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -745,34 +712,6 @@ void SystemClock_Config(void)
   RCC_CRSInitStruct.HSI48CalibrationValue = 32;
 
   HAL_RCCEx_CRSConfig(&RCC_CRSInitStruct);
-}
-
-/**
-  * @brief Peripherals Common Clock Configuration
-  * @retval None
-  */
-void PeriphCommonClock_Config(void)
-{
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
-
-  /** Initializes the peripherals clock
-  */
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USB|RCC_PERIPHCLK_RNG
-                              |RCC_PERIPHCLK_ADC;
-  PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
-  PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLLSAI1;
-  PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLLSAI1;
-  PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
-  PeriphClkInit.PLLSAI1.PLLSAI1M = 1;
-  PeriphClkInit.PLLSAI1.PLLSAI1N = 24;
-  PeriphClkInit.PLLSAI1.PLLSAI1P = RCC_PLLP_DIV7;
-  PeriphClkInit.PLLSAI1.PLLSAI1Q = RCC_PLLQ_DIV2;
-  PeriphClkInit.PLLSAI1.PLLSAI1R = RCC_PLLR_DIV2;
-  PeriphClkInit.PLLSAI1.PLLSAI1ClockOut = RCC_PLLSAI1_48M2CLK|RCC_PLLSAI1_ADC1CLK;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
 }
 
 /**
@@ -938,7 +877,7 @@ static void MX_I2C1_Init(void)
 
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
-  hi2c1.Init.Timing = 0x00000107;
+  hi2c1.Init.Timing = 0x00300617;
   hi2c1.Init.OwnAddress1 = 0;
   hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
   hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
@@ -964,10 +903,6 @@ static void MX_I2C1_Init(void)
   {
     Error_Handler();
   }
-
-  /** I2C Fast mode Plus enable
-  */
-  HAL_I2CEx_EnableFastModePlus(I2C_FASTMODEPLUS_I2C1);
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
@@ -1076,7 +1011,6 @@ static void MX_RTC_Init(void)
 
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef sDate = {0};
-  RTC_AlarmTypeDef sAlarm = {0};
 
   /* USER CODE BEGIN RTC_Init 1 */
 
@@ -1098,6 +1032,8 @@ static void MX_RTC_Init(void)
   }
 
   /* USER CODE BEGIN Check_RTC_BKUP */
+  // Do not initialize RTC if the date/time has been set.
+  if (!(RTC->ISR & 0x10)) { // Labelled ICSR in the reference manual.
 
   /* USER CODE END Check_RTC_BKUP */
 
@@ -1121,30 +1057,8 @@ static void MX_RTC_Init(void)
   {
     Error_Handler();
   }
-
-  /** Enable the Alarm A
-  */
-  sAlarm.AlarmTime.Hours = 0x0;
-  sAlarm.AlarmTime.Minutes = 0x0;
-  sAlarm.AlarmTime.Seconds = 0x0;
-  sAlarm.AlarmTime.SubSeconds = 0x0;
-  sAlarm.AlarmTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sAlarm.AlarmTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  sAlarm.AlarmMask = RTC_ALARMMASK_NONE;
-  sAlarm.AlarmSubSecondMask = RTC_ALARMSUBSECONDMASK_ALL;
-  sAlarm.AlarmDateWeekDaySel = RTC_ALARMDATEWEEKDAYSEL_DATE;
-  sAlarm.AlarmDateWeekDay = 0x1;
-  sAlarm.Alarm = RTC_ALARM_A;
-  if (HAL_RTC_SetAlarm(&hrtc, &sAlarm, RTC_FORMAT_BCD) != HAL_OK)
-  {
-    Error_Handler();
-  }
-
-  /** Enable the Alarm B
-  */
-  sAlarm.Alarm = RTC_ALARM_B;
   /* USER CODE BEGIN RTC_Init 2 */
-
+  }
   /* USER CODE END RTC_Init 2 */
 
 }
@@ -1650,6 +1564,8 @@ void SysClock48()
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
+    TPI->ACPR = 7;  // 16MHz clock, 2MHz SWO
+
     /**Configure the Systick interrupt time
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -1692,6 +1608,8 @@ void SysClock48()
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
+    TPI->ACPR = 23;  // 48MHz clock, 2MHz SWO
+
     /**Configure the Systick interrupt time
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -1720,6 +1638,8 @@ void SysClock72()
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
+    TPI->ACPR = 7;  // 16MHz clock, 2MHz SWO
+
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
     RCC_OscInitStruct.MSIState = RCC_MSI_ON;
     RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
@@ -1744,6 +1664,8 @@ void SysClock72()
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
+    TPI->ACPR = 35;  // 72MHz clock, 2MHz SWO
+
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
     PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
@@ -1767,15 +1689,15 @@ void SysClock72()
     taskEXIT_CRITICAL();
 }
 
-void SysClock80()
+void SysClock2()
 {
     RCC_OscInitTypeDef RCC_OscInitStruct;
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
     RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
-    if (HAL_RCC_GetHCLKFreq() == 80000000) return;
+    if (HAL_RCC_GetHCLKFreq() == 2000000) return;
 
-    INFO("Setting 80MHz SysClock.");
+    INFO("Setting 2MHz SysClock.");
 
     taskENTER_CRITICAL();
 
@@ -1787,26 +1709,37 @@ void SysClock80()
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
-    RCC_OscInitStruct.OscillatorType = 0;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-    RCC_OscInitStruct.PLL.PLLM = 3;
-    RCC_OscInitStruct.PLL.PLLN = 20;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-    RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
-    RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV4;
+    TPI->ACPR = 7;  // 16MHz clock, 2MHz SWO
+
+    // PLLSAI cannot be used when modifying the PLL.
+    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC|RCC_PERIPHCLK_RNG|RCC_PERIPHCLK_USB;
+    PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
+    PeriphClkInit.RngClockSelection = RCC_RNGCLKSOURCE_PLL;
+    PeriphClkInit.UsbClockSelection = RCC_USBCLKSOURCE_PLL;
+    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+    {
+      _Error_Handler(__FILE_NAME__, __LINE__);
+    }
+
+    RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
+    RCC_OscInitStruct.MSIState = RCC_MSI_ON;
+    RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_5; // 2MHz
+    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_OFF;
+    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
     if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
     {
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
 
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
 
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
     {
       _Error_Handler(__FILE_NAME__, __LINE__);
     }
+
+    TPI->ACPR = 0;  // 2MHz clock, 2MHz SWO
 
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
@@ -1821,26 +1754,6 @@ void SysClock80()
     taskEXIT_CRITICAL();
 }
 
-void SysClock4()
-{
-    RCC_ClkInitTypeDef RCC_ClkInitStruct;
-
-    taskENTER_CRITICAL();
-
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-    {
-      _Error_Handler(__FILE_NAME__, __LINE__);
-    }
-
-    /**Configure the Systick interrupt time
-    */
-    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-
-    taskEXIT_CRITICAL();
-}
 /**
   * @brief  This function is executed in case of error occurrence.
   * @param  file: The file name as string.
@@ -1876,39 +1789,113 @@ void _Error_Handler2(char *file, int line, HAL_StatusTypeDef status)
 
   error_code(MORSE_1, MORSE_1);
 }
+volatile uint32_t delay_count = 0;
+
+
+void delay(uint32_t ms) {
+	delay_count = (SystemCoreClock >> 13) * ms;
+	for (uint32_t i = 0; i != delay_count; ++i) asm volatile("nop");
+}
+
+void dit()
+{
+	HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET);
+	delay(100);
+	HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET);
+	delay(100);
+}
+
+void dah()
+{
+	HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_RESET);
+	delay(300);
+	HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET);
+	delay(100);
+}
+
+void brk1()
+{
+	delay(300);
+}
+
+void brk2()
+{
+	delay(700);
+}
+
+/**
+ * Output a two-digit error code in Morse. This outputs an error code non-stop
+ * in Morse code to the TX LED (red). Once this code is hit, the TNC will need
+ * to be reset.
+ *
+ * The code is passed as a 5-bit value, with 1 = dit, 0 = dah.
+ *
+ * For example:
+ *  0 = 00000 / 0x00
+ *  1 = 10000 / 0x10
+ *  2 = 11000 / 0x18
+ *  3 = 11100 / 0x1C
+ *  4 = 11110 / 0x1E
+ *  5 = 11111 / 0x1F
+ *  6 = 01111 / 0x0F
+ *  7 = 00111 / 0x07
+ *  8 = 00011 / 0x03
+ *  9 = 00001 / 0x01
+ */
+void error_code(int8_t a, int8_t b)
+{
+	GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+	HAL_TIM_PWM_DeInit(&LED_PWM_TIMER_HANDLE);	// Disable PWM.
+
+	// Re-initialize LED GPIO.
+	GPIO_InitStruct.Pin = LED_BT_Pin|LED_RX_Pin|LED_TX_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+	HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+	HAL_GPIO_WritePin(LED_BT_GPIO_Port, LED_BT_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_RX_GPIO_Port, LED_RX_Pin, GPIO_PIN_SET);
+	HAL_GPIO_WritePin(LED_TX_GPIO_Port, LED_TX_Pin, GPIO_PIN_SET);
+
+	a &= 0x1F;
+	b &= 0x1F;
+	for (uint8_t j = 0; j != 3; ++j)
+	{
+		int8_t aa = a;
+		for (int i = 0; i != 5; ++i)
+		{
+			if (aa & 0x10) dit(); else dah();
+			aa <<= 1;
+		}
+		brk1();
+		int8_t bb = b;
+		for (int i = 0; i != 5; ++i)
+		{
+			if (bb & 0x10) dit(); else dah();
+			bb <<= 1;
+		}
+		brk2();
+	}
+	NVIC_SystemReset();
+}
 
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_StartDefaultTask */
+/* USER CODE BEGIN Header_startIOEventTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @brief  Function implementing the ioEventTask thread.
+  * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_StartDefaultTask */
-void StartDefaultTask(void const * argument)
+/* USER CODE END Header_startIOEventTask */
+__weak void startIOEventTask(void const * argument)
 {
   /* init code for USB_DEVICE */
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 5 */
-  UNUSED(argument);
-
-  if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
-  {
-#ifdef KISS_LOGGING
-    printf("VBUS detected\r\n");
-#endif
-    MX_USB_DEVICE_Init();
-    HAL_PCD_MspInit(&hpcd_USB_FS);
-    HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
-    HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
-  } else {
-#ifdef KISS_LOGGING
-    printf("VBUS not detected\r\n");
-#endif
-//    SysClock4();
-  }
-/* Infinite loop */
+  /* Infinite loop */
   for(;;)
   {
     osDelay(osWaitForever);

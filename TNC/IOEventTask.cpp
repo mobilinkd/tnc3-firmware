@@ -27,6 +27,8 @@
 #include "cmsis_os.h"
 
 extern osMessageQId hdlcOutputQueueHandle;
+extern osThreadId audioInputTaskHandle;
+extern osThreadId modulatorTaskHandle;
 
 #ifdef STM32L4P5xx
 extern PCD_HandleTypeDef hpcd_USB_OTG_FS;
@@ -55,9 +57,21 @@ void startIOEventTask(void const*)
 {
     using namespace mobilinkd::tnc;
 
+    if (HAL_GPIO_ReadPin(USB_POWER_GPIO_Port, USB_POWER_Pin) == GPIO_PIN_SET)
+    {
+        INFO("VBUS detected");
+        SysClock48();
+        MX_USB_DEVICE_Init();
+        HAL_PCD_MspInit(&hpcd_USB_FS);
+        HAL_PCDEx_ActivateBCD(&hpcd_USB_FS);
+        HAL_PCDEx_BCD_VBUSDetect(&hpcd_USB_FS);
+    } else {
+        INFO("VBUS not detected");
+        SysClock2();
+    }
+
     if (!go_back_to_sleep) {
         indicate_on();
-
         print_startup_banner();
     }
 
@@ -73,11 +87,13 @@ void startIOEventTask(void const*)
         hardware.store();
     }
 
-    osMutexRelease(hardwareInitMutexHandle);
-
     if (!go_back_to_sleep) {
 
         hardware.debug();
+
+        // hardware must be initialized before these are started.
+        osThreadResume(audioInputTaskHandle);
+        osThreadResume(modulatorTaskHandle);
 
         audio::init_log_volume();
         audio::setAudioOutputLevel();
@@ -296,7 +312,7 @@ void startIOEventTask(void const*)
                 break;
             case CMD_USB_CONNECTED:
                 INFO("VBUS Detected");
-//                SysClock48();
+                SysClock48();
                 MX_USB_DEVICE_Init();
                 HAL_PCD_MspInit(&HPCD);
 #ifdef STM32L433xx

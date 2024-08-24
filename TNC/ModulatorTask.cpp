@@ -121,9 +121,6 @@ void startModulatorTask(void const*)
 {
     using namespace mobilinkd::tnc::kiss;
 
-    // Wait until hardware is initialized before creating modulator.
-    osMutexWait(hardwareInitMutexHandle, osWaitForever);
-
     while (true)
     {
         modulator = &(getModulator());

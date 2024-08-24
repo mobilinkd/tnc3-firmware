@@ -70,8 +70,7 @@ void error_code(int8_t a, int8_t b) __attribute__ ((noreturn));
 void SystemClock_Config(void);
 void SysClock48(void);
 void SysClock72(void);
-void SysClock80(void);
-void SysClock4(void);
+void SysClock2(void);
 
 /* USER CODE END EFP */
 
