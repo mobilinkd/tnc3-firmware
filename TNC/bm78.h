@@ -1,8 +1,7 @@
-// Copyright 2016 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2016-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__BM78_H_
-#define MOBILINKD__TNC__BM78_H_
+#pragma once
 
 #include <stm32l4xx_hal.h>
 
@@ -33,11 +32,10 @@ int bm78_enable(void);
 int bm78_initialized(void);
 int bm78_initialize(void);
 void bm78_initialize_mac_address(void);
+void bm78_reset(void);
 
 HAL_StatusTypeDef bm78_send(const char* data, uint16_t size, uint32_t timeout);
 
 #ifdef __cplusplus
 }
 #endif // __cplusplus
-
-#endif // MOBILINKD__TNC__BM78_H_

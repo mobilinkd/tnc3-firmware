@@ -1,4 +1,4 @@
-// Copyright 2016 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2016-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "bm78.h"
@@ -18,8 +18,6 @@
 extern RTC_HandleTypeDef hrtc;
 extern UART_HandleTypeDef huart3;
 extern CRC_HandleTypeDef hcrc;
-
-namespace mobilinkd { namespace tnc { namespace bm78 {
 
 /**
  * The BM78 module is a dual-mode BT3.0 & BLE5.0 UART modules.  It supports
@@ -46,9 +44,11 @@ void bm78_reset()
 {
   // Must use HAL_Delay() here as osDelay() may not be available.
   mobilinkd::tnc::gpio::BT_RESET::off();
-  HAL_Delay(1);
+  DELAY(1);
   mobilinkd::tnc::gpio::BT_RESET::on();
 }
+
+namespace mobilinkd { namespace tnc { namespace bm78 {
 
 /**
  * Enter BM78 EEPROM programming mode.
@@ -479,15 +479,18 @@ void bm78_wait_until_ready()
 {
     auto start = HAL_GetTick();
     // Must wait until P1_5 (BT_STATE2) is high and P0_4 (BT_STATE1) is low.
-    GPIO_PinState bt_state1, bt_state2;
+    bool bt_state1, bt_state2;
     do {
+        DELAY(1);
+
         if (HAL_GetTick() > start + 2000) CxxErrorHandler(); // Timed out.
 
-        HAL_Delay(100);
-        bt_state2 = HAL_GPIO_ReadPin(BT_STATE2_GPIO_Port, BT_STATE2_Pin);
-        bt_state1 = HAL_GPIO_ReadPin(BT_STATE1_GPIO_Port, BT_STATE1_Pin);
-        TNC_DEBUG("bt_state2=%d, bt_state1=%d", bt_state2, bt_state1);
-    } while (!((bt_state2 == GPIO_PIN_SET) and (bt_state1 == GPIO_PIN_RESET)));
+        __HAL_GPIO_EXTI_CLEAR_IT(BT_STATE2_Pin);
+        __HAL_GPIO_EXTI_CLEAR_IT(BT_STATE1_Pin);
+        bt_state2 = (BT_STATE2_GPIO_Port->IDR & BT_STATE2_Pin) != 0;
+        bt_state1 = (BT_STATE1_GPIO_Port->IDR & BT_STATE1_Pin) != 0;
+
+    } while (!((bt_state2) and (!bt_state1)));
 }
 
 uint32_t eeprom_crc()
@@ -515,7 +518,7 @@ int bm78_initialized()
 
     auto crc = eeprom_crc();
 
-    return HAL_RTCEx_BKUPRead(&hrtc, RTC_BKP_DR1) == crc;
+    return READ_REG(BKUP_BT_EEPROM_CRC) == crc;
 }
 
 void bm78_initialize_mac_address()
@@ -545,7 +548,7 @@ int bm78_initialize()
         /* Write CRC to RTC back-up register RTC_BKP_DR1 to indicate
            that the BM78 module has been initialized.  */
         HAL_PWR_EnableBkUpAccess();
-        HAL_RTCEx_BKUPWrite(&hrtc, RTC_BKP_DR1, eeprom_crc());
+        WRITE_REG(BKUP_BT_EEPROM_CRC, eeprom_crc());
         HAL_PWR_DisableBkUpAccess();
     }
 #endif
