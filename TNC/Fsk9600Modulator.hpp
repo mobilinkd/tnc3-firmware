@@ -81,6 +81,8 @@ struct Fsk9600Modulator : Modulator
         ptt_->off();
     }
 
+    PTT* get_ptt() const override { return ptt_; }
+
     void send(uint8_t bit) override
     {
         auto scrambled = lfsr(bit);

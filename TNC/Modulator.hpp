@@ -52,6 +52,8 @@ struct Modulator
      */
     virtual void set_ptt(PTT* ptt) = 0;
 
+    virtual PTT* get_ptt() const = 0;
+
     /**
      * Send a single bit.
      *

@@ -108,6 +108,8 @@ struct AFSKModulator : Modulator
         }
     }
 
+    PTT* get_ptt() const override { return ptt_; }
+
     void set_twist(uint8_t twist) {twist_ = twist;}
 
     void send(uint8_t bit) override

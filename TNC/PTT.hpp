@@ -12,29 +12,36 @@ namespace mobilinkd { namespace tnc {
 struct PTT {
     virtual void on() = 0;
     virtual void off() = 0;
+    virtual bool state() const = 0;
     virtual ~PTT() {}
 };
 
 struct SimplexPTT : PTT {
-    void on() {
+    void on() override {
         tx_on();                    // LED
         gpio::PTT_SIMPLEX::on();    // PTT
     }
-    void off() {
+    void off() override {
         tx_off();                   // LED
         gpio::PTT_SIMPLEX::off();   // PTT
+    }
+    bool state() const override {
+        return gpio::PTT_SIMPLEX::get();
     }
 };
 
 
 struct MultiplexPTT : PTT {
-    void on() {
+    void on() override {
         tx_on();                    // LED
         gpio::PTT_MULTIPLEX::on();  // PTT
     }
-    void off() {
+    void off() override {
         tx_off();                   // LED
         gpio::PTT_MULTIPLEX::off(); // PTT
+    }
+    bool state() const override {
+        return gpio::PTT_MULTIPLEX::get();
     }
 };
 
