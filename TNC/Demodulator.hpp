@@ -29,6 +29,9 @@ struct IDemodulator
     virtual bool locked() const = 0;
     virtual size_t size() const = 0;
 
+    /// Shift value required to normalize ADC values to uint16_t.
+    virtual size_t get_adc_exponent() const { return 2; }   // By default, 14-bit oversampled input.
+
     /**
      * Tell the demodulator to return all "passable" HDLC frames.  These
      * are frames which consist of an even multiple of eight bits and are

@@ -141,6 +141,9 @@ osStaticThreadDef_t cdcTaskControlBlock;
 uint8_t cdcQueueBuffer[ 4 * sizeof( void* ) ];
 osStaticMessageQDef_t cdcQueueControlBlock;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
+
 void UsbPort::init()
 {
     if (cdcTaskHandle_) return;
@@ -154,6 +157,8 @@ void UsbPort::init()
     osThreadStaticDef(cdcTask, startCDCTask, osPriorityNormal, 0, 128, cdcTaskBuffer, &cdcTaskControlBlock);
     cdcTaskHandle_ = osThreadCreate(osThread(cdcTask), this);
 }
+
+#pragma GCC diagnostic pop
 
 bool UsbPort::open()
 {

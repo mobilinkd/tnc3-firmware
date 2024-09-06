@@ -18,6 +18,7 @@
 #include "M17Framer.h"
 #include "Modulator.hpp"
 #include "ModulatorTask.hpp"
+#include "power.h"
 #include "Util.h"
 
 #include <arm_math.h>
@@ -145,74 +146,7 @@ struct M17Demodulator : IDemodulator
     uint32_t readBatteryLevel() override
     {
 #ifndef NUCLEOTNC
-        TNC_DEBUG("enter M17Demodulator::readBatteryLevel");
-
-        ADC_ChannelConfTypeDef sConfig;
-
-        sConfig.Channel = ADC_CHANNEL_VREFINT;
-        sConfig.Rank = ADC_REGULAR_RANK_1;
-        sConfig.SingleDiff = ADC_SINGLE_ENDED;
-        sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
-        sConfig.OffsetNumber = ADC_OFFSET_NONE;
-        sConfig.Offset = 0;
-        if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
-            CxxErrorHandler();
-
-        htim6.Init.Period = 48000;
-        if (HAL_TIM_Base_Init(&htim6) != HAL_OK) CxxErrorHandler();
-
-        if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
-            CxxErrorHandler();
-
-        if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
-        if (HAL_ADC_PollForConversion(&hadc1, 3) != HAL_OK) CxxErrorHandler();
-        auto vrefint = HAL_ADC_GetValue(&hadc1);
-        if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
-
-        // Disable battery charging while measuring battery voltage.
-        auto usb_ce = gpio::USB_CE::get();
-        gpio::USB_CE::on();
-
-        gpio::BAT_DIVIDER::off();
-        HAL_Delay(1);
-
-        sConfig.Channel = BATTERY_ADC_CHANNEL;
-        if (HAL_ADC_ConfigChannel(&BATTERY_ADC_HANDLE, &sConfig) != HAL_OK)
-            CxxErrorHandler();
-
-        uint32_t vbat = 0;
-        if (HAL_ADC_Start(&BATTERY_ADC_HANDLE) != HAL_OK) CxxErrorHandler();
-        for (size_t i = 0; i != 8; ++i)
-        {
-            if (HAL_ADC_PollForConversion(&BATTERY_ADC_HANDLE, 1) != HAL_OK) CxxErrorHandler();
-            vbat += HAL_ADC_GetValue(&BATTERY_ADC_HANDLE);
-        }
-
-        vbat /= 8;
-
-        if (HAL_ADC_Stop(&BATTERY_ADC_HANDLE) != HAL_OK) CxxErrorHandler();
-        if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
-            CxxErrorHandler();
-
-        gpio::BAT_DIVIDER::on();
-
-        // Restore battery charging state.
-        if (!usb_ce) gpio::USB_CE::off();
-
-        INFO("Vref = %lu", vrefint);
-        INFO("Vbat = %lu (raw)", vbat);
-
-        // Order of operations is important to avoid underflow.
-        vbat *= 6600;
-        vbat /= (VREF + 1);
-
-        uint32_t vref = ((vrefint * 3300) + (VREF / 2)) / VREF;
-
-        INFO("Vref = %lumV", vref)
-        INFO("Vbat = %lumV", vbat);
-
-        TNC_DEBUG("exit M17Demodulator::readBatteryLevel");
-        return vbat;
+        return read_battery_level();
 #else
         return 0;
 #endif

@@ -31,6 +31,7 @@ set(C_WARNING_FLAGS "-Wall -Wextra -Wno-unused-parameter")
 set(CXX_WARNING_FLAGS "${C_WARNING_FLAGS} -Wno-psabi -Wno-dangling-reference")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${TARGET_FLAGS} ${C_WARNING_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${TARGET_FLAGS} ${C_WARNING_FLAGS} ${CXX_WARNING_FLAGS}")
 
 set(CMAKE_C_FLAGS_DEBUG "-O2 -g3")
 set(CMAKE_C_FLAGS_RELEASE "-O2 -g3 -DNDEBUG")
@@ -41,7 +42,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -g3 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g3 -DNDEBUG")
 
 set(CMAKE_ASM_FLAGS "${CMAKE_C_FLAGS} -x assembler-with-cpp -MMD -MP")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-exceptions -fno-threadsafe-statics")
 
 set(CMAKE_C_LINK_FLAGS "${TARGET_FLAGS}")
 set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -T \"${CMAKE_SOURCE_DIR}/TNC3.ld\"")

@@ -33,7 +33,7 @@ void IDemodulator::startADC(uint32_t period, uint32_t block_size)
     status = HAL_TIM_Base_Start(&htim6);
     if (status != HAL_OK) CxxErrorHandler2(status);
 
-    status = HAL_ADC_Start_DMA(&hadc1, audio::adc_buffer, audio::dma_transfer_size);
+    status = HAL_ADC_Start_DMA(&DEMODULATOR_ADC_HANDLE, audio::adc_buffer, audio::dma_transfer_size);
     if (status != HAL_OK) CxxErrorHandler2(status);
 }
 
@@ -41,7 +41,7 @@ void IDemodulator::stopADC()
 {
     HAL_StatusTypeDef status;
 
-    status = HAL_ADC_Stop_DMA(&hadc1);
+    status = HAL_ADC_Stop_DMA(&DEMODULATOR_ADC_HANDLE);
     if (status != HAL_OK) CxxErrorHandler2(status);
 
     status = HAL_TIM_Base_Stop(&htim6);

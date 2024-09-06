@@ -86,7 +86,7 @@ hdlc::IoFrame* Afsk1200Demodulator::operator()(const q15_t* samples)
  */
 float Afsk1200Demodulator::readTwist()
 {
-    INFO("enter Afsk1200Demodulator::readTwist");
+    TNC_DEBUG("enter Afsk1200Demodulator::readTwist");
 
     float g1200 = 0.0f;
     float g2200 = 0.0f;

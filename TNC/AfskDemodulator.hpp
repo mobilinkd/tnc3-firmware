@@ -1,8 +1,7 @@
-// Copyright 2015-2019 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2024 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__AFSK_DEMODULATOR_HPP_
-#define MOBILINKD__AFSK_DEMODULATOR_HPP_
+#pragma once
 
 #include "DelayLine.hpp"
 #include "AudioInput.hpp"
@@ -74,6 +73,3 @@ struct Demodulator {
 
 
 }}} // mobilinkd::tnc::afsk1200
-
-
-#endif // MOBILINKD__AFSK_DEMODULATOR_HPP_

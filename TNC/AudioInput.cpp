@@ -116,8 +116,8 @@ extern "C" void startAudioInputTask(void const*) {
             break;
         case UPDATE_SETTINGS:
             TNC_DEBUG("UPDATE_SETTINGS");
-            setAudioInputLevels();
-            updateModulator();
+            setAudioInputLevels();  // Update the input levels.
+            updateModulator();      // Update the modulator and PTT config.
             break;
         case IDLE:
             INFO("IDLE");
@@ -206,8 +206,6 @@ void demodulatorTask() {
             continue;
         }
 
-        HAL_IWDG_Refresh(&hiwdg);
-
         auto block = (adc_pool_type::chunk_type*) evt.value.p;
         auto samples = (int16_t*) block->buffer;
 
@@ -245,22 +243,25 @@ void streamLevels(uint8_t cmd) {
 
     // Stream out Vpp, Vavg, Vmin, Vmax as four 16-bit values, left justified.
 
+    constexpr uint32_t BLOCKS = 30;
+
     uint8_t data[9];
     INFO("streamLevels: start");
 
     auto demodulator = getDemodulator();
     demodulator->start();
+    const size_t audio_exponent = demodulator->get_adc_exponent();
 
     while (true) {
         osEvent peek = osMessagePeek(audioInputQueueHandle, 0);
         if (peek.status == osEventMessage) break;
 
-        uint16_t count = 0;
+        uint32_t count = 0;
         uint32_t accum = 0;
         uint16_t vmin = std::numeric_limits<uint16_t>::max();
         uint16_t vmax = std::numeric_limits<uint16_t>::min();
 
-        while (count < demodulator->size() * 30) {
+        for (size_t i = 0; i != BLOCKS; ++i) {
             osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
             if (evt.status != osEventMessage) continue;
 
@@ -277,10 +278,10 @@ void streamLevels(uint8_t cmd) {
             adcPool.deallocate(block);
         }
 
-        uint16_t pp = (vmax - vmin) << 4;
-        uint16_t avg = (accum / count) << 4;
-        vmin <<= 4;
-        vmax <<= 4;
+        uint16_t pp = (vmax - vmin) << audio_exponent;
+        uint16_t avg = (accum / count) << audio_exponent;
+        vmin <<= audio_exponent;
+        vmax <<= audio_exponent;
 
         data[0] = cmd;
         data[1] = (pp >> 8) & 0xFF;   // Vpp
@@ -337,6 +338,8 @@ levels_type readLevels(uint32_t)
     }
 
     demodulator->stop();
+    auto status = osMessagePut(ioEventQueueHandle, CMD_RESTORE_SYSCLK, 100);
+    if (status != osOK) CxxErrorHandler2(HAL_TIMEOUT);
 
     uint16_t pp = vmax - vmin;
     uint16_t avg = iaccum / BLOCKS;
@@ -418,7 +421,7 @@ void pollInputTwist()
 
     IDemodulator::stopADC();
 
-    INFO("pollInputTwist: MARK=%d, SPACE=%d (x100)",
+    TNC_DEBUG("pollInputTwist: MARK=%d, SPACE=%d (x100)",
       int(g1200 * 100.0 / AVG_SAMPLES), int(g2200 * 100.0 / AVG_SAMPLES));
 
     int16_t g1200i = int16_t(g1200 * 256 / AVG_SAMPLES);
@@ -433,7 +436,7 @@ void pollInputTwist()
 
     ioport->write(buffer, 5, 6, 10);
 
-    INFO("exit pollInputTwist");
+    TNC_DEBUG("exit pollInputTwist");
 }
 
 void streamAmplifiedInputLevels() {
@@ -448,10 +451,12 @@ void pollAmplifiedInputLevel() {
     uint16_t Vpp, Vavg, Vmin, Vmax;
     std::tie(Vpp, Vavg, Vmin, Vmax) = readLevels(AUDIO_IN);
 
-    Vpp <<= 4;
-    Vavg <<= 4;
-    Vmin <<= 4;
-    Vmax <<= 4;
+    const size_t audio_exponent = getDemodulator()->get_adc_exponent();
+
+    Vpp <<= audio_exponent;
+    Vavg <<= audio_exponent;
+    Vmin <<= audio_exponent;
+    Vmax <<= audio_exponent;
 
     uint8_t data[9];
     data[0] = kiss::hardware::POLL_INPUT_LEVEL;
@@ -479,36 +484,6 @@ void pollBatteryLevel()
     data[2] = (vbat & 0xFF);
 
     ioport->write(data, 3, 6, 10);
-}
-#endif
-
-#if 0
-void stop() {
-    osDelay(100);
-    auto restore = SysTick->CTRL;
-
-    kiss::settings().input_offset += 6;
-    setAudioInputLevels();
-    kiss::settings().input_offset -= 6;
-    TNC_DEBUG("Stop");
-    // __disable_irq();
-    vTaskSuspendAll();
-    SysTick->CTRL = 0;
-    HAL_COMP_Init(&hcomp1);
-    HAL_COMP_Start_IT(&hcomp1);
-    while (adcState == STOPPED) {
-        // PWR_MAINREGULATOR_ON / PWR_LOWPOWERREGULATOR_ON
-        HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
-    }
-    SystemClock_Config();
-    SysTick->CTRL = restore;
-    // __enable_irq();
-    HAL_COMP_Stop_IT(&hcomp1);
-    HAL_COMP_DeInit(&hcomp1);
-    xTaskResumeAll();
-    setAudioInputLevels();
-    // adcState = DEMODULATOR;
-    TNC_DEBUG("Wake");
 }
 #endif
 

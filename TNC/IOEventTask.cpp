@@ -31,7 +31,6 @@ extern osMessageQId hdlcOutputQueueHandle;
 extern osThreadId modulatorTaskHandle;
 extern osThreadId audioInputTaskHandle;
 
-extern "C" void shutdown(void const *);
 extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart3;
 
@@ -341,6 +340,8 @@ void startIOEventTask(void const*)
         // Normal startup.
         hardware.debug();
 
+        // On TNC3, power monitor must be started before initializing audio
+        // because ADC is used.
         init_power_monitor();
         start_power_monitor();
 
