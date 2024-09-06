@@ -348,11 +348,9 @@ void SerialPort::close()
 
 bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t timeout)
 {
-    if (!open_) return false;
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK)
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK)
         return false;
 
     using ::mobilinkd::tnc::kiss::slip_encoder;
@@ -370,7 +368,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
         tmpBuffer[pos++] = *slip_iter++;
         if (pos == TX_BUFFER_SIZE) {
 
-            while (!txDoneFlag) osThreadYield();
+            while (open_ && !txDoneFlag) osThreadYield();
             memcpy(TxBuffer, tmpBuffer, TX_BUFFER_SIZE);
             txDoneFlag = false;
 
@@ -390,7 +388,7 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
 
     // Buffer has room for at least one more byte.
     tmpBuffer[pos++] = 0xC0;
-    while (!txDoneFlag) osThreadYield();
+    while (open_ and !txDoneFlag) osThreadYield();
     memcpy(TxBuffer, tmpBuffer, pos);
     txDoneFlag = false;
     while (open_ and HAL_UART_Transmit_DMA(&huart_serial, TxBuffer, pos) == HAL_BUSY)
@@ -410,11 +408,9 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
 
 bool SerialPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
 {
-    if (!open_) return false;
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK)
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK)
         return false;
 
     size_t pos = 0;
@@ -490,14 +486,9 @@ bool SerialPort::abort_tx(hdlc::IoFrame* frame)
 
 bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
 {
-    if (!open_) {
-        hdlc::release(frame);
-        return false;
-    }
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK) {
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK) {
         hdlc::release(frame);
         return false;
     }
@@ -516,13 +507,13 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     tmpBuffer[pos++] = 0xC0;   // FEND
     tmpBuffer[pos++] = static_cast<int>((frame->source() | frame->type()) & 0x7F);   // KISS Data Frame
 
-    while (slip_iter != slip_end)
+    while (open_ and slip_iter != slip_end)
     {
         tmpBuffer[pos++] = *slip_iter++;
         if (pos == TX_BUFFER_SIZE) {
             while (!txDoneFlag) {
                 // txDoneFlag set in HAL_UART_TxCpltCallback() above when DMA completes.
-                if (osKernelSysTick() - start > timeout) {
+                if (!open_ or osKernelSysTick() - start > timeout) {
                     return abort_tx(frame); // Abort DMA xfer on timeout.
                 } else {
                     osThreadYield();
@@ -530,10 +521,10 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
             }
             memcpy(TxBuffer, tmpBuffer, TX_BUFFER_SIZE);
             txDoneFlag = false;
-            while (open_ and HAL_UART_Transmit_DMA(&huart_serial, TxBuffer, TX_BUFFER_SIZE) == HAL_BUSY)
+            while (HAL_UART_Transmit_DMA(&huart_serial, TxBuffer, TX_BUFFER_SIZE) == HAL_BUSY)
             {
                 // This should not happen.  HAL_BUSY should not occur when txDoneFlag set.
-                if (osKernelSysTick() - start > timeout) {
+                if (!open_ or osKernelSysTick() - start > timeout) {
                     return abort_tx(frame); // Abort DMA xfer on timeout.
                 } else {
                     osThreadYield();
@@ -548,7 +539,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
 
     while (!txDoneFlag) {
         // txDoneFlag set in HAL_UART_TxCpltCallback() above when DMA completes.
-        if (osKernelSysTick() - start > timeout) {
+        if (!open_ or osKernelSysTick() - start > timeout) {
             return abort_tx(frame); // Abort DMA xfer on timeout.
         } else {
             osThreadYield();
@@ -559,7 +550,7 @@ bool SerialPort::write(hdlc::IoFrame* frame, uint32_t timeout)
     txDoneFlag = false;
     while (open_ and HAL_UART_Transmit_DMA(&huart_serial, TxBuffer, pos) == HAL_BUSY) {
         // This should not happen.  HAL_BUSY should not occur when txDoneFlag set.
-        if (osKernelSysTick() - start > timeout) {
+        if (!open_ or osKernelSysTick() - start > timeout) {
             return abort_tx(frame); // Abort DMA xfer on timeout.
         } else {
             osThreadYield();

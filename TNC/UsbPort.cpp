@@ -170,11 +170,9 @@ void UsbPort::close()
 
 bool UsbPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t timeout)
 {
-    if (!open_) return false;
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK)
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK)
         return false;
 
     using ::mobilinkd::tnc::kiss::slip_encoder;
@@ -218,11 +216,9 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_t t
 
 bool UsbPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
 {
-    if (!open_) return false;
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK)
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK)
         return false;
 
     size_t pos = 0;
@@ -251,6 +247,7 @@ bool UsbPort::write(const uint8_t* data, uint32_t size, uint32_t timeout)
         }
         osThreadYield();
     }
+
     while (open_ and CDC_Transmit_FS((uint8_t*)"\r\n", 2) == USBD_BUSY) {
         if (osKernelSysTick() - start > timeout) {
             osMutexRelease(mutex_);
@@ -290,16 +287,10 @@ bool UsbPort::transmit_buffer(size_t pos, uint32_t start, uint32_t timeout)
 
 bool UsbPort::write(hdlc::IoFrame* frame, uint32_t timeout)
 {
-    if (!open_) {
-        hdlc::release(frame);
-        return false;
-    }
-
     uint32_t start = osKernelSysTick();
 
-    if (osMutexWait(mutex_, timeout) != osOK) {
+    if (!open_ or osMutexWait(mutex_, timeout) != osOK) {
       hdlc::release(frame);
-      CxxErrorHandler();
       return false;
     }
 
