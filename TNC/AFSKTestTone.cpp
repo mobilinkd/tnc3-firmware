@@ -32,10 +32,15 @@ void startAfskToneTask(void const* arg)
     }
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
+
 uint32_t testToneTaskBuffer[ 256 ];
 osStaticThreadDef_t testToneTaskControlBlock;
 static osThreadStaticDef(testToneTask, startAfskToneTask, osPriorityIdle, 0,
     256, testToneTaskBuffer, &testToneTaskControlBlock);
+
+#pragma GCC diagnostic pop
 
 namespace mobilinkd { namespace tnc {
 
