@@ -71,6 +71,7 @@ target_sources(tnc PRIVATE
     ../../TNC/ModulatorTask.cpp
     ../../TNC/NullPort.cpp
     ../../TNC/PortInterface.cpp
+    ../../TNC/power.cpp
     ../../TNC/PowerMode.cpp
     ../../TNC/SerialPort.cpp
     ../../TNC/UsbPort.cpp
