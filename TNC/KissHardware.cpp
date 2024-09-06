@@ -90,6 +90,7 @@ void set_rtc_datetime(const uint8_t* buffer)
 {
     RTC_TimeTypeDef sTime;
     RTC_DateTypeDef sDate;
+    HAL_StatusTypeDef status;
 
     ::memset(&sTime, 0, sizeof(sTime));
     ::memset(&sDate, 0, sizeof(sDate));
@@ -102,8 +103,18 @@ void set_rtc_datetime(const uint8_t* buffer)
     sTime.Minutes = buffer[5];
     sTime.Seconds = buffer[6];
 
-    HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-    HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+    HAL_PWR_EnableBkUpAccess();
+
+    status = HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+    if (status != HAL_OK) {
+        ERROR("Could not set time: %d", status);
+    }
+    status = HAL_RTC_SetDate(&hrtc, &sDate, RTC_FORMAT_BCD);
+    if (status != HAL_OK) {
+        ERROR("Could not set date: %d", status);
+    }
+
+    HAL_PWR_DisableBkUpAccess();
 }
 
 void Hardware::set_txdelay(uint8_t value) {
