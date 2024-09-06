@@ -27,6 +27,7 @@
 #include "main.h"
 #include "cmsis_os.h"
 #include "IOEventTask.h"
+#include "PortInterface.h"
 
 /* USER CODE END INCLUDE */
 
@@ -170,6 +171,7 @@ static int8_t CDC_Init_FS(void)
 {
   /* USER CODE BEGIN 3 */
   /* Set Application Buffers */
+  osMessagePut(ioEventQueueHandle, CMD_USB_HOST_ENUMERATED, 0);
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, usbCdcRxBuffer_1->buffer);
   return (USBD_OK);
@@ -259,6 +261,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
           if ((req->wValue & 1)) {
             osMessagePut(ioEventQueueHandle, CMD_USB_CDC_CONNECT, 0);
           } else {
+            closeCDC(); // Need to close here, outside of IOEventLoop thread.
             osMessagePut(ioEventQueueHandle, CMD_USB_CDC_DISCONNECT, 0);
           }
         }
@@ -294,7 +297,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-    if (!cdc_connected) {
+    if (connectionState != USB_CONNECTED) {
         osMessagePut(ioEventQueueHandle, CMD_USB_CDC_CONNECT, 0);
     }
     cdc_receive(Buf, *Len);

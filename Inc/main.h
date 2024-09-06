@@ -61,6 +61,18 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 
 /* Exported functions prototypes ---------------------------------------------*/
 void Error_Handler(void);
+void MX_RTC_Init(void);
+void MX_USART3_UART_Init(void);
+void MX_DAC1_Init(void);
+void MX_ADC1_Init(void);
+void MX_CRC_Init(void);
+void MX_I2C1_Init(void);
+void MX_TIM6_Init(void);
+void MX_TIM7_Init(void);
+void MX_RNG_Init(void);
+void MX_IWDG_Init(void);
+void MX_TIM1_Init(void);
+void MX_OPAMP1_Init(void);
 
 /* USER CODE BEGIN EFP */
 
@@ -132,65 +144,115 @@ void SysClock2(void);
 #define SW_BOOT_EXTI_IRQn EXTI3_IRQn
 
 /* USER CODE BEGIN Private defines */
-#define CMD_USB_CDC_CONNECT  1
-#define CMD_USB_CDC_DISCONNECT 2
-#define CMD_POWER_BUTTON_DOWN 3
-#define CMD_POWER_BUTTON_UP 4
-#define CMD_BOOT_BUTTON_DOWN 5
-#define CMD_BOOT_BUTTON_UP 6
-#define CMD_BT_CONNECT 7
-#define CMD_BT_DISCONNECT 8
-#define CMD_BT_CONNECT 7
-#define CMD_SET_PTT_SIMPLEX 9
-#define CMD_SET_PTT_MULTIPLEX 10
-#define CMD_SHUTDOWN 11
-#define CMD_USB_CONNECTED 12
-#define CMD_USB_CHARGE_ENABLE 13
-#define CMD_USB_DISCOVERY_COMPLETE 14
-#define CMD_USB_DISCOVERY_ERROR 15
-#define CMD_USB_DISCONNECTED 16
+#define USBD_MAX_POWER 0xFAU  /* 500 mA */
 
-#define CMD_BT_DEEP_SLEEP 17    // disconnected
-#define CMD_BT_ACCESS 18        // disconnected
+// Backup domain registers
+#define BKUP_TNC_LOWPOWER_STATE     RTC->BKP0R      /* TNC state when entering low-power mode */
+#define BKUP_BT_EEPROM_CRC          RTC->BKP1R         /* Bluetooth module EEPROM CRC */
+#define BKUP_MAC_ADDRESS_1          RTC->BKP2R         /* Bluetooth module MAC address OUI part */
+#define BKUP_MAC_ADDRESS_2          RTC->BKP3R         /* Bluetooth module MAC address device ID part */
+#define BKUP_POWER_CONFIG           RTC->BKP4R         /* Power configuration from EEPROM */
 
-#define CMD_BT_TX 19            // connected
-#define CMD_BT_IDLE 20          // connected
+#define TNC_LOWPOWER_SHUTDOWN       0x00000001
+#define TNC_LOWPOWER_STOP2          0x00000002
+#define TNC_LOWPOWER_STOP1          0x00000004
+#define TNC_LOWPOWER_VUSB           0x00000008
+#define TNC_LOWPOWER_VBAT           0x00000010
+#define TNC_LOWPOWER_LOW_BAT        0x00000020
+#define TNC_LOWPOWER_OVP            0x00000040
+#define TNC_LOWPOWER_RECONFIG       0x00000080
+#define TNC_LOWPOWER_DFU            0x00000100
 
-#define CMD_RUN 21
-#define CMD_LPRUN 22
-#define CMD_SLEEP 23
-#define CMD_STOP 24
+#define POWER_CONFIG_WAKE_FROM_USB  0x00000001
+#define POWER_CONFIG_SLEEP_ON_USB   0x00000002
 
-#define CMD_USB_SUSPEND 25
-#define CMD_USB_RESUME 26
-
-extern int reset_requested;
-extern char serial_number_64[13];
-extern uint8_t mac_address[6];
-extern char error_message[80];
-extern int go_back_to_sleep;
-extern int usb_wake_state;
-extern int charging_enabled;
-extern int reset_button;
-extern osMutexId hardwareInitMutexHandle;
-
-#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE_NAME__), __LINE__)
-
-#define SystemClock_Config_48MHz SystemClock_Config
+typedef enum {
+	RESET_CAUSE_UNKNOWN,
+	RESET_CAUSE_SOFT,	// Software reset
+	RESET_CAUSE_HARD,	// Reset button
+	RESET_CAUSE_BOR,	// Brown-out reset
+	RESET_CAUSE_WUF,	// GPIO wake-up
+	RESET_CAUSE_WUTF,	// Timer wake-up
+    RESET_CAUSE_IWDG    // Independent watchdog
+} ResetCause;
 
 // Compatibility defines
 #define BATTERY_ADC_HANDLE hadc1
 #define BATTERY_ADC_CHANNEL ADC_CHANNEL_15
+#define DEMODULATOR_ADC_HANDLE hadc1
+#define DEMODULATOR_ADC_CHANNEL ADC_CHANNEL_8
 #define LED_PWM_TIMER_HANDLE htim1
 #define SERIAL_UART huart3
 
-#define HAVE_LSCO
 #define TNC_HAS_LSCO
 #define TNC_HAS_SWO
 #define TNC_HAS_LSE
 // #define TNC_HAS_HSE
 // #define TNC_HAS_MCO
 #define TNC_HAS_BT
+#define TNC_HAS_BAT
+#define TNC_HAS_USB
+
+#define CMD_USB_CDC_CONNECT  (1 << 16)
+#define CMD_USB_CDC_DISCONNECT (2 << 16)
+#define CMD_POWER_BUTTON_DOWN (3 << 16)
+#define CMD_POWER_BUTTON_UP (4 << 16)
+#define CMD_BOOT_BUTTON_DOWN (5 << 16)
+#define CMD_BOOT_BUTTON_UP (6 << 16)
+#define CMD_BT_CONNECT (7 << 16)
+#define CMD_BT_DISCONNECT (8 << 16)
+#define CMD_SET_PTT_SIMPLEX (9 << 16)
+#define CMD_SET_PTT_MULTIPLEX (10 << 16)
+#define CMD_SHUTDOWN (11 << 16)
+#define CMD_USB_CONNECTED (12 << 16)
+#define CMD_USB_CHARGE_ENABLE (13 << 16)
+#define CMD_USB_DISCOVERY_COMPLETE (14 << 16)
+#define CMD_USB_DISCOVERY_ERROR (15 << 16)
+#define CMD_USB_DISCONNECTED (16 << 16)
+
+#define CMD_BT_DEEP_SLEEP (17 << 16)    // disconnected
+#define CMD_BT_ACCESS (18 << 16)        // disconnected
+
+#define CMD_BT_TX (19 << 16)            // connected
+#define CMD_BT_IDLE (20 << 16)          // connected
+
+#define CMD_RUN (21 << 16)
+#define CMD_LPRUN (22 << 16)
+#define CMD_SLEEP (23 << 16)
+#define CMD_STOP (24 << 16)
+
+#define CMD_USB_SUSPEND (25 << 16)
+#define CMD_USB_RESUME (26 << 16)
+
+#define CMD_OVP_ERROR (27 << 16)
+#define CMD_NO_OVP_ERROR (28 << 16)
+
+#define CMD_USB_CHARGER_CONNECTED (29 << 16)
+#define CMD_USB_HOST_CONNECTED (30 << 16)
+#define CMD_USB_HOST_ENUMERATED (31 << 16)
+
+#define CMD_AUDIO_INIT_COMPLETE (32 << 16)
+
+#define CMD_CHECK_BATTERY (33 << 16)
+#define CMD_VREFINT_WATCHDOG (34 << 16)
+#define CMD_RESTORE_SYSCLK (35 << 16)
+
+
+extern int reset_requested;
+extern char serial_number_64[24];
+extern uint8_t mac_address[6];
+extern char error_message[80];
+extern int go_back_to_sleep;
+extern int usb_wake_state;
+extern int charging_enabled;
+extern int reset_button;
+extern int stop_now;
+extern uint16_t mobilinkd_model;
+extern uint16_t mobilinkd_date_code;
+extern uint32_t mobilinkd_serial_number;
+
+#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE_NAME__), __LINE__)
+#define CxxErrorHandler2(x) _Error_Handler2(const_cast<char*>(__FILE_NAME__), __LINE__, x)
 
 #define MORSE_0 0x00
 #define MORSE_1 0x10

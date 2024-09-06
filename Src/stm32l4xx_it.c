@@ -53,6 +53,8 @@
 /* USER CODE BEGIN 0 */
 
 #include "main.h"
+#include "PortInterface.h"
+
 extern osMessageQId ioEventQueueHandle;
 
 void idleInterruptCallback(UART_HandleTypeDef* huart);
@@ -62,6 +64,7 @@ void idleInterruptCallback(UART_HandleTypeDef* huart);
 /* External variables --------------------------------------------------------*/
 extern PCD_HandleTypeDef hpcd_USB_FS;
 extern DMA_HandleTypeDef hdma_adc1;
+extern ADC_HandleTypeDef hadc1;
 extern DMA_HandleTypeDef hdma_dac_ch1;
 extern DMA_HandleTypeDef hdma_i2c1_tx;
 extern DMA_HandleTypeDef hdma_i2c1_rx;
@@ -237,6 +240,16 @@ void EXTI4_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI4_IRQn 0 */
 
+  if (__HAL_GPIO_EXTI_GET_IT(BT_STATE2_Pin) != 0x00u) {
+      if (BT_STATE2_GPIO_Port->IDR & BT_STATE2_Pin) {
+          closeSerial();
+          osMessagePut(ioEventQueueHandle, CMD_BT_DISCONNECT, 0);
+      } else {
+          // Ensure the USART is immediately available on connect.
+          __HAL_RCC_USART3_CLK_ENABLE();
+          osMessagePut(ioEventQueueHandle, CMD_BT_CONNECT, 0);
+      }
+  }
   /* USER CODE END EXTI4_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(BT_STATE2_Pin);
   /* USER CODE BEGIN EXTI4_IRQn 1 */
@@ -315,11 +328,42 @@ void DMA1_Channel7_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles ADC1 global interrupt.
+  */
+void ADC1_IRQHandler(void)
+{
+  /* USER CODE BEGIN ADC1_IRQn 0 */
+  // Handle the analog watchdog here. Clear the bit in the IOEventLoop to limit number of interrupts.
+  if (((ADC1->ISR & ADC_FLAG_AWD1) == ADC_FLAG_AWD1) && ((ADC1->IER & ADC_IT_AWD1) == ADC_IT_AWD1))
+  {
+    uint16_t vrefint_raw = ADC1->JDR1;
+    if (osMessagePut(ioEventQueueHandle, CMD_VREFINT_WATCHDOG | vrefint_raw, 0) != osOK) {
+        // Need to clear the interrupt flag here if the message could not be sent.
+        __HAL_ADC_CLEAR_FLAG(&hadc1, ADC_FLAG_AWD1);
+    }
+  }
+
+  /* USER CODE END ADC1_IRQn 0 */
+  /* USER CODE BEGIN ADC1_IRQn 1 */
+
+  /* USER CODE END ADC1_IRQn 1 */
+}
+
+/**
   * @brief This function handles EXTI line[9:5] interrupts.
   */
 void EXTI9_5_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI9_5_IRQn 0 */
+
+  if (BT_STATE2_GPIO_Port->IDR & BT_STATE2_Pin)
+  {
+    int state = (BT_STATE1_GPIO_Port->IDR & BT_STATE1_Pin ? CMD_BT_DEEP_SLEEP : CMD_BT_ACCESS);
+    osMessagePut(ioEventQueueHandle, state, 0);
+  } else {
+    int state = (BT_STATE1_GPIO_Port->IDR & BT_STATE1_Pin ? CMD_BT_TX : CMD_BT_IDLE);
+    osMessagePut(ioEventQueueHandle, state, 0);
+  }
 
   /* USER CODE END EXTI9_5_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(BT_STATE1_Pin);
@@ -363,11 +407,11 @@ void USART3_IRQHandler(void)
 {
   /* USER CODE BEGIN USART3_IRQn 0 */
 
-    if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE)) {
-        idleInterruptCallback(&huart3);
-        __HAL_UART_CLEAR_FLAG(&huart3, UART_FLAG_IDLE);
-        return;
-    }
+  if (__HAL_UART_GET_FLAG(&huart3, UART_FLAG_IDLE)) {
+      idleInterruptCallback(&huart3);
+      __HAL_UART_CLEAR_FLAG(&huart3, UART_FLAG_IDLE);
+      return;
+  }
 
   /* USER CODE END USART3_IRQn 0 */
   HAL_UART_IRQHandler(&huart3);
