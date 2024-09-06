@@ -19,6 +19,8 @@ extern RTC_HandleTypeDef hrtc;
 extern UART_HandleTypeDef huart3;
 extern CRC_HandleTypeDef hcrc;
 
+namespace mobilinkd { namespace tnc { namespace bm78 {
+
 /**
  * The BM78 module is a dual-mode BT3.0 & BLE5.0 UART modules.  It supports
  * transparent data transfer in one or both modes.  The module documentation
@@ -39,16 +41,6 @@ extern CRC_HandleTypeDef hcrc;
  *  - The BLE5.0 pairing PIN is set to "123456".
  *  - The module power setting is set as low as possible for BLE.
  */
-
-void bm78_reset()
-{
-  // Must use HAL_Delay() here as osDelay() may not be available.
-  mobilinkd::tnc::gpio::BT_RESET::off();
-  DELAY(1);
-  mobilinkd::tnc::gpio::BT_RESET::on();
-}
-
-namespace mobilinkd { namespace tnc { namespace bm78 {
 
 /**
  * Enter BM78 EEPROM programming mode.
@@ -474,6 +466,14 @@ bool set_reliable()
 }
 
 }}} // mobilinkd::tnc::bm78
+
+void bm78_reset()
+{
+  // Must use HAL_Delay() here as osDelay() may not be available.
+  mobilinkd::tnc::gpio::BT_RESET::off();
+  DELAY(1);
+  mobilinkd::tnc::gpio::BT_RESET::on();
+}
 
 void bm78_wait_until_ready()
 {
