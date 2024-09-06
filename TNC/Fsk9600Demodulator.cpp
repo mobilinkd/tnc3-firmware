@@ -124,7 +124,7 @@ float Fsk9600Demodulator::readTwist()
 
 uint32_t Fsk9600Demodulator::readBatteryLevel()
 {
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_BAT
     return read_battery_level();
 #else
     return 0;
