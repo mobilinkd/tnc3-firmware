@@ -14,6 +14,7 @@
 #include "Goertzel.h"
 #include "DCD.h"
 #include "ModulatorTask.hpp"
+#include "power.h"
 
 #include "arm_math.h"
 #include "stm32l4xx_hal.h"
@@ -66,8 +67,6 @@ extern "C" void startAudioInputTask(void const*) {
 
     adcPool.init();
 
-    uint8_t adcState = mobilinkd::tnc::audio::IDLE;
-
     while (true) {
         osEvent event = osMessageGet(audioInputQueueHandle, osWaitForever);
         if (event.status != osEventMessage) continue;
@@ -76,7 +75,6 @@ extern "C" void startAudioInputTask(void const*) {
         switch (adcState) {
         case STOPPED:
             TNC_DEBUG("STOPPED");
-            // stop();
             break;
         case DEMODULATOR:
             INFO("DEMODULATOR");
@@ -137,6 +135,7 @@ volatile uint32_t adc_block_size = ADC_BUFFER_SIZE;          // Based on demodul
 volatile uint32_t dma_transfer_size = adc_block_size * 2;    // Transfer size in bytes.
 volatile uint32_t half_buffer_size = adc_block_size / 2;     // Transfer size in words / 2.
 adc_pool_type adcPool;
+uint8_t adcState = mobilinkd::tnc::audio::IDLE;
 
 void set_adc_block_size(uint32_t block_size)
 {
@@ -395,36 +394,31 @@ void pollInputTwist()
 
     const uint32_t AVG_SAMPLES = 100;
 
-    IDemodulator::startADC(3029, TWIST_SAMPLE_SIZE);
+    IDemodulator::startADC(1817, TWIST_SAMPLE_SIZE);
 
     for (uint32_t i = 0; i != AVG_SAMPLES; ++i) {
 
-      uint32_t count = 0;
-      while (count < TWIST_SAMPLE_SIZE) {
+        osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
+        if (evt.status != osEventMessage) continue;
 
-          osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
-          if (evt.status != osEventMessage) continue;
+        auto block = (adc_pool_type::chunk_type*) evt.value.p;
+        uint16_t* data =  (uint16_t*) block->buffer;
+        gf1200(data, TWIST_SAMPLE_SIZE);
+        gf2200(data, TWIST_SAMPLE_SIZE);
 
-          count += ADC_BUFFER_SIZE;
+        adcPool.deallocate(block);
 
-          auto block = (adc_pool_type::chunk_type*) evt.value.p;
-          uint16_t* data =  (uint16_t*) block->buffer;
-          gf1200(data, ADC_BUFFER_SIZE);
-          gf2200(data, ADC_BUFFER_SIZE);
 
-          adcPool.deallocate(block);
-      }
+        g1200 += 10.0 * log10(gf1200);
+        g2200 += 10.0 * log10(gf2200);
 
-      g1200 += 10.0 * log10(gf1200);
-      g2200 += 10.0 * log10(gf2200);
-
-      gf1200.reset();
-      gf2200.reset();
+        gf1200.reset();
+        gf2200.reset();
     }
 
     IDemodulator::stopADC();
 
-    TNC_DEBUG("pollInputTwist: MARK=%d, SPACE=%d (x100)",
+    INFO("pollInputTwist: MARK=%d, SPACE=%d (x100)",
       int(g1200 * 100.0 / AVG_SAMPLES), int(g2200 * 100.0 / AVG_SAMPLES));
 
     int16_t g1200i = int16_t(g1200 * 256 / AVG_SAMPLES);
@@ -439,7 +433,7 @@ void pollInputTwist()
 
     ioport->write(buffer, 5, 6, 10);
 
-    TNC_DEBUG("exit pollInputTwist");
+    INFO("exit pollInputTwist");
 }
 
 void streamAmplifiedInputLevels() {
@@ -477,7 +471,7 @@ void pollAmplifiedInputLevel() {
 #ifndef NUCLEOTNC
 void pollBatteryLevel()
 {
-    auto vbat = getDemodulator()->readBatteryLevel();
+    auto vbat = read_battery_level();
 
     uint8_t data[3];
     data[0] = kiss::hardware::GET_BATTERY_LEVEL;
