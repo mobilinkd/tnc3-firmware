@@ -14,7 +14,7 @@ NewDecoder::optional_result_type NewDecoder::operator()(bool input, bool pll_loc
     auto status = process(input, pll_lock);
     if (status)
     {
-        INFO("HDLC decode status = 0x%02x, bits = %d", int(status), int(report_bits));
+        // INFO("HDLC decode status = 0x%02x, bits = %d", int(status), int(report_bits));
         if (can_pass(status) and packet->size() > 2)
         {
             result = packet;
