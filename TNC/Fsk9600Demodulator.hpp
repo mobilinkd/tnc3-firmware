@@ -61,6 +61,7 @@ struct Fsk9600Demodulator : IDemodulator
         demod_filter.init(bpf);
         passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
+        HAL_ADC_Stop(&DEMODULATOR_ADC_HANDLE);
         hadc1.Init.OversamplingMode = ENABLE;
         if (HAL_ADC_Init(&hadc1) != HAL_OK)
         {

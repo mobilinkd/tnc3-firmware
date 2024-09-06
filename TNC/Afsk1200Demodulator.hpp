@@ -62,7 +62,6 @@ struct Afsk1200Demodulator : IDemodulator
 
     void start() override
     {
-        INFO("Setting 48MHz SysClock.");
         SysClock48();
 
         // rx_twist is 6dB for discriminator input and 0db for de-emphasized input.
@@ -79,8 +78,9 @@ struct Afsk1200Demodulator : IDemodulator
         demod_filter.init(bpf_coeffs);
         passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
+        HAL_ADC_Stop(&DEMODULATOR_ADC_HANDLE);
         hadc1.Init.OversamplingMode = ENABLE;
-        if (HAL_ADC_Init(&hadc1) != HAL_OK)
+        if (HAL_ADC_Init(&DEMODULATOR_ADC_HANDLE) != HAL_OK)
         {
             CxxErrorHandler();
         }

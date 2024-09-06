@@ -54,6 +54,7 @@ void M17Demodulator::start()
     scale = 1.f / 32768.f * polarity;
     audio::virtual_ground = (VREF + 1) / 2;
 
+    HAL_ADC_Stop(&DEMODULATOR_ADC_HANDLE);
     hadc1.Init.OversamplingMode = ENABLE;
     if (HAL_ADC_Init(&hadc1) != HAL_OK)
     {
