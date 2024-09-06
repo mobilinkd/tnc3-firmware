@@ -76,3 +76,34 @@ Firmware can be installed via the on-board ST/LINK port or via USB DFU.
 
  7. When that is complete, the DFU device will disappear and the serial port
     device will re-appear.
+
+# Development Notes
+
+## IWDG
+
+The independent watchdog is used to prevent the TNC from locking up in an
+undefined state. The watchdog ensures that:
+
+ 1. The event loop is called on a regular interval.
+ 2. The packet buffer pool is not exhausted.
+ 3. The modulator is not stuck on.
+
+The watchdog is updated in the event loop at least once every 100ms as long
+as the buffer pool is not exhausted and PTT is not held.
+
+When PTT is held, the modulator holding PTT is responsible for updating the
+watchdog.
+
+## FreeRTOS Settings
+
+### Tickless Idle
+
+It is vital that `Tickless Idle` is not enabled. This feature seems to have
+serious problems with changes to the sysclock. And the TNC3 firmware changes
+the sysclock between 16MHz (startup), 2MHz (Disconnected, on battery), 48MHz
+(USB, or BT connected), and 72MHz (if needed by modem).
+
+The symptoms that occurs when tickless idle is enabled is that certain
+interrupts are no longer serviced. This prevents the USB subsystem from
+working, the RGB LED from being updated, and, at times, the event loop from
+being serviced.
