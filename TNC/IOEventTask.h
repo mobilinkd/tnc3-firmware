@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -13,7 +13,8 @@ void startIOEventTask(void const* argument);
 
 extern osMessageQId ioEventQueueHandle;
 #ifndef NUCLEOTNC
-extern volatile int cdc_connected;
+typedef enum ConnectionState {DISCONNECTED, USB_CONNECTED, BT_CONNECTED} ConnectionStateType;
+extern volatile ConnectionStateType connectionState;
 #endif
 
 #ifdef __cplusplus
