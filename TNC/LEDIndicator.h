@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -7,6 +7,10 @@
 extern "C" {
 #endif
 
+void indicate_ovp_error();
+void indicate_battery_low();
+void reset_indicator();
+
 void indicate_turning_on(void);
 void indicate_on(void);
 void indicate_initializing_ble(void);
@@ -14,6 +18,7 @@ void indicate_turning_off(void);
 void indicate_waiting_to_connect(void);
 void indicate_connected_via_usb(void);
 void indicate_connected_via_ble(void);
+void indicate_vdd_error(void);
 void tx_on(void);
 void tx_off(void);
 void rx_on(void);

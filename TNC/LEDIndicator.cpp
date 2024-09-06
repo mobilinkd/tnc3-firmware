@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "LEDIndicator.h"
@@ -11,6 +11,8 @@
 
 #include <functional>
 #include <atomic>
+#include <array>
+#include <tuple>
 
 #include <stdint.h>
 
@@ -19,6 +21,57 @@ extern TIM_HandleTypeDef LED_PWM_TIMER_HANDLE;
 namespace mobilinkd {
 namespace tnc {
 
+#ifndef NUCLEOTNC
+    constexpr uint32_t BLUE_CHANNEL = TIM_CHANNEL_1;
+    constexpr uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
+    constexpr uint32_t RED_CHANNEL = TIM_CHANNEL_3;
+#else
+    constexpr uint32_t BLUE_CHANNEL = TIM_CHANNEL_3;   // YELLOW...
+    constexpr uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
+    constexpr uint32_t RED_CHANNEL = TIM_CHANNEL_1;
+#endif
+
+using LedAction = std::tuple<int16_t, int16_t, int16_t, int16_t>; // increment (RGB), count in 10ms units
+
+constexpr std::array<LedAction, 2> TurningOnIndication {
+    LedAction{12, 6, 0, 100},
+    LedAction{0, 0, 0, 1000}
+};
+
+constexpr std::array<LedAction, 6> InitializingIndication {
+    LedAction{12, 6, 0, 100},
+    LedAction{-1200, -600, 0, 1},
+    LedAction{24, 12, 0, 50},
+    LedAction{-1200, -600, 0, 1},
+    LedAction{48, 24, 0, 25},
+    LedAction{0, 0, 0, 1000}
+};
+
+constexpr std::array<LedAction, 3> OVPErrorIndication {
+    LedAction{400, 0, 0, 5},
+    LedAction{-2000, 0, 0, 1},
+    LedAction{0, 0, 0, 5}
+};
+
+constexpr std::array<LedAction, 11> BatteryLowIndication {
+    LedAction{50, 12, 0, 40},
+    LedAction{-2000, -480, 0, 1},
+    LedAction{24, 6, 0, 48},
+    LedAction{-1104, -288, 0, 1},
+    LedAction{12, 3, 0, 58},
+    LedAction{-696, -174, 0, 1},
+    LedAction{8, 2, 0, 69},
+    LedAction{-552, -138, 0, 1},
+    LedAction{4, 1, 0, 83},
+    LedAction{-332, -83, 0, 1},
+    LedAction{0, 0, 0, -1},
+};
+
+constexpr std::array<LedAction, 3> TurningOffIndication {
+    LedAction{2000, 800, 0, 1},
+    LedAction{-10, -4, 0, 200},
+    LedAction{0, 0, 0, -1},
+};
 
 /**
  * No connection shows a low, slow breathing. Each breath inhale takes
@@ -28,78 +81,18 @@ namespace tnc {
  * Each interrupt occurs at 10ms intervals.
  *
  * The sequence is:
- *  - ramp up 300ms(30)
- *  - hold 400ms (40)
- *  - ramp down 300ms (30)
- *  - wait 9000ms (900)
+ *  - ramp up 500ms(50)
+ *  - hold 500ms (50)
+ *  - ramp down 500ms (50)
+ *  - wait 9000ms (850)
  *
  *
  */
-struct NoConnection
-{
-    enum STATE
-    {
-        RAMP_UP_1, WAIT_1, RAMP_DN_1, WAIT_2
-    };
-
-    int count { 0 };
-    int state { RAMP_UP_1 };
-
-    int operator()()
-    {
-        int result;
-        switch (state) {
-        case RAMP_UP_1:
-            result = count * 40;
-            if (count == 49)
-            {
-                count = 0;
-                state = WAIT_1;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case WAIT_1:
-            result = 2000;
-            if (count == 49)
-            {
-                state = RAMP_DN_1;
-                count = 49;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_1:
-            result = count * 40;
-            if (count == 0)
-            {
-                count = 0;
-                state = WAIT_2;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_2:
-            result = 0;
-            if (count == 849)
-            {
-                state = RAMP_UP_1;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        }
-        return result;
-    }
+constexpr std::array<LedAction, 4> NoConnectionIndication {
+    LedAction{0, 0, 10, 65},
+    LedAction{0, 0, 0, 20},
+    LedAction{0, 0, -10, 65},
+    LedAction{0, 0, 0, 850}
 };
 
 /**
@@ -118,94 +111,13 @@ struct NoConnection
  *
  *
  */
-struct BluetoothConnection
-{
-    enum STATE
-    {
-        RAMP_UP_1, RAMP_DN_1, WAIT_1, RAMP_UP_2, RAMP_DN_2, WAIT_2
-    };
-
-    int count { 0 };
-    int pulse { 0 };
-    int state { RAMP_UP_1 };
-    int ramp[10] =
-        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
-
-    int operator()()
-    {
-        int result;
-        switch (state) {
-        case RAMP_UP_1:
-            result = ramp[count] / 2;
-            if (count == 9)
-            {
-                state = RAMP_DN_1;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_1:
-            result = ramp[count] / 2;
-            if (count == 0)
-            {
-                state = WAIT_1;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_1:
-            result = 0;
-            if (count == 19)
-            {
-                state = RAMP_UP_2;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_UP_2:
-            result = ramp[count] / 2;
-            if (count == 9)
-            {
-                state = RAMP_DN_2;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_2:
-            result = ramp[count] / 2;
-            if (count == 0)
-            {
-                state = WAIT_2;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_2:
-            result = 0;
-            if (count == 439)
-            {
-                state = RAMP_UP_1;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        }
-        return result;
-    }
+constexpr std::array<LedAction, 6> BluetoothConnectionIndication {
+    LedAction{0, 0, 200, 10},
+    LedAction{0, 0, -200, 10},
+    LedAction{0, 0, 0, 20},
+    LedAction{0, 0, 200, 10},
+    LedAction{0, 0, -200, 10},
+    LedAction{0, 0, 0, 440}
 };
 
 /**
@@ -228,322 +140,176 @@ struct BluetoothConnection
  *
  *
  */
-struct USBConnection
-{
-    enum STATE
-    {
-        RAMP_UP_1,
-        RAMP_DN_1,
-        WAIT_1,
-        RAMP_UP_2,
-        RAMP_DN_2,
-        WAIT_2,
-        RAMP_UP_3,
-        RAMP_DN_3,
-        WAIT_3
-    };
-
-    int count { 0 };
-    int pulse { 0 };
-    int state { RAMP_UP_1 };
-    int ramp[10] =
-        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
-
-    int operator()()
-    {
-        int result;
-        switch (state) {
-        case RAMP_UP_1:
-            result = ramp[count];
-            if (count == 9)
-            {
-                state = RAMP_DN_1;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_1:
-            result = ramp[count];
-            if (count == 0)
-            {
-                state = WAIT_1;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_1:
-            result = 0;
-            if (count == 39)
-            {
-                state = RAMP_UP_2;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_UP_2:
-            result = ramp[count];
-            if (count == 9)
-            {
-                state = RAMP_DN_2;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_2:
-            result = ramp[count];
-            if (count == 0)
-            {
-                state = WAIT_2;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_2:
-            result = 0;
-            if (count == 19)
-            {
-                state = RAMP_UP_3;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_UP_3:
-            result = ramp[count];
-            if (count == 9)
-            {
-                state = RAMP_DN_3;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        case RAMP_DN_3:
-            result = ramp[count];
-            if (count == 0)
-            {
-                state = WAIT_3;
-            }
-            else
-            {
-                --count;
-            }
-            break;
-        case WAIT_3:
-            result = 0;
-            if (count == 379)
-            {
-                state = RAMP_UP_1;
-                count = 0;
-            }
-            else
-            {
-                ++count;
-            }
-            break;
-        }
-        return result;
-    }
+constexpr std::array<LedAction, 9> USBConnectionIndication {
+    LedAction{0, 0, 200, 10},
+    LedAction{0, 0, -200, 10},
+    LedAction{0, 0, 0, 20},
+    LedAction{0, 0, 200, 10},
+    LedAction{0, 0, -200, 10},
+    LedAction{0, 0, 0, 20},
+    LedAction{0, 0, 200, 10},
+    LedAction{0, 0, -200, 10},
+    LedAction{0, 0, 0, 400}
 };
 
-struct Flash
-{
-    enum class STATE
-    {
-        RAMP_UP, ON, RAMP_DN, OFF
-    };
+constexpr std::array<LedAction, 3> VDDErrorIndication {
+    LedAction{0, 0, 400, 5},
+    LedAction{0, 0, -2000, 1},
+    LedAction{0, 0, 0, 4},
+};
 
-    typedef std::atomic<STATE> state_type;
-    typedef std::function<int(void)> function_type;
+class RGBIndicator {
+    const LedAction* actions = nullptr;
+    size_t action_steps = 0;
+    size_t step = 0;
+    bool red_state = false;
+    bool green_state = false;
+    bool blue_state = false;
+    uint16_t red = 0;
+    uint16_t green = 0;
+    uint16_t blue = 0;
+    int32_t time_step;
 
-    constexpr static const int ramp[10] =
-        { 1564, 3090, 4540, 5878, 7071, 8090, 8910, 9510, 9877, 9999 };
+public:
+    void reset() {
+        HAL_TIM_Base_Stop_IT(&LED_PWM_TIMER_HANDLE);
+        HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, RED_CHANNEL);
+        HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, GREEN_CHANNEL);
+        HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
+        step = 0;
+        red_state = false;
+        green_state = false;
+        blue_state = false;
+        red = 0;
+        green = 0;
+        blue = 0;
+        time_step = 0;
+    }
+
+    template <size_t N>
+    void start(const std::array<LedAction, N>& indication) {
+        reset();
+        actions = &indication.front();
+        action_steps = N;
+        HAL_TIM_Base_Start_IT(&LED_PWM_TIMER_HANDLE);
+    }
+
+    void interrupt_callback() {
+        if (std::get<3>(actions[step]) == -1) {
+            reset();
+        }
+        red += std::get<0>(actions[step]);
+        green += std::get<1>(actions[step]);
+        blue += std::get<2>(actions[step]);
+        time_step += 1;
+        if (time_step == std::get<3>(actions[step])) {
+            step += 1;
+            time_step = 0;
+            if (step == action_steps) {
+                step = 0;
+            }
+        }
+
+        // CCR registers must match the TIM_CHANNEL used for each LED in Flash.
 #ifndef NUCLEOTNC
-    constexpr static const uint32_t BLUE_CHANNEL = TIM_CHANNEL_1;
-    constexpr static const uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
-    constexpr static const uint32_t RED_CHANNEL = TIM_CHANNEL_3;
+        LED_PWM_TIMER_HANDLE.Instance->CCR1 = blue;
+        LED_PWM_TIMER_HANDLE.Instance->CCR2 = green;
+        LED_PWM_TIMER_HANDLE.Instance->CCR3 = red;
 #else
-    constexpr static const uint32_t BLUE_CHANNEL = TIM_CHANNEL_3;   // YELLOW...
-    constexpr static const uint32_t GREEN_CHANNEL = TIM_CHANNEL_2;
-    constexpr static const uint32_t RED_CHANNEL = TIM_CHANNEL_1;
+        LED_PWM_TIMER_HANDLE.Instance->CCR1 = red;
+        LED_PWM_TIMER_HANDLE.Instance->CCR2 = green;
+        LED_PWM_TIMER_HANDLE.Instance->CCR3 = blue; // YELLOW
 #endif
 
-    int gr_count { 9 };
-    state_type gr_state { STATE::OFF };
-    int rd_count { 9 };
-    state_type rd_state { STATE::OFF };
-
-    NoConnection noConnection;
-    BluetoothConnection btConnection;
-    USBConnection usbConnection;
-
-    function_type blue_func { noConnection };
-
-    int blue()
-    {
-        return blue_func();
-    }
-
-    int plain(state_type& state, int& counter, uint32_t channel)
-    {
-        int result = 0;
-        switch (state) {
-        case STATE::RAMP_UP:
-            result = ramp[rd_count] / 3;
-            if (counter == 9)
-            {
-                state = STATE::ON;
-            }
-            else
-            {
-                ++counter;
-            }
-            break;
-        case STATE::ON:
-            result = ramp[counter] / 3;
-            break;
-        case STATE::RAMP_DN:
-            result = ramp[counter] / 3;
-            if (counter == 0)
-            {
-                state = STATE::OFF;
-                HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, channel);
-            }
-            else
-            {
-                --counter;
-            }
-            break;
-        case STATE::OFF:
-            result = 0;
-            break;
-        }
-        return result;
-    }
-
-
-    int green()
-    {
-        return plain(gr_state, gr_count, GREEN_CHANNEL);
-    }
-
-    int red()
-    {
-        return plain(rd_state, rd_count, RED_CHANNEL);
-    }
-
-    void dcd_on()
-    {
-        auto expected = STATE::OFF;
-        if (gr_state.compare_exchange_strong(expected, STATE::RAMP_UP))
-        {
-            HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, GREEN_CHANNEL);
-        }
-        else
-        {
-            gr_state = STATE::RAMP_UP;
-        }
-
-    }
-    void dcd_off()
-    {
-
-        if (gr_state != STATE::OFF)
-            gr_state = STATE::RAMP_DN;
-
-    }
-
-    void tx_on()
-    {
-        auto expected = STATE::OFF;
-        if (rd_state.compare_exchange_strong(expected, STATE::RAMP_UP))
-        {
-            // PWM Channel must match
+        if (red && !red_state) {
+            red_state = true;
             HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, RED_CHANNEL);
         }
-        else
-        {
-            rd_state = STATE::RAMP_UP;
+
+        if (green && !green_state) {
+            green_state = true;
+            HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, GREEN_CHANNEL);
+        }
+
+        if (blue && !blue_state) {
+            blue_state = true;
+            HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
         }
     }
 
-    void tx_off()
-    {
-
-        if (rd_state != STATE::OFF)
-            rd_state = STATE::RAMP_DN;
-
+    void set_red(uint16_t value) {
+        red = value;
+        if (!value) {
+            HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, RED_CHANNEL);
+            red_state = false;
+        }
     }
 
-    void disconnect()
-    {
-        blue_func = noConnection;
-        HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
+    void set_green(uint16_t value) {
+        green = value;
+        if (!value) {
+            HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, GREEN_CHANNEL);
+            green_state = false;
+        }
     }
 
-    void usb()
-    {
-        blue_func = usbConnection;
-        HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
-    }
-
-    void bt()
-    {
-        blue_func = btConnection;
-        HAL_TIM_PWM_Start(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
+    void set_blue(uint16_t value) {
+        blue = value;
+        if (!value) {
+            HAL_TIM_PWM_Stop(&LED_PWM_TIMER_HANDLE, BLUE_CHANNEL);
+            blue_state = false;
+        }
     }
 };
 
-Flash& flash()
-{
-    static Flash blinker;
-    return blinker;
-}
-
+static RGBIndicator indicator;
 
 }
 } // mobilinkd::tnc
 
 void LED_TIMER_PeriodElapsedCallback()
 {
-    using mobilinkd::tnc::flash;
-
-    // CCR registers must match the TIM_CHANNEL used for each LED in Flash.
-#ifndef NUCLEOTNC
-    LED_PWM_TIMER_HANDLE.Instance->CCR1 = flash().blue();
-    LED_PWM_TIMER_HANDLE.Instance->CCR2 = flash().green();
-    LED_PWM_TIMER_HANDLE.Instance->CCR3 = flash().red();
-#else
-    LED_PWM_TIMER_HANDLE.Instance->CCR1 = flash().red();
-    LED_PWM_TIMER_HANDLE.Instance->CCR2 = flash().green();
-    LED_PWM_TIMER_HANDLE.Instance->CCR3 = flash().blue(); // YELLOW
-#endif
+    mobilinkd::tnc::indicator.interrupt_callback();
 }
 
 void indicate_turning_on(void)
 {
-    HAL_TIM_Base_Start_IT(&LED_PWM_TIMER_HANDLE);
-    tx_on();
-    rx_on();
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::TurningOnIndication);
+}
+
+void indicate_initializing(void)
+{
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::InitializingIndication);
+}
+
+void indicate_ovp_error(void)
+{
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::OVPErrorIndication);
+}
+
+void indicate_battery_low(void)
+{
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::BatteryLowIndication);
+}
+
+void indicate_turning_off()
+{
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::TurningOffIndication);
+}
+
+void reset_indicator()
+{
+    mobilinkd::tnc::indicator.reset();
 }
 
 void indicate_initializing_ble(void)
 {
     tx_off();
+}
+
+void indicate_vdd_error(void)
+{
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::VDDErrorIndication);
 }
 
 void indicate_on()
@@ -554,37 +320,37 @@ void indicate_on()
 
 void indicate_waiting_to_connect(void)
 {
-    mobilinkd::tnc::flash().disconnect();
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::NoConnectionIndication);
 }
 
 void indicate_connected_via_usb(void)
 {
-    mobilinkd::tnc::flash().usb();
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::USBConnectionIndication);
 }
 
 void indicate_connected_via_ble(void)
 {
-    mobilinkd::tnc::flash().bt();
+    mobilinkd::tnc::indicator.start(mobilinkd::tnc::BluetoothConnectionIndication);
 }
 
 void tx_on(void)
 {
-    mobilinkd::tnc::flash().tx_on();
+    mobilinkd::tnc::indicator.set_red(1000);
 }
 
 void tx_off(void)
 {
-    mobilinkd::tnc::flash().tx_off();
+    mobilinkd::tnc::indicator.set_red(0);
 }
 
 // DCD is active.
 void rx_on()
 {
-    mobilinkd::tnc::flash().dcd_on();
+    mobilinkd::tnc::indicator.set_green(1000);
 }
 
 // DCD is active.
 void rx_off()
 {
-    mobilinkd::tnc::flash().dcd_off();
+    mobilinkd::tnc::indicator.set_green(0);
 }
