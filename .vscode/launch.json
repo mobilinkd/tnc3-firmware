@@ -47,7 +47,7 @@
             "interface": "swd",
             "serialNumber": "",        //Set ST-Link ID if you use multiple at the same time
             "runToEntryPoint": "main",
-            "svdFile": "${config:STM32VSCodeExtension.cubeCLT.path}/STMicroelectronics_CMSIS_SVD/STM32L4P5.svd",
+            "svdFile": "${workspaceFolder}/STM32L4x3.svd",
             "v1": false,               //Change it depending on ST Link version
             "serverpath": "/usr/bin/openocd",
             "stm32cubeprogrammer":"${config:STM32VSCodeExtension.cubeCLT.path}/STM32CubeProgrammer/bin",
@@ -89,7 +89,7 @@
             "interface": "swd",
             "serialNumber": "",        //Set ST-Link ID if you use multiple at the same time
             "runToEntryPoint": "main",
-            "svdFile": "${config:STM32VSCodeExtension.cubeCLT.path}/STMicroelectronics_CMSIS_SVD/STM32L4P5.svd",
+            "svdFile": "${workspaceFolder}/STM32L4x3.svd",
             "v1": false,               //Change it depending on ST Link version
             "serverpath": "/usr/bin/openocd",
             "stm32cubeprogrammer":"${config:STM32VSCodeExtension.cubeCLT.path}/STM32CubeProgrammer/bin",
