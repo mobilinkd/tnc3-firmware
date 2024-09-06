@@ -1,6 +1,7 @@
-// Copyright 2018-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2018-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
+#include "main.h"
 #include "AudioInput.hpp"
 #include "Afsk1200Demodulator.hpp"
 #include "Fsk9600Demodulator.hpp"
@@ -14,7 +15,6 @@
 #include "Goertzel.h"
 #include "DCD.h"
 #include "ModulatorTask.hpp"
-#include "power.h"
 
 #include "arm_math.h"
 #include "stm32l4xx_hal.h"
@@ -67,6 +67,8 @@ extern "C" void startAudioInputTask(void const*) {
 
     adcPool.init();
 
+    uint8_t adcState = mobilinkd::tnc::audio::IDLE;
+
     while (true) {
         osEvent event = osMessageGet(audioInputQueueHandle, osWaitForever);
         if (event.status != osEventMessage) continue;
@@ -88,7 +90,7 @@ extern "C" void startAudioInputTask(void const*) {
             TNC_DEBUG("POLL_AMPLIFIED_INPUT_LEVEL");
             pollAmplifiedInputLevel();
             break;
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_BAT
         case POLL_BATTERY_LEVEL:
             TNC_DEBUG("POLL_BATTERY_LEVEL");
             pollBatteryLevel();
@@ -135,7 +137,6 @@ volatile uint32_t adc_block_size = ADC_BUFFER_SIZE;          // Based on demodul
 volatile uint32_t dma_transfer_size = adc_block_size * 2;    // Transfer size in bytes.
 volatile uint32_t half_buffer_size = adc_block_size / 2;     // Transfer size in words / 2.
 adc_pool_type adcPool;
-uint8_t adcState = mobilinkd::tnc::audio::IDLE;
 
 void set_adc_block_size(uint32_t block_size)
 {
@@ -262,8 +263,9 @@ void streamLevels(uint8_t cmd) {
         uint16_t vmax = std::numeric_limits<uint16_t>::min();
 
         for (size_t i = 0; i != BLOCKS; ++i) {
-            osEvent evt = osMessageGet(adcInputQueueHandle, osWaitForever);
-            if (evt.status != osEventMessage) continue;
+            // Make sure we can break out on disconnect.
+            osEvent evt = osMessageGet(adcInputQueueHandle, 100);
+            if (evt.status != osEventMessage) break;
 
             count += demodulator->size();
 
@@ -473,7 +475,7 @@ void pollAmplifiedInputLevel() {
     TNC_DEBUG("exit pollAmplifiedInputLevel");
 }
 
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_BAT
 void pollBatteryLevel()
 {
     auto vbat = read_battery_level();
