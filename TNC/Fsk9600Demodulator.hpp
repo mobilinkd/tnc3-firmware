@@ -28,7 +28,7 @@ struct Descrambler
 
 struct Fsk9600Demodulator : IDemodulator
 {
-    static constexpr size_t FILTER_TAP_NUM = 132;
+    static constexpr size_t FILTER_TAP_NUM = 92;
     static constexpr uint32_t ADC_BLOCK_SIZE = 384;
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
 
@@ -61,12 +61,16 @@ struct Fsk9600Demodulator : IDemodulator
         demod_filter.init(bpf);
         passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
+#ifndef TNC_HAS_ADC2
         HAL_ADC_Stop(&DEMODULATOR_ADC_HANDLE);
         hadc1.Init.OversamplingMode = ENABLE;
         if (HAL_ADC_Init(&hadc1) != HAL_OK)
         {
             CxxErrorHandler();
         }
+#endif
+
+        audio::setVirtualGround(8192);
 
         ADC_ChannelConfTypeDef sConfig;
 
@@ -76,7 +80,7 @@ struct Fsk9600Demodulator : IDemodulator
         sConfig.SamplingTime = ADC_SAMPLETIME_6CYCLES_5;
         sConfig.OffsetNumber = ADC_OFFSET_NONE;
         sConfig.Offset = 0;
-        if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        if (HAL_ADC_ConfigChannel(&DEMODULATOR_ADC_HANDLE, &sConfig) != HAL_OK)
             CxxErrorHandler();
 
         startADC(374, ADC_BLOCK_SIZE);
