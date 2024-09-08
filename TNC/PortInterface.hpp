@@ -3,14 +3,16 @@
 
 #pragma once
 
-#include "cmsis_os.h"
-
 #include "HdlcFrame.hpp"
 #include "PortInterface.h"
 
+#include "cmsis_os.h"
+
+#include "usbd_cdc_if.h"
+
 namespace mobilinkd { namespace tnc {
 
-const uint32_t TX_BUFFER_SIZE = 64;     // Cannot be larger that USB_FS_MAX_PACKET_SIZE.
+const uint32_t TX_BUFFER_SIZE = APP_TX_DATA_SIZE;     // Cannot be larger that USB_FS_MAX_PACKET_SIZE.
 extern uint8_t TxBuffer[TX_BUFFER_SIZE];
 
 /**

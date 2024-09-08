@@ -1,9 +1,9 @@
-// Copyright 2016 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2016-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "PortInterface.hpp"
 #include "SerialPort.hpp"
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_USB
 #include "UsbPort.hpp"
 #endif
 #include "NullPort.hpp"
@@ -14,34 +14,34 @@
 namespace mobilinkd { namespace tnc {
 
 uint8_t TxBuffer[TX_BUFFER_SIZE];
-PortInterface* ioport{0};
+PortInterface* ioport = nullptr;
 
 
 int write(hdlc::IoFrame* frame, uint32_t timeout)
 {
-  if (mobilinkd::tnc::ioport == 0) return -1;
+    if (mobilinkd::tnc::ioport == nullptr) return -1;
 
-     return mobilinkd::tnc::ioport->write(frame, timeout);
+    return mobilinkd::tnc::ioport->write(frame, timeout);
 }
 
 }} // mobilinkd::tnc
 
 int writeLog(const uint8_t* data, uint32_t size, uint32_t timeout)
 {
-  if (mobilinkd::tnc::ioport == 0) return -1;
-  return mobilinkd::tnc::ioport->write(data, size, 7, timeout);
+    if (mobilinkd::tnc::ioport == nullptr) return -1;
+    return mobilinkd::tnc::ioport->write(data, size, 7, timeout);
 }
 
 int writeTNC(const uint8_t* data, uint32_t size, uint32_t timeout)
 {
-  if (mobilinkd::tnc::ioport == 0) return -1;
-  return mobilinkd::tnc::ioport->write(data, size, timeout);
+    if (mobilinkd::tnc::ioport == nullptr) return -1;
+    return mobilinkd::tnc::ioport->write(data, size, timeout);
 }
 
 int printTNC(const char* zstring, uint32_t timeout)
 {
-  if (mobilinkd::tnc::ioport == 0) return -1;
-  return mobilinkd::tnc::ioport->write((uint8_t*) zstring, strlen(zstring), timeout);
+    if (mobilinkd::tnc::ioport == nullptr) return -1;
+    return mobilinkd::tnc::ioport->write((uint8_t*) zstring, strlen(zstring), timeout);
 }
 
 void init_ioport()
@@ -50,7 +50,7 @@ void init_ioport()
     initNull();
 }
 
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_USB
 void initCDC()
 {
     mobilinkd::tnc::getUsbPort()->init();
@@ -63,8 +63,8 @@ int openCDC()
     tmp->open();
     if (mobilinkd::tnc::ioport != tmp and tmp->isOpen())
     {
-       std::swap(tmp, mobilinkd::tnc::ioport);
-       if (tmp) tmp->close();
+        std::swap(tmp, mobilinkd::tnc::ioport);
+        if (tmp) tmp->close();
         return true;
     }
     return mobilinkd::tnc::ioport == tmp;
@@ -72,7 +72,7 @@ int openCDC()
 
 void closeCDC()
 {
-    mobilinkd::tnc::getUsbPort()->close();
+    openNull();
 }
 
 int writeCDC(const uint8_t* data, uint32_t size, uint32_t timeout)
@@ -104,7 +104,7 @@ int openSerial()
 
 void closeSerial()
 {
-    mobilinkd::tnc::getSerialPort()->close();
+    openNull();
 }
 
 int writeSerial(const uint8_t* data, uint32_t size, uint32_t timeout)
@@ -122,7 +122,7 @@ int openNull()
     auto tmp = mobilinkd::tnc::getNullPort();
     if (mobilinkd::tnc::ioport != tmp and tmp->isOpen())
     {
-       if (mobilinkd::tnc::ioport) mobilinkd::tnc::ioport->close();
+        if (mobilinkd::tnc::ioport) mobilinkd::tnc::ioport->close();
         mobilinkd::tnc::ioport = tmp;
         return true;
     }
