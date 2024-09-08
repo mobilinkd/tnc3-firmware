@@ -713,7 +713,7 @@ void print_startup_banner()
     INFO("    Device UID: %08lX %08lX %08lX", uid[0], uid[1], uid[2]);
     INFO("   MAC Address: %02X:%02X:%02X:%02X:%02X:%02X",
         mac_address[0], mac_address[1], mac_address[2],
-        mac_address[3], mac_address[4], mac_address[5])
+        mac_address[3], mac_address[4], mac_address[5]);
 
     uint8_t* version_ptr = (uint8_t*) 0x1FFF6FF2;
 
