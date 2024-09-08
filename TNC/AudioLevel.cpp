@@ -1,4 +1,4 @@
-// Copyright 2018 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2018-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include "AudioLevel.hpp"
@@ -205,6 +205,12 @@ void setAudioOutputLevel()
       gpio::AUDIO_OUT_ATTEN::off();
   }
   getModulator().set_gain(r);
+}
+
+void setVirtualGround(int16_t vgnd)
+{
+    virtual_ground = vgnd;
+    i_vgnd = 1.0 / virtual_ground;
 }
 
 }}} // mobilinkd::tnc::audio

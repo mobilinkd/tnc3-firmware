@@ -1,4 +1,4 @@
-// Copyright 2015-2021 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2015-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -25,6 +25,7 @@ void init_log_volume();
 void autoAudioInputLevel();
 void setAudioInputLevels();
 void setAudioOutputLevel();
+void setVirtualGround(int16_t vgnd);
 
 extern bool streamInputDCOffset;
 constexpr const uint16_t vref = 4095; // Must match ADC output (adjust when oversampling)
