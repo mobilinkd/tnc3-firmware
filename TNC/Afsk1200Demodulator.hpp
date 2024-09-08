@@ -78,12 +78,16 @@ struct Afsk1200Demodulator : IDemodulator
         demod_filter.init(bpf_coeffs);
         passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
+#ifndef TNC_HAS_ADC2
         HAL_ADC_Stop(&DEMODULATOR_ADC_HANDLE);
         hadc1.Init.OversamplingMode = ENABLE;
         if (HAL_ADC_Init(&DEMODULATOR_ADC_HANDLE) != HAL_OK)
         {
             CxxErrorHandler();
         }
+#endif
+
+        audio::setVirtualGround(8192);
 
         ADC_ChannelConfTypeDef sConfig;
 
