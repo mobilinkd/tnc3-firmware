@@ -125,11 +125,9 @@ void startModulatorTask(void const*)
     {
         modulator = &(getModulator());
         encoder = &(getEncoder());
-
         updatePtt();
-
-        getModulator().init(settings());
-
+        modulator->init(settings());
+        encoder->updateModulator();
         encoder->update_settings();
         encoder->run();
     }
