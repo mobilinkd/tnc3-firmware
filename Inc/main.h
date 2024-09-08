@@ -192,6 +192,7 @@ typedef enum {
 #define TNC_HAS_BT
 #define TNC_HAS_BAT
 #define TNC_HAS_USB
+// #define TNC_HAS_ADC2 -- Not available on TNC3. Power monitor injected on ADC1.
 
 #define CMD_USB_CDC_CONNECT  (1 << 16)
 #define CMD_USB_CDC_DISCONNECT (2 << 16)
