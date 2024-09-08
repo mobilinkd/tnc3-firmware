@@ -37,7 +37,7 @@ hdlc::IoFrame* Afsk1200Demodulator::operator()(const q15_t* samples)
         }
         else
         {
-            hdlc::release (frame1);
+            hdlc::release(frame1);
         }
     }
 #endif
