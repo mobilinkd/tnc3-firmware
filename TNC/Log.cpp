@@ -1,4 +1,4 @@
-// Copyright 2015 Rob RIggs <rob@mobilinkd.com>
+// Copyright 2015-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #include <Log.h>
@@ -27,25 +27,6 @@ Log& log(void) {
 
 #endif
 
-#if 0
-void Log::log(Level level, const char* fmt, ...) {
-
-    if (level < level_) return;
-
-    va_list args;
-    va_start(args, fmt);
-    char* buffer = 0;
-    int len = vasiprintf(&buffer, fmt, args);
-    va_end(args);
-
-    if (len >= 0) {
-        ioport->write((uint8_t*)buffer, len, 10);
-        free(buffer);
-    } else {
-        ioport->write((uint8_t*) "Allocation Error\r\n", 18, 10);
-    }
-}
-#else
 void Log::log(Level level, const char* fmt, ...) {
 
     if (level < level_) return;
@@ -55,7 +36,6 @@ void Log::log(Level level, const char* fmt, ...) {
     va_end(args);
     printf("\r\n");
 }
-#endif
 
 }} // mobilinkd::tnc
 

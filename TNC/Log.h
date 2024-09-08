@@ -1,4 +1,4 @@
-// Copyright 2015 Mobilinkd LLC <rob@mobilinkd.com>
+// Copyright 2015-2024 Mobilinkd LLC <rob@mobilinkd.com>
 // All rights reserved.
 
 #ifndef MOBILINKD__TNC_LOG_HPP_
