@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "main.h"
+
 #include "cmsis_os.h"
 
 #include <stdint.h>
@@ -13,7 +15,7 @@ extern "C" {
 
 void init_ioport(void);
 
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_USB
 void initCDC(void);
 int openCDC(void);
 void closeCDC(void);
