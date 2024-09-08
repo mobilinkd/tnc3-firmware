@@ -52,6 +52,7 @@ const char HARDWARE_VERSION[] = "Mobilinkd TNC3 2.1.1";
 const char FIRMWARE_VERSION[] = "2.4.4";
 const char HARDWARE_VERSION[] = "Mobilinkd TNC3+ Rev A";
 #endif
+
 Hardware& settings()
 {
     static Hardware instance __attribute__((section(".bss3")));
@@ -82,9 +83,6 @@ const uint8_t* get_rtc_datetime()
 
     return buffer;
 }
-
-// TODO: determine why this is now necessary.
-void set_rtc_datetime(const uint8_t* buffer) __attribute__((optimize("-O0")));
 
 void set_rtc_datetime(const uint8_t* buffer)
 {
@@ -240,8 +238,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame)
         reply8(hardware::POLL_INPUT_LEVEL, 0);
         osMessagePut(audioInputQueueHandle, audio::POLL_AMPLIFIED_INPUT_LEVEL,
             osWaitForever);
-        osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
-            osWaitForever);
         break;
     case hardware::STREAM_INPUT_LEVEL:
         TNC_DEBUG("STREAM_INPUT_VOLUME");
@@ -251,8 +247,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame)
     case hardware::GET_BATTERY_LEVEL:
       TNC_DEBUG("GET_BATTERY_LEVEL");
       osMessagePut(audioInputQueueHandle, audio::POLL_BATTERY_LEVEL,
-          osWaitForever);
-      osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
           osWaitForever);
         break;
     case hardware::SEND_MARK:
@@ -304,8 +298,6 @@ void Hardware::handle_request(hdlc::IoFrame* frame)
     case hardware::POLL_INPUT_TWIST:
       TNC_DEBUG("POLL_INPUT_TWIST");
       osMessagePut(audioInputQueueHandle, audio::POLL_TWIST_LEVEL,
-          osWaitForever);
-      osMessagePut(audioInputQueueHandle, audio::DEMODULATOR,
           osWaitForever);
         break;
 
@@ -562,7 +554,7 @@ void Hardware::handle_request(hdlc::IoFrame* frame)
         reply(hardware::GET_HARDWARE_VERSION, (uint8_t*) HARDWARE_VERSION,
           sizeof(HARDWARE_VERSION) - 1);
         reply(hardware::GET_SERIAL_NUMBER, (uint8_t*) serial_number_64,
-            sizeof(serial_number_64) - 1);
+            strlen(serial_number_64));
         reply16(hardware::GET_OUTPUT_GAIN, output_gain);
         reply8(hardware::GET_OUTPUT_TWIST, tx_twist);
         reply16(hardware::GET_INPUT_GAIN, input_gain);
@@ -678,8 +670,6 @@ bool Hardware::store() const
 
 bool I2C_Storage::load(void* ptr, size_t len)
 {
-    if (HAL_I2C_Init(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
-
     TNC_DEBUG("Attempting to read %d bytes from EEPROM...", len);
 
     uint32_t timeout = 1000;    // systicks... milliseconds
@@ -689,25 +679,21 @@ bool I2C_Storage::load(void* ptr, size_t len)
         I2C_MEMADD_SIZE_16BIT, tmp, len, timeout);
     if (result != HAL_OK) CxxErrorHandler();
 
-    if (HAL_I2C_DeInit(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
-
     return true;
 }
 
 bool I2C_Storage::store(const void* ptr, size_t len)
 {
-    if (HAL_I2C_Init(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
-
     auto tmp = const_cast<uint8_t*>(static_cast<const uint8_t*>(ptr));
 
     uint32_t index = 0;
     size_t remaining = len;
     while (remaining > page_size)
     {
+        INFO("i2c write remaining = %u", remaining);
         auto result = HAL_I2C_Mem_Write(&eeprom_i2c, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, page_size, 20);
         if (result != HAL_OK) {
             ERROR("EEPROM write block error = %lu.", eeprom_i2c.ErrorCode);
-            if (HAL_I2C_DeInit(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
             return false;
         }
         osDelay(write_time);
@@ -716,18 +702,16 @@ bool I2C_Storage::store(const void* ptr, size_t len)
     }
 
     while (remaining) {
+        INFO("i2c write remaining = %u", remaining);
         auto result = HAL_I2C_Mem_Write(&eeprom_i2c, i2c_address, index, I2C_MEMADD_SIZE_16BIT, tmp + index, remaining, 20);
         if (result != HAL_OK) {
             ERROR("EEPROM write remainder error = %lu.", eeprom_i2c.ErrorCode);
-            if (HAL_I2C_DeInit(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
             return false;
         }
         osDelay(write_time);
         index += remaining;
         remaining = 0;
     }
-
-    if (HAL_I2C_DeInit(&eeprom_i2c) != HAL_OK) CxxErrorHandler();
 
     return true;
 }
