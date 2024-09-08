@@ -90,6 +90,12 @@ struct Q15FirFilter {
         init(taps);
     }
 
+    Q15FirFilter(std::array<q15_t, FILTER_SIZE> const& taps)
+    : filter_taps(taps.data())
+    {
+        init(taps.data());
+    }
+
     void init(const q15_t* taps)
     {
         vgnd_ = audio::virtual_ground;
