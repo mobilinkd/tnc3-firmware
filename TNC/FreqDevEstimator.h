@@ -6,6 +6,7 @@
 #include "KalmanFilter.h"
 #include "StandardDeviation.hpp"
 
+#include <array>
 #include <cmath>
 #include <cstddef>
 
@@ -26,6 +27,7 @@ class FreqDevEstimator
     uint8_t minCount_ = 0;
     uint8_t maxCount_ = 0;
     size_t updateCount_ = 0;
+    std::array<FloatType, SYNC_WORD_LEN> accum_;
     bool reset_ = true;
 
 public:
@@ -41,6 +43,7 @@ public:
         maxCount_ = 0;
         updateCount_ = 0;
         stddev_.reset();
+        accum_.fill(0.);
         reset_ = true;
     }
 
@@ -56,27 +59,42 @@ public:
     {
         count_ += 1;
 
-        if (sample < 0)
-        {
-            minCount_ += 1;
-            min_ += sample;
-        }
-        else
-        {
-            maxCount_ += 1;
-            max_ += sample;
-        }
+        if (count_ < SYNC_WORD_LEN) {
+            accum_[count_ - 1] = sample;
+            return;
+        } else if (count_ == SYNC_WORD_LEN) {
+            accum_[count_ - 1] = sample;
+            FloatType min_value = accum_[0];
+            FloatType max_value = accum_[0];
+            for (size_t i = 1; i != SYNC_WORD_LEN; ++i) {
+                min_value = std::min(min_value, accum_[i]);
+                max_value = std::max(max_value, accum_[i]);
+            }
+            
+            FloatType avg = (min_value + max_value) / 2.;
 
-        if (count_ == SYNC_WORD_LEN)
-        {
-            auto minAvg = min_ / minCount_;
-            auto maxAvg = max_ / maxCount_;
+            for (size_t i = 0; i != SYNC_WORD_LEN; ++i)
+            {
+                if (accum_[i] < avg)
+                {
+                    minCount_ += 1;
+                    min_ += accum_[i];
+                }
+                else
+                {
+                    maxCount_ += 1;
+                    max_ += accum_[i];
+                }
+            }
+
+            auto minAvg = minCount_ > 0 ? min_ / minCount_ : min_value;
+            auto maxAvg = maxCount_ > 0 ? max_ / maxCount_ : max_value;
             if (reset_)
             {
                 minFilter_.reset(minAvg);
                 maxFilter_.reset(maxAvg);
                 idev_ = 6.0 / (maxAvg - minAvg);
-                offset_ = maxAvg + minAvg;
+                offset_ = (maxAvg + minAvg) / 2;
                 reset_ = false;
             }
             else
@@ -84,7 +102,7 @@ public:
                 auto minFiltered = minFilter_.update(minAvg, count_ + updateCount_);
                 auto maxFiltered = maxFilter_.update(maxAvg, count_ + updateCount_);
                 idev_ = 6.0 / (maxFiltered[0] - minFiltered[0]);
-                offset_ = maxFiltered[0] + minFiltered[0];
+                offset_ = (maxFiltered[0] + minFiltered[0]) / 2;
             }
 
             count_ = 0;
