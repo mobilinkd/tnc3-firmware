@@ -47,7 +47,6 @@ target_sources(tnc PRIVATE
     ../../TNC/AudioLevel.cpp
     ../../TNC/bm78.cpp
     ../../TNC/bm78_eeprom.cpp
-    ../../TNC/Correlator.cpp
     ../../TNC/DCD.cpp
     ../../TNC/Demodulator.cpp
     ../../TNC/FilterCoefficients.cpp

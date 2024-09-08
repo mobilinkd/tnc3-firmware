@@ -8,7 +8,7 @@
 #include <complex>
 #include <cstddef>
 
-namespace mobilinkd { namespace m17 {
+namespace mobilinkd {
 
 /**
  * Data carrier detection using the difference of two DFTs, one in-band and
@@ -62,7 +62,7 @@ struct DataCarrierDetect
      */
     void update()
     {
-    	level_ = level_ * 0.8 + 0.2 * (level_1 / level_2);
+    	level_ += ((level_1 / level_2) - level_) * 0.2;
     	level_1 = 0.0;
     	level_2 = 0.0;
         triggered_ = triggered_ ? level_ > ltrigger_ : level_ > htrigger_;
@@ -73,4 +73,4 @@ struct DataCarrierDetect
     bool dcd() const { return triggered_; }
 };
 
-}} // mobilinkd::m17
+} // mobilinkd

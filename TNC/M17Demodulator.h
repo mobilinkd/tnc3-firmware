@@ -45,21 +45,22 @@ struct M17Demodulator : IDemodulator
     static constexpr float sample_rate = SAMPLE_RATE;
     static constexpr float symbol_rate = SYMBOL_RATE;
 
-    static constexpr int STREAM_COST_LIMIT = 80;
-    static constexpr int PACKET_COST_LIMIT = 60;
+    static constexpr int STREAM_COST_LIMIT = 50;
+    static constexpr int PACKET_COST_LIMIT = 40;
+    static constexpr int BERT_COST_LIMIT = 85;
     static constexpr uint8_t MAX_MISSING_SYNC = 10;
     static constexpr uint8_t MIN_SYNC_COUNT = 78;
     static constexpr uint8_t MAX_SYNC_COUNT = 87;
     static constexpr float EOT_TRIGGER_LEVEL = 0.1;
 
     using audio_filter_t = FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM>;
-    using sync_word_t = m17::SyncWord<m17::Correlator>;
+    using sync_word_t = SyncWord<m17::Correlator>;
 
     enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, BERT_SYNC, SYNC_WAIT, FRAME };
 
     audio_filter_t demod_filter;
     std::array<float, ADC_BLOCK_SIZE> demod_buffer;
-    m17::DataCarrierDetect<float, SAMPLE_RATE, 400> dcd{2400, 4800, 0.8f, 10.0f};
+    DataCarrierDetect<float, SAMPLE_RATE, 400> dcd{2400, 3600, 0.8f, 10.0f};
     m17::ClockRecovery<float, SAMPLES_PER_SYMBOL> clock_recovery;
 
     m17::Correlator correlator;
@@ -79,8 +80,8 @@ struct M17Demodulator : IDemodulator
     uint8_t sample_index = 0;
 
     bool dcd_ = false;
-	bool need_clock_reset_ = false;
-	bool need_clock_update_ = false;
+    bool need_clock_reset_ = false;
+    bool need_clock_update_ = false;
 
     bool passall_ = false;
     int ber = -1;
@@ -145,7 +146,7 @@ struct M17Demodulator : IDemodulator
 
     uint32_t readBatteryLevel() override
     {
-#ifndef NUCLEOTNC
+#ifdef TNC_HAS_BAT
         return read_battery_level();
 #else
         return 0;
