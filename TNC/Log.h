@@ -26,7 +26,7 @@ void log_(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)))
 
 #ifdef KISS_LOGGING
 
-#define LOG(level, ...) if(level >= KISS_LOG_LEVEL) log_(level, __VA_ARGS__);
+#define LOG(level, ...) do { if(level >= KISS_LOG_LEVEL) log_(level, __VA_ARGS__); } while (0)
 
 #define TNC_DEBUG(...)    LOG(0, __VA_ARGS__)
 #define INFO(...)     LOG(1, __VA_ARGS__)
@@ -45,8 +45,6 @@ void log_(int level, const char *fmt, ...) __attribute__((format(printf, 2, 3)))
 }
 
 namespace mobilinkd { namespace tnc {
-
-#define APP_TX_DATA_SIZE 64
 
 struct Log {
     enum Level {debug = 0, info, warn, error, severe};
