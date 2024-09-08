@@ -5,22 +5,15 @@
 
 namespace mobilinkd { namespace tnc {
 
-void M17Modulator::init(const kiss::Hardware& hw)
+void M17Modulator::init(const kiss::Hardware&)
 {
     for (auto& x : buffer_) x = 2048;
 
-    (void) hw; // unused
-
     SysClock48();
 
-    // Configure 72MHz clock for 48kHz.
-    htim7.Init.Period = 999;
-    htim7.Init.Prescaler = 0;
-    if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-    {
-        ERROR("htim7 init failed");
-        CxxErrorHandler();
-    }
+    // Configure 48MHz clock for 48kHz.
+    __HAL_TIM_SET_AUTORELOAD(&htim7, 999);
+    __HAL_TIM_SET_PRESCALER(&htim7, 0);
 
     DAC_ChannelConfTypeDef sConfig;
 
